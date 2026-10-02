@@ -23,6 +23,7 @@ import {
   EMAIL_FALLBACK_SUFFIX,
   EVENT_HAS_NO_START_TIME_REASON,
   MAX_ATTEMPTS,
+  NO_CONSENT_REASON,
   concludeExpiredDeliveries,
   dispatchJob,
   heldForLightsOut,
@@ -85,6 +86,16 @@ import {
   EVENT_START_SQL,
   declareDueAttendanceSheetEmailsIn,
 } from "./attendance-sheet-email";
+import {
+  RECRUIT_EVENT_REMINDER_ENDED_STATUSES,
+  RECRUIT_EVENT_REMINDER_KEY_PREFIX,
+  RECRUIT_EVENT_REMINDER_LEFT_REASON,
+  RECRUIT_EVENT_REMINDER_NO_EVENT_REASON,
+  RECRUIT_EVENT_REMINDER_NOT_YES_REASON,
+  RECRUIT_EVENT_REMINDER_OFF_REASON,
+  declareDueRecruitEventRemindersIn,
+  recruitHasLeftSql,
+} from "./recruit-event-reminder";
 
 /**
  * The scheduler sweep. LAN-169.
@@ -161,6 +172,10 @@ export interface SweepSummary {
   readonly onboardingEscalationsHeld: number;
   /** LAN-465. Attendance-sheet emails declared this tick, one per recipient per event. */
   readonly attendanceSheetsDeclared: number;
+  /** LAN-464. Recruit event reminders declared this tick, one per Yes recruit per event. */
+  readonly recruitRemindersDeclared: number;
+  /** LAN-464. Queued reminders lights-out would have delivered at or after their event's start. */
+  readonly recruitRemindersDropped: number;
   /**
    * LAN-288. Accepted messages the provider never confirmed, whose delivery
    * window has passed — concluded as failures this tick rather than left
@@ -814,6 +829,8 @@ export async function runMessagingSweep(
   // LAN-465. The attendance sheet, an hour before each approved event, on the
   // same declare-then-dispatch tick.
   const declaredSheets = await withTransaction((tx) => declareDueAttendanceSheetEmailsIn(tx));
+  // LAN-464. The recruit event reminder, declared at its moment on the same tick.
+  const declaredReminders = await withTransaction((tx) => declareDueRecruitEventRemindersIn(tx));
 
   // LAN-288. Before the tick dispatches anything, it closes the books on
   // messages WhatsApp dropped: Meta sends no callback for those, so the only
@@ -873,21 +890,24 @@ export async function runMessagingSweep(
                 // onboarding-chase:/onboarding-nudge: prefixes or the
                 // onboarding-chase-escalation: prefix (LAN-218) or the
                 // attendance-sheet: prefix (LAN-465) or the operator-details:
-                // prefix (LAN-459), so every 'other' row reaching this loop is
-                // one of those seven.
+                // prefix (LAN-459) or the recruit-event-reminder: prefix
+                // (LAN-464), so every 'other' row reaching this loop is one of
+                // those eight.
                 job.jobType === "other"
                 ? job.idempotencyKey.startsWith(ATTENDANCE_SHEET_KEY_PREFIX)
                   ? await dispatchAttendanceSheetJob(job.id, options)
-                  : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
-                    ? await dispatchOnboardingWelcomeJob(job.id, options)
-                    : job.idempotencyKey.startsWith(OPERATOR_DETAILS_KEY_PREFIX)
-                      ? await dispatchOperatorDetailsJob(job.id, options)
-                      : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
-                          job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
-                        ? await dispatchOnboardingChaseJob(job.id, options)
-                        : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
-                          ? await dispatchOnboardingChaseEscalationJob(job.id, options)
-                          : await dispatchRecruitmentCycleJob(job.id, options)
+                  : job.idempotencyKey.startsWith(RECRUIT_EVENT_REMINDER_KEY_PREFIX)
+                    ? await dispatchRecruitEventReminderJob(job.id, options)
+                    : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
+                      ? await dispatchOnboardingWelcomeJob(job.id, options)
+                      : job.idempotencyKey.startsWith(OPERATOR_DETAILS_KEY_PREFIX)
+                        ? await dispatchOperatorDetailsJob(job.id, options)
+                        : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
+                            job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+                          ? await dispatchOnboardingChaseJob(job.id, options)
+                          : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
+                            ? await dispatchOnboardingChaseEscalationJob(job.id, options)
+                            : await dispatchRecruitmentCycleJob(job.id, options)
                 : await dispatchJob(job.id, { ...options, automatic: true });
 
         if (outcome === "accepted") accepted += 1;
@@ -980,6 +1000,8 @@ export async function runMessagingSweep(
     onboardingEscalationsCreated: onboardingEscalations.escalationsCreated,
     onboardingEscalationsHeld: onboardingEscalations.escalationsHeld,
     attendanceSheetsDeclared: declaredSheets.declared,
+    recruitRemindersDeclared: declaredReminders.declared,
+    recruitRemindersDropped: declaredReminders.dropped,
     deliveriesExpired,
   };
 }
@@ -2931,6 +2953,253 @@ export async function dispatchAttendanceSheetJob(
   });
 
   return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+// ---------------------------------------------------------------------------
+// The recruit event reminder — LAN-464
+// ---------------------------------------------------------------------------
+
+/**
+ * Sends one recruit event reminder (`recruit-event-reminder.ts` says who gets
+ * one and when). Lock, read, admit, claim, send, record — the attendance
+ * sheet's shape, on WhatsApp.
+ *
+ * Everything the declaration decided is read again here, because a reminder
+ * held overnight can wait nine hours: the event must still be approved and
+ * ahead, the answer still Yes, the recruit still in recruitment, consent
+ * still granted. An answer or a status that changed stands the reminder down
+ * (cancelled, with a reason); missing consent is withheld exactly as an
+ * unconsented recruit's invitation is (`NO_CONSENT_REASON`). An event moved
+ * later since the declaration puts the job back to the plan's new moment.
+ */
+export async function dispatchRecruitEventReminderJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<DispatchOutcome> {
+  const context = await resolveOtherJobProvider(jobId, options);
+  if (context === null) return "deferred";
+  if (context === "refused") return "refused";
+
+  type ReminderOutcome =
+    | { readonly kind: "no-send" }
+    | { readonly kind: "deferred" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
+      };
+
+  const standDownIn = async (tx: Tx, reason: string): Promise<void> => {
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'cancelled', cancelled_reason = $2, claimed_at = null, claimed_by = null,
+              updated_at = now()
+        where id = $1`,
+      [jobId, reason],
+    );
+    await recordAudit(tx, {
+      actorLabel: DISPATCH_ACTOR_LABEL,
+      action: "delivery.reminder_withheld",
+      entityTable: "notification_jobs",
+      entityId: jobId,
+      toState: "cancelled",
+      reason,
+    });
+  };
+
+  const claim = await withTransaction(async (tx): Promise<ReminderOutcome> => {
+    const locked = await tx.query<{
+      id: string;
+      person_id: string;
+      event_id: string;
+      invitation_id: string;
+      attempt_count: number;
+    }>(
+      `select id, person_id, event_id, invitation_id, attempt_count
+         from public.notification_jobs
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${RECRUIT_EVENT_REMINDER_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $2
+          and person_id is not null
+          and event_id is not null
+          and invitation_id is not null
+        for update`,
+      [jobId, MAX_ATTEMPTS],
+    );
+    const job = locked.rows[0];
+    if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
+
+    const details = await tx.query<{
+      event_name: string;
+      venue: string | null;
+      when_label: string;
+      season_id: string;
+      reminder_at: Date | null;
+      due_now: boolean;
+      sendable: boolean;
+      answer: string | null;
+      left_recruitment: boolean;
+      given_name: string;
+      display_alias: string | null;
+    }>(
+      `select e.name as event_name,
+              e.venue,
+              to_char(${EVENT_START_SQL} at time zone 'Europe/London',
+                      'FMDay FMDD FMMonth, HH24:MI') as when_label,
+              e.season_id,
+              p.recruit_event_reminder_at as reminder_at,
+              coalesce(p.recruit_event_reminder_at <= now(), false) as due_now,
+              (e.status = 'approved' and e.starts_at is not null and ${EVENT_START_SQL} > now()
+                 and i.status <> 'cancelled') as sendable,
+              (select r.response::text from public.current_rsvp r
+                where r.invitation_id = i.id) as answer,
+              ${recruitHasLeftSql("$2")} as left_recruitment,
+              pp.given_name,
+              ${personDisplayAliasSql("pp")} as display_alias
+         from public.invitations i
+         join public.events e on e.id = i.event_id
+         left join public.season_memberships m on m.id = i.season_membership_id
+         left join public.event_messaging_plans p on p.event_id = e.id
+         join public.people pp on pp.id = $3::uuid
+        where i.id = $1`,
+      [job.invitation_id, RECRUIT_EVENT_REMINDER_ENDED_STATUSES, job.person_id],
+    );
+    const detail = details.rows[0];
+
+    if (!detail || !detail.sendable) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECRUIT_EVENT_REMINDER_NO_EVENT_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+    if (detail.reminder_at === null) {
+      await standDownIn(tx, RECRUIT_EVENT_REMINDER_OFF_REASON);
+      return { kind: "no-send" };
+    }
+    if (!detail.due_now) {
+      // Moved later since it was declared: wait for the plan's new moment.
+      await tx.query(
+        `update public.notification_jobs set scheduled_for = $2, updated_at = now() where id = $1`,
+        [jobId, detail.reminder_at],
+      );
+      return { kind: "no-send" };
+    }
+    if (detail.left_recruitment) {
+      await standDownIn(tx, RECRUIT_EVENT_REMINDER_LEFT_REASON);
+      return { kind: "no-send" };
+    }
+    if (detail.answer !== "yes") {
+      await standDownIn(tx, RECRUIT_EVENT_REMINDER_NOT_YES_REASON);
+      return { kind: "no-send" };
+    }
+    if (!(await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, detail.season_id))) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        NO_CONSENT_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1::uuid
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+    const recipient = selectMobileNumber(
+      contacts.rows.map((row) => ({
+        kind: row.kind,
+        rawValue: row.raw_value,
+        normalisedValue: row.normalised_value,
+        isPreferred: row.is_preferred,
+      })),
+      context.defaultCallingCode,
+    );
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        NO_USABLE_NUMBER_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning id`,
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
+    );
+
+    const known = detail.display_alias?.trim();
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber,
+      safety: admission,
+      message: {
+        kind: "recruit_event_reminder",
+        recipient,
+        inviteeName: known && known !== "" ? known : detail.given_name,
+        eventName: detail.event_name,
+        whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
+        venue: detail.venue,
+        rsvpUrl: "",
+      },
+    };
+  });
+
+  if (claim.kind === "deferred") return "deferred";
+  if (claim.kind !== "send") return "skipped";
+  return concludeClaimedSend(jobId, context, claim);
 }
 
 const ONBOARDING_CHASE_MEMBERSHIP_GONE_REASON =

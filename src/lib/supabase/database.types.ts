@@ -1150,6 +1150,8 @@ export type Database = {
           invitation_lead_days: number
           late_approval: boolean
           recruit_dispatches_immediately: boolean | null
+          recruit_event_reminder_at: string | null
+          recruit_event_reminder_hours: number | null
           recruit_follow_up_at: string | null
           recruit_follow_up_cadence_hours: number | null
           recruit_invitation_at: string | null
@@ -1174,6 +1176,8 @@ export type Database = {
           invitation_lead_days: number
           late_approval: boolean
           recruit_dispatches_immediately?: boolean | null
+          recruit_event_reminder_at?: string | null
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_at?: string | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_at?: string | null
@@ -1198,6 +1202,8 @@ export type Database = {
           invitation_lead_days?: number
           late_approval?: boolean
           recruit_dispatches_immediately?: boolean | null
+          recruit_event_reminder_at?: string | null
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_at?: string | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_at?: string | null
@@ -2301,6 +2307,7 @@ export type Database = {
           escalation_hours: number
           event_type: Database["public"]["Enums"]["event_type"]
           invitation_lead_days: number
+          recruit_event_reminder_hours: number | null
           recruit_follow_up_cadence_hours: number | null
           recruit_invitation_lead_days: number | null
           reminder_cadence_hours: number
@@ -2314,6 +2321,7 @@ export type Database = {
           escalation_hours?: number
           event_type: Database["public"]["Enums"]["event_type"]
           invitation_lead_days: number
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
@@ -2327,6 +2335,7 @@ export type Database = {
           escalation_hours?: number
           event_type?: Database["public"]["Enums"]["event_type"]
           invitation_lead_days?: number
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number

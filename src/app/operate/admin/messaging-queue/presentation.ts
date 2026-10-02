@@ -22,6 +22,7 @@ export const KIND_LABELS: Readonly<Record<MessageKind, string>> = Object.freeze(
   invitation: "Invitation",
   reminder: "Reminder",
   recruit_followup: "Recruit follow-up",
+  recruit_reminder: "Recruit reminder",
   escalation: "Escalation",
   change_notice: "Change notice",
   cancellation: "Cancellation",

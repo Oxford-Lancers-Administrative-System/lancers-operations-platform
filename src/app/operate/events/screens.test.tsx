@@ -1979,6 +1979,7 @@ function planWithRecruitLadder(): MessagingPlan {
     escalationHours: 12,
     recruitInvitationLeadDays: 5,
     recruitFollowUpCadenceHours: 72,
+    recruitEventReminderHours: 1,
     updatedAt: new Date("2026-08-25T00:00:00Z"),
   };
   return {
@@ -1999,6 +2000,7 @@ function planWithRecruitLadder(): MessagingPlan {
       configuredInvitationAt: at,
       dispatchesImmediately: false,
       followUpAt: null,
+      reminderAt: null,
     },
   };
 }

@@ -141,6 +141,7 @@ function schedule(overrides: Partial<MessagingSchedule> = {}): MessagingSchedule
     escalationHours: 12,
     recruitInvitationLeadDays: null,
     recruitFollowUpCadenceHours: null,
+    recruitEventReminderHours: null,
     updatedAt: new Date("2026-08-25T00:00:00Z"),
     ...overrides,
   };
@@ -213,7 +214,12 @@ function rows(): MessagingScheduleWithPreview[] {
     };
     const row = schedule(
       eventType === "recruitment"
-        ? { ...identity, recruitInvitationLeadDays: 5, recruitFollowUpCadenceHours: 72 }
+        ? {
+            ...identity,
+            recruitInvitationLeadDays: 5,
+            recruitFollowUpCadenceHours: 72,
+            recruitEventReminderHours: 1,
+          }
         : identity,
     );
     return { schedule: row, preview: plan(row) };
@@ -605,6 +611,36 @@ describe("the Recruitment event row's two audiences — DEC-split-on-the-schedul
     // Regular players alone.
     expect(invitation.closest("[data-field]")?.textContent).not.toMatch(/president/i);
     expect(followUp.closest("[data-field]")?.textContent).not.toMatch(/president/i);
+  });
+
+  it("carries the Reminder as the third Recruits field, right of the other two, in hours", async () => {
+    render(await MessagingSchedulePage());
+
+    const recruitmentRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Recruitment"))!;
+    const fieldOrder = Array.from(recruitmentRow.querySelectorAll("[data-field]"))
+      .map((node) => node.getAttribute("data-field"))
+      .filter((key) => key?.startsWith("recruit"));
+    expect(fieldOrder).toEqual([
+      "recruitInvitationLeadDays",
+      "recruitFollowUpCadenceHours",
+      "recruitEventReminderHours",
+    ]);
+
+    const reminder = recruitmentRow.querySelector(
+      'input[name="recruitEventReminderHours"]',
+    ) as HTMLInputElement;
+    expect(reminder.value).toBe("1");
+    expect(reminder.min).toBe("0");
+    const box = reminder.closest("[data-field]")!;
+    expect(box.textContent).toContain("Reminder");
+    expect(box.textContent).toContain("h");
+
+    const practiceRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Practice"))!;
+    expect(practiceRow.querySelector('input[name="recruitEventReminderHours"]')).toBeNull();
   });
 
   it("saves the Recruits group's fields through the same one row, one submit as Regular players", async () => {

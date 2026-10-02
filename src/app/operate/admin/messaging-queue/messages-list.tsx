@@ -38,9 +38,10 @@ function chipFor(row: MessageQueueRow): { status: string; label: string } {
   return { status: row.state, label: STATE_LABELS[row.state] ?? row.state };
 }
 
-/** The line under the time: what holds a queued row, or a retry's next attempt. */
+/** The line under the time: what holds a queued row, a retry's next attempt, or why a reminder was dropped. */
 function timingNote(row: MessageQueueRow): string | null {
   if (row.waiting) return row.waiting;
+  if (row.droppedReason) return row.droppedReason;
   if (row.nextAttemptAt)
     return nextAttemptLabel(formatAttemptTime(row.nextAttemptAt), row.attemptCount);
   if (row.sendsAt && row.sendsAt.getTime() - row.at.getTime() > 60_000) {

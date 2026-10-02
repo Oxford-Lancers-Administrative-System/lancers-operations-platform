@@ -35,6 +35,7 @@ import {
   type StatusFilter,
 } from "./message-queue-vocabulary";
 import { personDisplayNameSql } from "./sql-text";
+import { RECRUIT_EVENT_REMINDER_QUIET_HOURS_REASON } from "./recruit-event-reminder";
 
 /**
  * The whole-club message queue — LAN-468.
@@ -108,6 +109,7 @@ const KIND_EXPRESSION = `
     when j.idempotency_key like 'onboarding-nudge:%' then 'onboarding_nudge'
     when j.idempotency_key like 'attendance-sheet:%' then 'attendance_sheet'
     when j.idempotency_key like 'operator-details:%' then 'operator_details'
+    when j.idempotency_key like 'recruit-event-reminder:%' then 'recruit_reminder'
     else 'other'
   end`;
 
@@ -197,6 +199,11 @@ export interface MessageQueueRow {
   readonly waiting: string | null;
   /** A retryable row's next automatic attempt. */
   readonly nextAttemptAt: Date | null;
+  /**
+   * LAN-464. Why a cancelled row did not go, where the reason is one the queue
+   * names: a recruit reminder that lights-out would have delivered late.
+   */
+  readonly droppedReason: string | null;
   readonly attemptCount: number;
   readonly noUsableRoute: boolean;
   readonly notDelivered: boolean;
@@ -306,6 +313,7 @@ interface ListRow {
   last_error: string | null;
   safety_reason_code: string | null;
   safety_retry_at: Date | null;
+  cancelled_reason: string | null;
   not_delivered: boolean;
   total: string;
   person_name: string | null;
@@ -436,6 +444,11 @@ export async function readMessageQueue(filters: MessageQueueFilters = {}): Promi
         sendsAt: timing.sendsAt,
         waiting: timing.waiting,
         nextAttemptAt: row.state === "retryable" ? row.next_attempt_at : null,
+        droppedReason:
+          row.state === "cancelled" &&
+          row.cancelled_reason === RECRUIT_EVENT_REMINDER_QUIET_HOURS_REASON
+            ? row.cancelled_reason
+            : null,
         attemptCount: row.attempt_count,
         noUsableRoute:
           row.state === "failed" &&

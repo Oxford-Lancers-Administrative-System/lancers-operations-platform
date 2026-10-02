@@ -46,6 +46,8 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<LightsOutMessageKind, boolean>> 
   cancellation: true,
   escalation: false,
   recruit_event_followup: false,
+  // LAN-464: held like every other recruit send; dropped if 07:00 is too late.
+  recruit_event_reminder: false,
   recruit_welcome: false,
   recruit_details_reminder: false,
   recruit_interest_ask: false,
@@ -80,6 +82,7 @@ export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly LightsOutM
       "onboarding_chase",
       "onboarding_chase_escalation",
       "attendance_sheet",
+      "recruit_event_reminder",
     ],
   });
 
@@ -90,7 +93,10 @@ export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly LightsOutM
  * (`ATTENDANCE_SHEET_KEY_PREFIX` in `attendance-sheet-email.ts`).
  */
 export const OTHER_JOB_KEY_PREFIX_KINDS: Readonly<Record<string, LightsOutMessageKind>> =
-  Object.freeze({ "attendance-sheet:": "attendance_sheet" });
+  Object.freeze({
+    "attendance-sheet:": "attendance_sheet",
+    "recruit-event-reminder:": "recruit_event_reminder",
+  });
 
 /** Whether lights-out lets this job type through. An unknown type waits. */
 export function isJobTypeLightsOutExempt(jobType: string): boolean {

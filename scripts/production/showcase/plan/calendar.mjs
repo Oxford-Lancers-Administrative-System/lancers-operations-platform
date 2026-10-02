@@ -119,6 +119,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       escalation_hours: 12,
       recruit_invitation_lead_days: eventType === "recruitment" ? 5 : null,
       recruit_follow_up_cadence_hours: eventType === "recruitment" ? 72 : null,
+      recruit_event_reminder_hours: eventType === "recruitment" ? 1 : null,
     };
 
   /**
@@ -880,6 +881,16 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     const whatsappScheduled = late ? 1 : schedule.whatsapp_reminder_count;
     const emailScheduled = late ? 0 : schedule.email_reminder_count;
     const recruitsInvited = invitations.some((entry) => entry.member.capacity === "recruit");
+    // LAN-464. The recruit reminder, frozen as approval freezes it: the hours
+    // from the schedule (0 is off), and the instant only while it is still
+    // ahead of the approval.
+    const reminderHours = recruitsInvited ? (schedule.recruit_event_reminder_hours ?? 0) : null;
+    const reminderAt =
+      reminderHours && reminderHours > 0 ? addHours(startsAtIso, -reminderHours) : null;
+    const recruitReminderAt =
+      reminderAt && new Date(reminderAt).getTime() > new Date(approvedAt).getTime()
+        ? reminderAt
+        : null;
 
     add(
       "public.event_messaging_plans",
@@ -912,6 +923,8 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
         recruit_follow_up_at: recruitsInvited
           ? addHours(invitationAt, schedule.recruit_follow_up_cadence_hours)
           : null,
+        recruit_event_reminder_hours: reminderHours,
+        recruit_event_reminder_at: recruitReminderAt,
       },
       "illustrative",
       { source: `messaging plan for ${key}` },

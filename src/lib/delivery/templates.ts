@@ -108,6 +108,8 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   cancellation: "lancers_event_cancellation_v2",
   escalation: "lancers_nonresponse_escalation_v2",
   recruit_event_followup: "recruit_event_followup_v2",
+  // LAN-464. Submitted 2 October 2026 and read back from the account.
+  recruit_event_reminder: "recruit_event_reminder_v1",
   recruit_welcome: "recruit_welcome_v2",
   recruit_details_reminder: "recruit_details_reminder_v2",
   recruit_interest_ask: "recruit_interest_ask_v2",
@@ -605,6 +607,28 @@ const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
 };
 
 /**
+ * LAN-464. `Hello {{1}}, a reminder that {{2}} is on {{3}}.` / `Venue: {{4}}.`
+ * / `See you there.` — before a recruitment event, to a recruit whose answer
+ * is Yes. The follow-up's four slots, formatted the same way; no buttons.
+ */
+const RECRUIT_EVENT_REMINDER: MessageTemplate = {
+  kind: "recruit_event_reminder",
+  parameterNames: ["inviteeName", "eventName", "whenLabel", "venue"],
+  parameters: (message) => [
+    required(message.inviteeName, "name"),
+    required(message.eventName, "event name"),
+    required(message.whenLabel, "date and time"),
+    venueSlot(message),
+  ],
+  subject: (message) => `Reminder: ${message.eventName}`,
+  body: (message) => [
+    `Hello ${message.inviteeName}, a reminder that ${message.eventName} is on ${message.whenLabel}.`,
+    `Venue: ${venueSlot(message)}.`,
+    "See you there.",
+  ],
+};
+
+/**
  * The six person-following bodies share one parameter shape: the reader's name,
  * the fixed subject naming their own record, and the day it was opened. That is
  * rule 2 of the classifier — `for {thing} on {date}` — satisfied by a message
@@ -794,6 +818,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   cancellation: CANCELLATION,
   escalation: ESCALATION,
   recruit_event_followup: RECRUIT_EVENT_FOLLOWUP,
+  recruit_event_reminder: RECRUIT_EVENT_REMINDER,
   recruit_welcome: RECRUIT_WELCOME,
   recruit_details_reminder: RECRUIT_DETAILS_REMINDER,
   recruit_interest_ask: RECRUIT_INTEREST_ASK,
@@ -813,6 +838,7 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "cancellation",
   "escalation",
   "recruit_event_followup",
+  "recruit_event_reminder",
   "recruit_welcome",
   "recruit_details_reminder",
   "recruit_interest_ask",

@@ -518,6 +518,118 @@ describe("the configuration itself", () => {
   });
 });
 
+describe("the recruit event reminder — LAN-464", () => {
+  const RECRUITMENT = {
+    templateId: TEMPLATE.recruitment,
+    scheduledOn: "2026-10-18",
+    startsAt: "14:00",
+  };
+
+  it("is on by default, one hour before, on the Recruitment row only", async () => {
+    const rows = await withTransaction((tx) => listMessagingSchedulesIn(tx));
+    for (const row of rows) {
+      expect(row.recruitEventReminderHours, row.templateName).toBe(
+        row.eventType === "recruitment" ? 1 : null,
+      );
+    }
+  });
+
+  it("puts the reminder the configured hours before the event start", async () => {
+    const plan = await planFor(RECRUITMENT, "2026-10-01T09:00:00Z");
+    // 14:00 BST on 18 October is 13:00 UTC; one hour before is 12:00 UTC.
+    expect(plan.recruitLadder?.reminderAt?.toISOString()).toBe("2026-10-18T12:00:00.000Z");
+    // Every other type carries no recruit ladder, so no reminder.
+    expect((await planFor(PRACTICE, "2026-10-01T09:00:00Z")).recruitLadder).toBeNull();
+  });
+
+  it("plans none once the reminder moment has passed, as a late approval or a late move does", async () => {
+    const plan = await planFor(RECRUITMENT, "2026-10-18T12:30:00Z");
+    expect(plan.recruitLadder).not.toBeNull();
+    expect(plan.recruitLadder?.reminderAt).toBeNull();
+  });
+
+  it("plans none when the operator sets zero, and saves and reads the setting back", async () => {
+    const actorPersonId = await withTransaction(async (tx) => {
+      const result = await tx.query<{ id: string }>(
+        "insert into public.people (given_name, family_name) values ('LAN464Fixture', 'Actor') returning id",
+      );
+      return result.rows[0].id;
+    });
+    const before = await withTransaction((tx) => readMessagingScheduleIn(tx, TEMPLATE.recruitment));
+    const base: MessagingScheduleChange = {
+      rsvpByDays: before.rsvpByDays,
+      invitationLeadDays: before.invitationLeadDays,
+      reminderCadenceHours: before.reminderCadenceHours,
+      whatsappReminderCount: before.whatsappReminderCount,
+      emailReminderCount: before.emailReminderCount,
+      escalationHours: before.escalationHours,
+    };
+    try {
+      const off = await withTransaction((tx) =>
+        updateMessagingScheduleIn(tx, actorPersonId, TEMPLATE.recruitment, {
+          ...base,
+          recruitEventReminderHours: 0,
+        }),
+      );
+      expect(off.recruitEventReminderHours).toBe(0);
+      const plan = await planFor(RECRUITMENT, "2026-10-01T09:00:00Z");
+      expect(plan.recruitLadder?.reminderAt).toBeNull();
+
+      const three = await withTransaction((tx) =>
+        updateMessagingScheduleIn(tx, actorPersonId, TEMPLATE.recruitment, {
+          ...base,
+          recruitEventReminderHours: 3,
+        }),
+      );
+      expect(three.recruitEventReminderHours).toBe(3);
+      const later = await planFor(RECRUITMENT, "2026-10-01T09:00:00Z");
+      expect(later.recruitLadder?.reminderAt?.toISOString()).toBe("2026-10-18T10:00:00.000Z");
+
+      // A save that leaves the field out leaves it alone.
+      const untouched = await withTransaction((tx) =>
+        updateMessagingScheduleIn(tx, actorPersonId, TEMPLATE.recruitment, base),
+      );
+      expect(untouched.recruitEventReminderHours).toBe(3);
+    } finally {
+      await withTransaction((tx) =>
+        updateMessagingScheduleIn(tx, actorPersonId, TEMPLATE.recruitment, {
+          ...base,
+          recruitEventReminderHours: before.recruitEventReminderHours ?? 1,
+        }),
+      );
+      await withTransaction((tx) =>
+        tx.query("delete from public.audit_events where actor_person_id = $1", [actorPersonId]),
+      );
+      await withTransaction((tx) =>
+        tx.query("delete from public.people where id = $1", [actorPersonId]),
+      );
+    }
+  });
+
+  it("refuses a reminder longer than a week before the event", async () => {
+    await expect(
+      withTransaction((tx) =>
+        tx.query(
+          "update public.messaging_schedules set recruit_event_reminder_hours = 169 where template_id = $1",
+          [TEMPLATE.recruitment],
+        ),
+      ),
+    ).rejects.toMatchObject({
+      rule: "messaging_schedules_recruit_event_reminder_is_sane",
+    });
+    await expect(
+      withTransaction((tx) =>
+        tx.query(
+          "update public.messaging_schedules set recruit_event_reminder_hours = 1 where template_id = $1",
+          [TEMPLATE.practice],
+        ),
+      ),
+    ).rejects.toMatchObject({
+      rule: "messaging_schedules_recruit_event_reminder_is_recruitment_only",
+    });
+  });
+});
+
 describe("the plan is unmoved by lights-out", () => {
   it("puts an early-morning event's rungs at early-morning times, unmoved", async () => {
     // LAN-433 holds sends 22:00-07:00 at dispatch; the plan itself is never

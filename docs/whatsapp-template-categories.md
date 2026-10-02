@@ -235,7 +235,23 @@ assembled at runtime, and the code reads the name back from configuration
 exactly as it does for every other template. Until Brian submits it and Meta
 accepts it, a send against it is refused with `132001`.
 
-Twelve of the fifteen carry URL buttons — three carry a Yes/No pair, nine
+LAN-464 added a sixteenth, `recruit_event_reminder_v1`, submitted on 2 October
+2026 as Utility and **In review** at the time of writing; the name in the code
+was read back from the account. Its body is an appointment-style reminder that
+states a status rather than asking for anything:
+
+> Hello {{1}}, a reminder that {{2}} is on {{3}}.
+>
+> Venue: {{4}}.
+>
+> See you there.
+
+The slots are the recruit event follow-up's own four — the recruit's name, the
+event, when, and the venue — formatted the same way, with no buttons, no header
+and no footer, and a twelve-hour validity. Until Meta approves it, a send
+against it is refused with `132001`.
+
+Twelve of the sixteen carry URL buttons — three carry a Yes/No pair, nine
 carry one — and each button's base names its own destination:
 
 | Template                                        | Base                |
@@ -247,7 +263,8 @@ carry one — and each button's base names its own destination:
 | recruit interest ask, recruit interest reminder | `/background/`      |
 | onboarding welcome, onboarding chase            | `/onboarding/`      |
 
-The two escalations and the cancellation carry no button at all. Both
+The two escalations, the cancellation and the recruit event reminder carry no
+button at all. Both
 escalations carry their queue link as hardcoded text inside the approved body,
 because Meta refuses a body variable holding a URL.
 

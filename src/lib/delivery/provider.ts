@@ -60,6 +60,12 @@ export type MessageKind =
    */
   | "recruit_event_followup"
   /**
+   * LAN-464. One reminder before a recruitment event, to a recruit whose
+   * answer is Yes: what, when and where. No buttons — there is nothing to
+   * answer. Declared and dispatched by `recruit-event-reminder.ts`.
+   */
+  | "recruit_event_reminder"
+  /**
    * The four remaining recruit templates LAN-199 names, one per surviving
    * step of the recruitment cycle (packet amendment 1 withdrew
    * `recruit_details_ask`; W10, LAN-203 Amendment 2). Declared in the

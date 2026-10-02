@@ -9,6 +9,7 @@ vi.mock("server-only", () => ({}));
 
 import { EMAIL_ONLY_KINDS, TEMPLATE_NAMES } from "@/lib/delivery/templates";
 import { ATTENDANCE_SHEET_KEY_PREFIX } from "../attendance-sheet-email";
+import { RECRUIT_EVENT_REMINDER_KEY_PREFIX } from "../recruit-event-reminder";
 import { backoffFrom } from "../delivery";
 import {
   JOB_TYPE_MESSAGE_KINDS,
@@ -145,6 +146,7 @@ describe("exactly four message kinds go at any hour", () => {
         "question_change",
         "recruit_details_reminder",
         "recruit_event_followup",
+        "recruit_event_reminder",
         "recruit_interest_ask",
         "recruit_interest_reminder",
         "recruit_welcome",
@@ -180,12 +182,16 @@ describe("exactly four message kinds go at any hour", () => {
   it("exempts an 'other' job by its key prefix only for the attendance sheet (LAN-465)", () => {
     expect(OTHER_JOB_KEY_PREFIX_KINDS).toEqual({
       [ATTENDANCE_SHEET_KEY_PREFIX]: "attendance_sheet",
+      [RECRUIT_EVENT_REMINDER_KEY_PREFIX]: "recruit_event_reminder",
     });
     expect(LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES).toEqual([ATTENDANCE_SHEET_KEY_PREFIX]);
     expect(isJobLightsOutExempt("other", "attendance-sheet:e1:p1")).toBe(true);
     expect(isJobLightsOutExempt("cancellation_notice", "cancellation:e1:p1")).toBe(true);
     expect(isJobLightsOutExempt("other", "onboarding-chase:m1:1")).toBe(false);
     expect(isJobLightsOutExempt("other", "operator-details:p1")).toBe(false);
+    // LAN-464: the recruit reminder is named by its prefix and still waits for 07:00.
+    expect(LIGHTS_OUT_EXEMPT.recruit_event_reminder).toBe(false);
+    expect(isJobLightsOutExempt("other", "recruit-event-reminder:e1:i1")).toBe(false);
     expect(isJobLightsOutExempt("other", null)).toBe(false);
     // The prefix is honoured only on the job type that routes by it.
     expect(isJobLightsOutExempt("reminder", "attendance-sheet:e1:p1")).toBe(false);

@@ -61,6 +61,8 @@ const MESSAGE_KINDS = Object.freeze([
   "invitation",
   "reminder",
   "recruit_followup",
+  // LAN-464. One reminder before a recruitment event, to recruits who said Yes.
+  "recruit_reminder",
   "escalation",
   "change_notice",
   "cancellation",
@@ -84,7 +86,7 @@ export type MessageKind = (typeof MESSAGE_KINDS)[number];
 /** The Kind filter's groups. A filter per kind would be seventeen options for one select. */
 export const KIND_FAMILIES = Object.freeze({
   invitation: ["invitation"],
-  reminder: ["reminder", "recruit_followup"],
+  reminder: ["reminder", "recruit_followup", "recruit_reminder"],
   escalation: ["escalation", "onboarding_escalation"],
   notice: ["change_notice", "cancellation", "question_change"],
   recruitment: [

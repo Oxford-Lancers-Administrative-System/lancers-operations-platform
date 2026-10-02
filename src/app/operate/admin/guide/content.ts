@@ -471,13 +471,18 @@ export const COMPLIANCE_SECTION: GuideEntry = Object.freeze({
         "When a recruit leaves the recruitment process or joins the roster, every message " +
           "still queued for them as a recruit is cancelled.",
       ],
-      ["Reminders about an event stop as soon as the person has answered."],
+      [
+        "Reminders about an event stop as soon as the person has answered. The one exception " +
+          "is the recruit reminder: a recruit who answered Yes to a recruitment event gets one " +
+          "WhatsApp reminder before it, set in hours on the messaging schedule.",
+      ],
     ),
     paragraph(s("People's time")),
     points(
       [
         "No automated message is sent between 22:00 and 07:00 UK time. A message due in " +
-          "those hours waits until 07:00; it is held, not dropped.",
+          "those hours waits until 07:00; it is held, not dropped. A recruit reminder that " +
+          "07:00 would deliver after its event has started is not sent at all.",
       ],
       [
         "Only an event's cancellation, a change to an event, and a change to its questions " +

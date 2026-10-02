@@ -536,8 +536,9 @@ the list on every event type since LAN-416, with a Recruits entry in the
 Capacity filter wherever there is one to show.
 
 **Which chase a recruit gets is the event's decision, not theirs** (LAN-416).
-On a Recruitment event they keep the gentle cadence — one invitation and at
-most one follow-up, never an escalation (REQ-two-ladders, REQ-never-harsh). On
+On a Recruitment event they keep the gentle cadence — one invitation, at most
+one follow-up, never an escalation (REQ-two-ladders, REQ-never-harsh), and one
+reminder before the event if they answered Yes (below). On
 any other event type there is no gentle cadence configured, so a recruit is
 invited and chased exactly as a player is for that type. Brian: "only
 recruitment events get that special status. Every other, I don't have to
@@ -614,7 +615,8 @@ invitation that would otherwise go the moment an event is approved, reminders,
 event and onboarding nudges, the recruitment and onboarding messages, the
 onboarding chase, a retry whose backoff lands overnight, an operator's
 **Retry**, and both escalations to the office — everything but the four kinds
-below. Held means queued: nothing is
+below. A recruit event reminder that 07:00 would deliver at or after its event's
+start is dropped instead (below). Held means queued: nothing is
 dropped, marked sent or spent against the attempt ceiling, and an operator
 action overnight reads **Queued — sends at 07:00** — on **Retry**, **Reissue**,
 the recruitment and onboarding **Send** buttons, the Missing-data nudge and the
@@ -683,6 +685,41 @@ recipient with no active operator account (a coach seated before LAN-434 who
 was never invited, or an invitation still pending) reaches the sign-in page,
 not the sheet. These emails appear on the **Messaging queue** as **Attendance
 sheet**.
+
+### The recruit event reminder
+
+A recruit who answered **Yes** to a Recruitment event gets **one WhatsApp
+reminder** before it, saying what, when and where: "Hello {name}, a reminder
+that {event} is on {when}. Venue: {venue}. See you there." (LAN-464, Brian
+2026-10-02; template `recruit_event_reminder_v1`). Nobody else gets it — not a
+recruit who said No or has not answered, not a player, a coach or the
+committee.
+
+The time is the recruit cadence's third control, **Reminder**, on the
+Recruitment row of **Administration → Messaging schedule**, right of
+**First inv.** and **One follow-up**: hours before the event, **1** by default.
+**0** (or blank) turns it off. Like the other two it is frozen onto an event when
+the event is approved, so a change affects events approved afterwards; events
+approved before LAN-464 have no reminder. Moving an approved event moves its
+reminder with it.
+
+Who gets it is decided when the reminder moment arrives, on the first sweep at
+or after it (up to five minutes later): a recruit invited as a recruit whose
+current answer is Yes, **given at or before the reminder moment**, who has
+season messaging consent and is still in recruitment. A Yes that arrives after
+the moment gets no reminder. The answer, recruitment status and consent are all
+read again just before it sends: a recruit who changed to No in between is
+stood down, one who left recruitment (an exit or the flip to the roster) has it
+cancelled with every other queued message, and a cancelled event sends nothing.
+One per recruit per event, whatever happens to the event afterwards.
+
+Lights-out holds it like any other recruit send: a reminder due between 22:00
+and 07:00 goes at 07:00, as long as 07:00 is still before the event starts. If
+it is not — an event at 07:30 with a two-hour reminder sends at 07:00; an event
+at 07:00 with a one-hour reminder sends nothing — the reminder is dropped rather
+than sent late. On the **Messaging queue** these read **Recruit reminder**, and
+a dropped one is **Cancelled** with **Quiet hours ran past the event start.**
+under its time.
 
 ### The Messaging queue: every message in one place
 
