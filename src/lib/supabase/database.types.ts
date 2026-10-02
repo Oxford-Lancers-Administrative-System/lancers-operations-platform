@@ -5813,6 +5813,7 @@ export type Database = {
         | "onboarding_details"
         | "recruit_signup"
         | "messaging_stop"
+        | "operator_details"
       person_fact_dispute_status:
         | "open"
         | "resolved_kept_club"
@@ -6125,6 +6126,7 @@ export const Constants = {
         "onboarding_details",
         "recruit_signup",
         "messaging_stop",
+        "operator_details",
       ],
       person_fact_dispute_status: [
         "open",

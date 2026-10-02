@@ -42,12 +42,15 @@ import {
   ACCOUNT_CHANGED_RULE,
   openSeatAccountIn,
   planSeatAccountIn,
+  queueSeatDetailsRequestIn,
   seatIdentity,
+  sendSeatDetailsRequest,
   sendSeatInvitation,
   withSeatLogin,
   type SeatAccountOptions,
   type SeatInvitationOutcome,
 } from "./seat-account";
+import type { DetailsRequestOutcome } from "../operator-details/request";
 
 /**
  * Replace a role holder — {@link replaceRoleHolder} ends the outgoing
@@ -79,6 +82,8 @@ export interface ReplaceRoleHolderResult {
   readonly correlationId: string;
   /** LAN-434: the account this handover opened for the successor, or `null`. */
   readonly invitation: SeatInvitationOutcome | null;
+  /** LAN-459: the WhatsApp details request a phone-only successor was sent instead, or `null`. */
+  readonly detailsRequest: DetailsRequestOutcome | null;
 }
 
 /**
@@ -100,16 +105,22 @@ export async function replaceRoleHolder(
 
   // Step 1: every refusal, and whether the successor needs an account. When
   // they already have one, this is the whole of the change, as it always was.
+  // LAN-459: a phone-only successor is seated here too, with the details
+  // request queued in the same transaction and sent after it commits.
   const first = await withTransaction(async (tx) => {
     const checked = await checkReplacementIn(tx, params, reason);
     const plan = await planSeatAccountIn(tx, params.successorPersonId, params);
-    if (plan !== null) return { plan, result: null };
-    return {
-      plan: null,
-      result: await writeReplacementIn(tx, actor, params, checked, randomUUID()),
-    };
+    if (plan !== null && plan.kind === "email") return { plan, result: null, jobId: null };
+    const result = await writeReplacementIn(tx, actor, params, checked, randomUUID());
+    const jobId = await queueSeatDetailsRequestIn(tx, plan, {
+      personId: params.successorPersonId,
+      actorPersonId: actor.personId,
+    });
+    return { plan: null, result, jobId };
   });
-  if (first.plan === null) return first.result;
+  if (first.plan === null) {
+    return { ...first.result, detailsRequest: await sendSeatDetailsRequest(first.jobId, params) };
+  }
 
   const { plan } = first;
   const identity = seatIdentity(params);
@@ -117,7 +128,7 @@ export async function replaceRoleHolder(
     withTransaction(async (tx) => {
       const checked = await checkReplacementIn(tx, params, reason);
       const again = await planSeatAccountIn(tx, params.successorPersonId, params);
-      if (again === null || again.email !== plan.email) {
+      if (again === null || again.kind !== "email" || again.email !== plan.email) {
         throw new Conflict(ACCOUNT_CHANGED_MESSAGE, { rule: ACCOUNT_CHANGED_RULE });
       }
       const correlationId = randomUUID();
@@ -321,5 +332,6 @@ async function writeReplacementIn(
     scheduled: effectiveFrom > today,
     correlationId,
     invitation: null,
+    detailsRequest: null,
   };
 }

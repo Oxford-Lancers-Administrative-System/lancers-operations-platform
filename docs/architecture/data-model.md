@@ -434,6 +434,24 @@ RLS is enabled with zero policies and no grant to `anon` or `authenticated`, per
 `effective_to is null or effective_to > now()`. Nothing enforces those role
 codes yet — that is LAN-73.
 
+**A seat without an account (LAN-459, Brian 2026-10-02).** LAN-434 made every
+seat holder an operator. LAN-459 relaxes that for one case: a person with no
+usable email but a current phone contact point is seated with **no
+`operator_accounts` row**, and the account is opened later, by the person's own
+save of the operator details form (`administration.operator.invited` and, if
+the send fails, `…invitation_delivery_failed` then carry `self` authority with
+the person as actor — the vocabulary allows it for those two actions only). No
+column or table was added for this; the state is derived:
+
+- the request is a `notification_jobs` row of `job_type = 'other'` keyed
+  `operator-details:<personId>:<nonce>` (admitted by `DUE_JOB_PREDICATE` and
+  exempt from its event clause, like the other person-addressed `other` jobs),
+  and an `operator_details.requested` row in `audit_events` against the person
+  — the sign-in path writes only the audit row, at first activation;
+- receipt is an `operator_details.received` audit row, written by the save;
+- "complete" is `missingRequiredFields(null, …)` — the required-fields check at
+  the operator's rung: first name, last name, mobile, personal email.
+
 ##### Invitation state (LAN-131)
 
 `20260819120000_operator_invitation_state.sql` adds five columns to the same
@@ -648,6 +666,16 @@ Notification Job that carries a message. What it had no home for was **when**.
   | `recruit_signup`           | `/signup/<t>`     | the recruit welcome and details reminder       |
   | `messaging_stop`           | `/stop/<t>`       | every message that carries an opt-out          |
   | `recruit_interest_request` | `/background/<t>` | Questionnaire B's ask and reminder             |
+  | `operator_details`         | `/onboarding/<t>` | the operator details request (LAN-459)         |
+
+  `operator_details` (`20261010090000_operator_details_link_purpose.sql`,
+  LAN-459) is the one exception to "one route, one purpose": the approved
+  `onboarding_chase_v2` template it travels in carries a button fixed to
+  `/onboarding/`, so that route resolves `onboarding_details` first and then
+  `operator_details`, each to its own page and nothing else. The credential is
+  minted at dispatch for the current season (`season_id` is not null, so no
+  current season means no request is sent) and revoked by purpose when the form
+  is saved, so it dies on save.
 
   **Each route resolves exactly one purpose and refuses every other credential**
   — collapsed to the same `unknown` an invented token gets, so nothing about

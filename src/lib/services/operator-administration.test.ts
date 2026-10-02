@@ -1234,7 +1234,8 @@ describe("A/B — the guard, on every write", () => {
       const callSites = source.split("readAdministrationSubject(tx").slice(1);
 
       // Nine since LAN-434: Send invitation on a holder line (`seat-account.ts`).
-      expect(callSites.length, "every write here reads the target's seats").toBe(9);
+      // Ten since LAN-459: the account a details save opens (`openAccountFromDetails`).
+      expect(callSites.length, "every write here reads the target's seats").toBe(10);
       for (const site of callSites) {
         expect(site.slice(0, 200)).toMatch(/includeScheduled:\s*true/);
       }

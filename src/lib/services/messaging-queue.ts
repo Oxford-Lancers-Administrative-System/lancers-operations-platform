@@ -94,6 +94,9 @@ export const DUE_JOB_PREDICATE = `held_at is null
             -- exemption list below: a cancelled or started event's sheet is
             -- never due.
             or (job_type = 'other' and idempotency_key like 'attendance-sheet:%')
+            -- LAN-459. The operator details request, one WhatsApp message to an
+            -- operator the club has only a phone number for.
+            or (job_type = 'other' and idempotency_key like 'operator-details:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
@@ -165,6 +168,8 @@ export const DUE_JOB_PREDICATE = `held_at is null
             or (job_type = 'other' and idempotency_key like 'onboarding-chase:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-nudge:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
+            -- LAN-459. The operator details request carries no event either.
+            or (job_type = 'other' and idempotency_key like 'operator-details:%')
             or exists (
               select 1
                 from public.events e

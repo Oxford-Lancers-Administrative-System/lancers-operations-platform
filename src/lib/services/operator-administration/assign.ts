@@ -27,12 +27,15 @@ import {
   ACCOUNT_CHANGED_RULE,
   openSeatAccountIn,
   planSeatAccountIn,
+  queueSeatDetailsRequestIn,
   seatIdentity,
+  sendSeatDetailsRequest,
   sendSeatInvitation,
   withSeatLogin,
   type SeatAccountOptions,
   type SeatInvitationOutcome,
 } from "./seat-account";
+import type { DetailsRequestOutcome } from "../operator-details/request";
 
 /**
  * Assign a role — {@link assignRole} gives one Person one seat in the club's
@@ -64,6 +67,8 @@ export interface RoleAssignmentResult {
   readonly operatingYear: AdministrationOperatingYear;
   /** LAN-434: the account this assignment opened, or `null` when the person already had one. */
   readonly invitation: SeatInvitationOutcome | null;
+  /** LAN-459: the WhatsApp details request a phone-only person was sent instead, or `null`. */
+  readonly detailsRequest: DetailsRequestOutcome | null;
 }
 
 export async function assignRole(params: AssignRoleParams): Promise<RoleAssignmentResult> {
@@ -71,13 +76,22 @@ export async function assignRole(params: AssignRoleParams): Promise<RoleAssignme
 
   // Step 1: every refusal, and whether an account is needed. When the person
   // already has one, this is the whole of the change, as it always was.
+  // LAN-459: a phone-only person is seated here too, with the details request
+  // queued in the same transaction and sent after it commits.
   const first = await withTransaction(async (tx) => {
     const checked = await checkAssignmentIn(tx, params);
     const plan = await planSeatAccountIn(tx, params.personId, params);
-    if (plan !== null) return { plan, result: null };
-    return { plan: null, result: await writeAssignmentIn(tx, actor, params, checked, null) };
+    if (plan !== null && plan.kind === "email") return { plan, result: null, jobId: null };
+    const result = await writeAssignmentIn(tx, actor, params, checked, null);
+    const jobId = await queueSeatDetailsRequestIn(tx, plan, {
+      personId: params.personId,
+      actorPersonId: actor.personId,
+    });
+    return { plan: null, result, jobId };
   });
-  if (first.plan === null) return first.result;
+  if (first.plan === null) {
+    return { ...first.result, detailsRequest: await sendSeatDetailsRequest(first.jobId, params) };
+  }
 
   const { plan } = first;
   const identity = seatIdentity(params);
@@ -87,7 +101,7 @@ export async function assignRole(params: AssignRoleParams): Promise<RoleAssignme
       // Re-planned against the rows as they are now; an account that appeared
       // since step 1 is a conflict, not something to seat around.
       const again = await planSeatAccountIn(tx, params.personId, params);
-      if (again === null || again.email !== plan.email) {
+      if (again === null || again.kind !== "email" || again.email !== plan.email) {
         throw new Conflict(ACCOUNT_CHANGED_MESSAGE, { rule: ACCOUNT_CHANGED_RULE });
       }
       const correlationId = randomUUID();
@@ -213,5 +227,6 @@ async function writeAssignmentIn(
     scheduled: entry.scheduled,
     operatingYear: cycle.operatingYear,
     invitation: null,
+    detailsRequest: null,
   };
 }

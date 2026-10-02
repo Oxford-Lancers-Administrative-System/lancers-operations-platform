@@ -65,6 +65,10 @@ vi.mock("@/lib/services/operator-administration", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/services/operator-administration")>()),
   readSeatHolderEmails: vi.fn(async () => new Map()),
 }));
+// LAN-459: the role page reads each holder's details request.
+vi.mock("@/lib/services/operator-details", () => ({
+  readOperatorDetailsStatuses: vi.fn(async () => new Map()),
+}));
 vi.mock("./permissions", () => ({
   permittedAccountActions: vi.fn(),
   permittedRoleActions: vi.fn(),
@@ -91,6 +95,7 @@ vi.mock("./actions", () => {
     resendInvitationAction: vi.fn(state),
     restoreOperatorAction: vi.fn(state),
     searchCandidatesAction: vi.fn(state),
+    sendDetailsRequestAction: vi.fn(state),
     sendSeatInvitationAction: vi.fn(state),
     startEmailRehomeAction: vi.fn(state),
   };
@@ -137,6 +142,7 @@ import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
 import { readSeatAccess } from "@/lib/services/access-grants";
 import { readSeatHolderEmails } from "@/lib/services/operator-administration";
+import { readOperatorDetailsStatuses } from "@/lib/services/operator-details";
 
 /** The seat codes the catalogue fixture uses, by id — for the Access section's read. */
 const SEAT_CODES: Record<string, string> = {
@@ -345,6 +351,7 @@ beforeEach(() => {
   vi.mocked(readPlayerMembership).mockResolvedValue(null);
   vi.mocked(readOperatorAuditHistory).mockResolvedValue([]);
   vi.mocked(readHolderHistory).mockResolvedValue([]);
+  vi.mocked(readOperatorDetailsStatuses).mockResolvedValue(new Map());
   vi.mocked(readSeatAccess).mockImplementation(async (_operator, roleId) => seatAccess(roleId));
   vi.mocked(permittedAccountActions).mockResolvedValue({
     resend: true,
@@ -1965,8 +1972,10 @@ describe("the invitation flow", () => {
       render(await InviteOperatorPage());
 
       expect(screen.queryByText(/is not the right number of digits/i)).toBeNull();
-      // Still gated on the role and the address, which is the pre-existing rule.
-      expect(screen.getByText("Choose a role and enter an email address to send.")).toBeVisible();
+      // Still gated on the role and on an email or a phone number (LAN-459).
+      expect(
+        screen.getByText("Choose a role and enter an email or a phone number to send."),
+      ).toBeVisible();
     });
 
     /**
@@ -2207,6 +2216,20 @@ describe("LAN-434 — the panels say which account case applies", () => {
     },
   );
 
+  it.each(["Assign role", "Replace role"] as const)(
+    "%s: no email but a mobile — LAN-459's WhatsApp details request, and an optional Login email",
+    async (panelName) => {
+      const panel = await choose(panelName, candidate({ email: null, phone: "+447700900123" }));
+
+      const state = within(panel).getByTestId("seat-account-case");
+      expect(state).toHaveAttribute("data-case", "details-request");
+      expect(state).toHaveTextContent("Created when they send their details");
+      expect(state).toHaveTextContent("Details request by WhatsApp to");
+      expect(state).toHaveTextContent("+447700900123");
+      expect(within(panel).getByLabelText(/Login email/)).not.toBeRequired();
+    },
+  );
+
   it("an active account is left as it is", async () => {
     const panel = await choose(
       "Assign role",
@@ -2331,6 +2354,46 @@ describe("LAN-434 — Send invitation on a holder line with no operator account"
     render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
 
     expect(screen.queryByTestId("holder-send-invitation")).toBeNull();
+  });
+
+  // LAN-459: the details request's state on the holder's line, and a way to send it again.
+  it.each([
+    ["requested", "Details requested"],
+    ["not_delivered", "Details request not delivered"],
+  ] as const)("shows %s on the line and offers Send details request", async (state, label) => {
+    withAccountlessHolder();
+    vi.mocked(readSeatHolderEmails).mockResolvedValue(new Map([[HOLDER_ID, null]]));
+    vi.mocked(readOperatorDetailsStatuses).mockResolvedValue(
+      new Map([[HOLDER_ID, { state, email: null }]]),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+    const line = screen.getByTestId("holder");
+
+    expect(within(line).getByTestId("holder-details-state")).toHaveTextContent(label);
+    const control = within(line).getByTestId("holder-send-details-request");
+    const button = within(control).getByRole("button", { name: "Send details request" });
+    expect(button).toHaveClass("MuiButton-outlined");
+    expect((control.querySelector('input[name="personId"]') as HTMLInputElement).value).toBe(
+      HOLDER_ID,
+    );
+  });
+
+  it("names the email received, and offers no request to a holder the club can email", async () => {
+    withAccountlessHolder();
+    vi.mocked(readSeatHolderEmails).mockResolvedValue(
+      new Map([[HOLDER_ID, "marek@lan434.example"]]),
+    );
+    vi.mocked(readOperatorDetailsStatuses).mockResolvedValue(
+      new Map([[HOLDER_ID, { state: "received", email: "marek@lan434.example" }]]),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+
+    expect(screen.getByTestId("holder-details-state")).toHaveTextContent(
+      "Details received · marek@lan434.example",
+    );
+    expect(screen.queryByTestId("holder-send-details-request")).toBeNull();
   });
 
   // Brian, 2026-09-28: "That's not how we do buttons."

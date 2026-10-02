@@ -298,17 +298,20 @@ export async function requireInvitablePerson(tx: Tx, personId: string): Promise<
   return personId;
 }
 
+/** `email` is `null` for LAN-459's phone-only invitation, which records no address. */
 export async function createOrLinkPerson(
   tx: Tx,
   subject: InvitationSubject,
-  email: string,
+  email: string | null,
 ): Promise<{ personId: string; personCreated: boolean }> {
   if (subject.kind === "existing") {
     const personId = await requireInvitablePerson(tx, subject.personId);
     // LAN-462: an existing person's contact points are otherwise untouched
     // (`REQ-invite-existing-person`); one with no email at all gets the login
     // address, classified, exactly as seating a person does.
-    await recordLoginEmailIfNoneIn(tx, { personId, address: email, source: INVITATION_SOURCE });
+    if (email !== null) {
+      await recordLoginEmailIfNoneIn(tx, { personId, address: email, source: INVITATION_SOURCE });
+    }
     return { personId, personCreated: false };
   }
 
@@ -338,7 +341,9 @@ export async function createOrLinkPerson(
   }
 
   // LAN-462: classified — college for an Oxford address, personal otherwise.
-  await recordClassifiedEmailIn(tx, { personId, address: email, source: INVITATION_SOURCE });
+  if (email !== null) {
+    await recordClassifiedEmailIn(tx, { personId, address: email, source: INVITATION_SOURCE });
+  }
   const phone = requireInvitationPhone(subject.phone);
   if (phone !== null) await insertPhoneContactPoint(tx, personId, phone);
 
@@ -353,7 +358,7 @@ export async function createOrLinkPerson(
  * posts is what lands in `contact_points.raw_value`, exactly as it does from
  * `person-create.ts`. Blank stays blank: the field is optional.
  */
-function requireInvitationPhone(raw: string | null | undefined): string | null {
+export function requireInvitationPhone(raw: string | null | undefined): string | null {
   const phone = blankToNull(raw);
   if (phone === null) return null;
 

@@ -35,6 +35,7 @@ export const KIND_LABELS: Readonly<Record<MessageKind, string>> = Object.freeze(
   onboarding_nudge: "Onboarding nudge",
   onboarding_escalation: "Onboarding escalation",
   attendance_sheet: "Attendance sheet",
+  operator_details: "Operator details request",
   other: "Other",
 });
 

@@ -85,6 +85,11 @@ vi.mock("@/lib/services/roster-group-colours", async () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
+// LAN-459: the details form gate; its own rule is proved against the database in
+// `operator-details.test.ts`. Not due unless a test says so.
+vi.mock("@/lib/services/operator-details", () => ({
+  readOperatorDetailsDue: vi.fn(async () => false),
+}));
 
 import {
   resolveOperatorAccess,
@@ -92,6 +97,7 @@ import {
   type ResolvedOperator,
 } from "@/lib/auth/operator";
 import { listCurrentSeasonEvents, type EventListEntry } from "@/lib/services/events";
+import { readOperatorDetailsDue } from "@/lib/services/operator-details";
 import { isOpenForAttendance, londonToday, shiftDays } from "./events/coach-event-buckets";
 import OperateLayout from "./layout";
 import OperatePage from "./page";
@@ -319,6 +325,26 @@ function eventEntry(
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("LAN-459 — the operator details form comes before the app", () => {
+  it("sends an operator whose details are due to /me/details, not into the shell", async () => {
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+    vi.mocked(readOperatorDetailsDue).mockResolvedValueOnce(true);
+
+    await expect(OperateLayout(layoutProps(<p>shell content</p>))).rejects.toThrow(
+      "REDIRECT:/me/details",
+    );
+    expect(readOperatorDetailsDue).toHaveBeenCalledWith(actor([]).personId);
+  });
+
+  it("lets an operator whose details are not due straight through", async () => {
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+
+    const { container } = render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(container.textContent).toContain("shell content");
+  });
 });
 
 describe("row 2 — the unlinked account state (UX-03)", () => {

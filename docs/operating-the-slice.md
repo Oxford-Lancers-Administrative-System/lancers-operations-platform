@@ -164,7 +164,8 @@ schedule (LAN-431). Attendance recording is unchanged for every seat: the
 Attendance line governs the player record's Attendance section and the roster
 board's Attendance group (LAN-457), and nothing else.
 
-**A seat holder is always an operator (LAN-434, Brian 2026-09-26).** On a
+**A seat holder is always an operator (LAN-434, Brian 2026-09-26; relaxed for a
+phone-only holder by LAN-459 below).** On a
 seat's page (Administration → Roles → a seat, which a person record's **Assign a
 role** also opens), **Assign role** and **Replace role** say which account case
 applies once a person is chosen, before the submit. **Operator account: Created
@@ -179,6 +180,40 @@ seating operator, and a failed send leaves the seat and the account with
 before this change reads **No operator account** on the Current holder line
 with **Send invitation**, which opens the account and sends the invitation the
 same way. Invite operator and the Operators page are unchanged.
+
+**A phone number or an email (LAN-459, Brian 2026-10-02).** Email whenever the
+club has one, even with a phone number; WhatsApp only when a phone number is all
+it has. Seating a person with no email but a mobile (Assign role, Replace role,
+or **Invite operator** with the Email left blank and a Phone given) no longer
+refuses: the panel reads **Operator account: Created when they send their
+details** and **Details request by WhatsApp to** the number, with an optional
+**Login email** that still invites by email if typed. The seat is written with
+no account and stands from that moment, and the same submit sends one WhatsApp
+message — the approved `onboarding_chase_v2` template — whose button opens
+`/onboarding/<t>` on a single-purpose `operator_details` link. It obeys
+lights-out (held until 07:00) and the sending allowance like any other send, and
+is refused for a person who refused or withdrew messaging this season (a coach
+with no consent record is sent it). The link opens the **operator details
+form**: Personal information only — First name and Last name (prefilled,
+required), Middle name and Known as (optional), Mobile phone and Personal email
+(required, prefilled from what the club has), Date of birth (optional); no
+emergency contact, no student questions and no "Not now". A college address is
+refused in Personal email. Saving it records the details, revokes the link, and
+— with no operator step — opens the account and sends the sign-in invitation to
+the email they gave; the page then reads **Details saved** with **Sign-in
+invitation sent to** that address. They sign in with their details complete.
+An operator invited by email instead meets the same form at `/me/details` the
+first time they sign in, whenever their personal facts (first name, last name,
+mobile, personal email — the required-fields check at an operator's rung) are
+incomplete, and `/operate` sends them back to it until they are. A recruit or
+player who is also an operator is asked only for what is missing. The seat's
+Current holder line reads **Details requested**, **Details request not
+delivered**, or **Details received · <email>** — the address the invitation went
+to, so an operator can see it and deactivate the account if it is wrong — and a
+holder the club has only a phone number for has **Send details request**, which
+sends the message again with a fresh link. The Messaging queue lists each one as
+**Operator details request**, under Onboarding. The invitation link lasts 24
+hours and is resent with Send invitation, as before.
 
 **The email an operator is created with is classified (LAN-462, Brian
 2026-10-02).** Invite operator stores the address on a new person as **College

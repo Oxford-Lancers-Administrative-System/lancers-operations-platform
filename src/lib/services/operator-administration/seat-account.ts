@@ -13,6 +13,13 @@ import {
 import { recordAdministrationEvent } from "../administration-audit";
 import { recordLoginEmailIfNoneIn } from "../person-email-classification";
 import type { AdministrationOperatingYear } from "../administration-events";
+import { hasCurrentPhoneIn, readRecordedEmailIn } from "../operator-details/facts";
+import {
+  dispatchOperatorDetailsRequest,
+  queueOperatorDetailsRequestIn,
+  type DetailsRequestMessaging,
+  type DetailsRequestOutcome,
+} from "../operator-details/request";
 import { supabaseOperatorIdentity, type OperatorIdentityPort } from "../operator-identity";
 import { deliverInvitation, markDeliveryFailed } from "../operator-invitations/delivery";
 import {
@@ -21,7 +28,11 @@ import {
   refuseTakenEmail,
 } from "../operator-invitations/shared";
 import { INVALID_EMAIL_RULE } from "../operator-invitations/refusals";
-import { readAdministrationSubject, resolveActiveCommitteeYear } from "../operator-invitations";
+import {
+  readAdministrationSubject,
+  resolveActiveCommitteeYear,
+  resolveCommitteeYearForActivation,
+} from "../operator-invitations";
 import {
   CALLBACK_URL_MESSAGE,
   CALLBACK_URL_RULE,
@@ -61,6 +72,14 @@ import {
  * A person who already has an account — active, pending or deactivated — is
  * seated exactly as before and the account is not touched: a deactivated
  * account stays deactivated.
+ *
+ * LAN-459 (Brian, 2 October 2026) relaxes "a seat holder is always an
+ * operator" for one case: a person with no usable email but a mobile is seated
+ * with **no account**, and the seat's own write transaction queues one
+ * WhatsApp details request (`operator-details/request.ts`), dispatched after
+ * the commit. Their account is opened, and the invitation sent, when they save
+ * the details form ({@link openAccountFromDetails}). The seat stands from the
+ * moment it is given either way.
  */
 
 const SEAT_LOGIN_EMAIL_FIELD = "Login email";
@@ -68,8 +87,8 @@ const SEAT_LOGIN_EMAIL_FIELD = "Login email";
 const SEAT_EMAIL_SOURCE = "operator account";
 export const SEAT_LOGIN_EMAIL_REQUIRED_RULE = "administration_seat_login_email_required";
 const SEAT_LOGIN_EMAIL_REQUIRED_MESSAGE =
-  `${SEAT_LOGIN_EMAIL_FIELD} is required. This person has no email address on record, and ` +
-  "holding a role creates their operator account.";
+  `${SEAT_LOGIN_EMAIL_FIELD} is required. This person has no email address or mobile number ` +
+  "on record, and holding a role needs one of them.";
 
 /** Raced by another submit between the pre-flight and the write. Nothing is saved. */
 export const ACCOUNT_CHANGED_RULE = "administration_seat_account_changed";
@@ -84,6 +103,8 @@ export interface SeatAccountOptions {
   readonly callbackUrl?: string | null;
   /** Swapped only by tests. Defaults to the real Supabase Auth port. */
   readonly identity?: OperatorIdentityPort;
+  /** Swapped only by tests: where a phone-only seat's details request is sent (LAN-459). */
+  readonly messaging?: DetailsRequestMessaging;
 }
 
 /** What happened to the account a seat change opened; `null` when the person already had one. */
@@ -94,34 +115,23 @@ export interface SeatInvitationOutcome {
   readonly deliveryFailureReason: string | null;
 }
 
-/** The address a new account would use, or `null` when the person already has an account. */
-export interface SeatAccountPlan {
-  readonly email: string;
-  readonly callbackUrl: string;
-}
-
 /**
- * The person's recorded email: their preferred current email contact point,
- * derived exactly as the candidate search derives the email it shows beside
- * a name (`operator-invitations/candidates.ts`), so the address the panel
- * showed is the address the invitation goes to.
+ * What a seat change does about accounts. `email`: open one now and invite that
+ * address. `details_request`: LAN-459's phone-only case — no account yet, one
+ * WhatsApp details request instead.
  */
-export async function readRecordedEmailIn(tx: Tx, personId: string): Promise<string | null> {
-  const result = await tx.query<{ raw_value: string }>(
-    `select raw_value from public.contact_points
-      where person_id = $1 and kind = 'email' and valid_until is null
-      order by is_preferred desc, created_at desc
-      limit 1`,
-    [personId],
-  );
-  return blankToNull(result.rows[0]?.raw_value ?? null);
-}
+export type SeatAccountPlan =
+  | { readonly kind: "email"; readonly email: string; readonly callbackUrl: string }
+  | { readonly kind: "details_request" };
+
+export { readRecordedEmailIn };
 
 /**
  * Pre-flight and write both call this. `null` means the person already holds an
  * operator account and nothing about accounts happens. Otherwise the address:
  * the recorded email when there is a usable one, else the one the form
- * supplied, else a refusal naming the field.
+ * supplied; with neither, a details request when the club has a mobile for
+ * them (LAN-459), else a refusal naming the field.
  */
 export async function planSeatAccountIn(
   tx: Tx,
@@ -130,20 +140,21 @@ export async function planSeatAccountIn(
 ): Promise<SeatAccountPlan | null> {
   if ((await operatorAccountIdFor(tx, personId)) !== null) return null;
 
-  const callbackUrl = (options.callbackUrl ?? "").trim();
-  if (callbackUrl === "") {
-    throw new ConstraintViolated(CALLBACK_URL_MESSAGE, { rule: CALLBACK_URL_RULE });
-  }
-
   const recorded = await readRecordedEmailIn(tx, personId);
   const chosen =
     recorded !== null && looksLikeEmailAddress(normaliseEmail(recorded))
       ? recorded
       : blankToNull(options.loginEmail);
   if (chosen === null) {
+    if (await hasCurrentPhoneIn(tx, personId)) return { kind: "details_request" };
     throw new ConstraintViolated(SEAT_LOGIN_EMAIL_REQUIRED_MESSAGE, {
       rule: SEAT_LOGIN_EMAIL_REQUIRED_RULE,
     });
+  }
+
+  const callbackUrl = (options.callbackUrl ?? "").trim();
+  if (callbackUrl === "") {
+    throw new ConstraintViolated(CALLBACK_URL_MESSAGE, { rule: CALLBACK_URL_RULE });
   }
 
   const email = normaliseEmail(chosen);
@@ -152,21 +163,46 @@ export async function planSeatAccountIn(
   }
   await refuseTakenEmail(tx, email, null);
 
-  return { email, callbackUrl };
+  return { kind: "email", email, callbackUrl };
+}
+
+/**
+ * The phone-only half of a seat change (LAN-459): queue the details request in
+ * the seat's own transaction. Returns the job to dispatch after commit, or
+ * `null` when the plan was not a details request.
+ */
+export async function queueSeatDetailsRequestIn(
+  tx: Tx,
+  plan: SeatAccountPlan | null,
+  input: { readonly personId: string; readonly actorPersonId: string },
+): Promise<string | null> {
+  if (plan === null || plan.kind !== "details_request") return null;
+  return queueOperatorDetailsRequestIn(tx, input);
+}
+
+/** After commit: send what {@link queueSeatDetailsRequestIn} queued. */
+export async function sendSeatDetailsRequest(
+  jobId: string | null,
+  options: SeatAccountOptions,
+): Promise<DetailsRequestOutcome | null> {
+  if (jobId === null) return null;
+  return dispatchOperatorDetailsRequest(jobId, options.messaging);
 }
 
 /** Step 3's account half: the pending `operator_accounts` row and its audit event. */
 export async function openSeatAccountIn(
   tx: Tx,
   input: {
-    readonly operator: ResolvedOperator;
+    /** `null` only for {@link openAccountFromDetails}: the person opens their own account. */
+    readonly operator: ResolvedOperator | null;
     readonly personId: string;
     readonly email: string;
     readonly authUserId: string;
     readonly operatingYear: AdministrationOperatingYear;
     readonly correlationId: string;
     readonly roleCodes: readonly string[];
-    readonly trigger: "assign_role" | "replace_role_holder" | "send_invitation";
+    readonly trigger:
+      "assign_role" | "replace_role_holder" | "send_invitation" | "operator_details";
   },
 ): Promise<string> {
   const operatorAccountId = await insertOperatorAccount(tx, {
@@ -184,8 +220,11 @@ export async function openSeatAccountIn(
 
   await recordAdministrationEvent(tx, {
     action: "administration.operator.invited",
-    actorPersonId: input.operator.personId,
-    authority: administrationAuthority(input.operator),
+    actorPersonId: input.operator?.personId ?? input.personId,
+    authority:
+      input.operator === null
+        ? { kind: "self", roleCodes: [...input.roleCodes] }
+        : administrationAuthority(input.operator),
     target: { personId: input.personId, operatorAccountId },
     operatingYear: input.operatingYear,
     toState: "invitation_pending",
@@ -291,6 +330,12 @@ export async function inviteSeatHolder(
     if (plan === null) {
       throw new Conflict(ALREADY_HAS_ACCOUNT_MESSAGE, { rule: ALREADY_HAS_ACCOUNT_RULE });
     }
+    // An invitation needs an address; the phone-only holder's request is its own control.
+    if (plan.kind !== "email") {
+      throw new ConstraintViolated(LOGIN_EMAIL_NEEDED_MESSAGE, {
+        rule: SEAT_LOGIN_EMAIL_REQUIRED_RULE,
+      });
+    }
     return {
       plan,
       roleCodes: subject.roleCodes,
@@ -327,6 +372,74 @@ export async function inviteSeatHolder(
     operatorAccountId: written.operatorAccountId,
     personId: params.personId,
     operatingYear: written.operatingYear,
+  });
+}
+
+const LOGIN_EMAIL_NEEDED_MESSAGE = `${SEAT_LOGIN_EMAIL_FIELD} is required to send an invitation.`;
+
+/**
+ * LAN-459, step 7: the phone-only person saved the details form, so their
+ * account is opened and the invitation sent to the email they gave — no
+ * operator step. The same steps as a seat change, with the person as the
+ * actor (`self` authority). `null` when they already have an account.
+ */
+export async function openAccountFromDetails(params: {
+  readonly personId: string;
+  readonly email: string;
+  readonly callbackUrl: string;
+  readonly identity?: OperatorIdentityPort;
+}): Promise<SeatInvitationOutcome | null> {
+  const check = async (tx: Tx) => {
+    if ((await operatorAccountIdFor(tx, params.personId)) !== null) return null;
+    const callbackUrl = params.callbackUrl.trim();
+    if (callbackUrl === "") {
+      throw new ConstraintViolated(CALLBACK_URL_MESSAGE, { rule: CALLBACK_URL_RULE });
+    }
+    const email = normaliseEmail(params.email);
+    if (!looksLikeEmailAddress(email)) {
+      throw new ConstraintViolated(INVALID_EMAIL_MESSAGE, { rule: INVALID_EMAIL_RULE });
+    }
+    await refuseTakenEmail(tx, email, null);
+    const subject = await readAdministrationSubject(tx, params.personId, {
+      includeScheduled: true,
+    });
+    return {
+      email,
+      callbackUrl,
+      roleCodes: subject.roleCodes,
+      operatingYear: await resolveCommitteeYearForActivation(tx),
+    };
+  };
+
+  const plan = await withTransaction(check);
+  if (plan === null) return null;
+  const identity = params.identity ?? supabaseOperatorIdentity();
+  const operatorAccountId = await withSeatLogin(identity, plan.email, (authUserId) =>
+    withTransaction(async (tx) => {
+      const again = await check(tx);
+      if (again === null || again.email !== plan.email) {
+        throw new Conflict(ACCOUNT_CHANGED_MESSAGE, { rule: ACCOUNT_CHANGED_RULE });
+      }
+      return openSeatAccountIn(tx, {
+        operator: null,
+        personId: params.personId,
+        email: plan.email,
+        authUserId,
+        operatingYear: again.operatingYear,
+        correlationId: randomUUID(),
+        roleCodes: again.roleCodes,
+        trigger: "operator_details",
+      });
+    }),
+  );
+
+  return sendSeatInvitation(identity, {
+    operator: null,
+    email: plan.email,
+    callbackUrl: plan.callbackUrl,
+    operatorAccountId,
+    personId: params.personId,
+    operatingYear: plan.operatingYear,
   });
 }
 

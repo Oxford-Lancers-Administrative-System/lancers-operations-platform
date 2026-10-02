@@ -9,6 +9,7 @@ import {
   resolveDeliveryProvider,
   signupUrl,
   stopMessagesUrl,
+  type DeliveryContext,
   type Transport,
 } from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
@@ -46,7 +47,10 @@ import {
   hasGrantedSeasonMessagingConsentIn,
   hasGrantedViaSignupFormIn,
   mayReceiveWelcomeContactIn,
+  readSeasonMessagingConsentIn,
 } from "./messaging-consent";
+import { OPERATOR_DETAILS_KEY_PREFIX, hasUsableEmailIn } from "./operator-details/facts";
+import { findCurrentSeasonIn } from "./seasons";
 import {
   ONBOARDING_CHASE_ESCALATION_KEY_PREFIX,
   ONBOARDING_CHASE_KEY_PREFIX,
@@ -868,19 +872,22 @@ export async function runMessagingSweep(
                 // (LAN-203), the onboarding-welcome: prefix (LAN-215), the
                 // onboarding-chase:/onboarding-nudge: prefixes or the
                 // onboarding-chase-escalation: prefix (LAN-218) or the
-                // attendance-sheet: prefix (LAN-465), so every 'other' row
-                // reaching this loop is one of those six.
+                // attendance-sheet: prefix (LAN-465) or the operator-details:
+                // prefix (LAN-459), so every 'other' row reaching this loop is
+                // one of those seven.
                 job.jobType === "other"
                 ? job.idempotencyKey.startsWith(ATTENDANCE_SHEET_KEY_PREFIX)
                   ? await dispatchAttendanceSheetJob(job.id, options)
                   : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
                     ? await dispatchOnboardingWelcomeJob(job.id, options)
-                    : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
-                        job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
-                      ? await dispatchOnboardingChaseJob(job.id, options)
-                      : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
-                        ? await dispatchOnboardingChaseEscalationJob(job.id, options)
-                        : await dispatchRecruitmentCycleJob(job.id, options)
+                    : job.idempotencyKey.startsWith(OPERATOR_DETAILS_KEY_PREFIX)
+                      ? await dispatchOperatorDetailsJob(job.id, options)
+                      : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
+                          job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+                        ? await dispatchOnboardingChaseJob(job.id, options)
+                        : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
+                          ? await dispatchOnboardingChaseEscalationJob(job.id, options)
+                          : await dispatchRecruitmentCycleJob(job.id, options)
                 : await dispatchJob(job.id, { ...options, automatic: true });
 
         if (outcome === "accepted") accepted += 1;
@@ -2948,32 +2955,19 @@ function parseOnboardingChaseOrNudgeKey(idempotencyKey: string): string | null {
 }
 
 /**
- * Sends one onboarding chase — the automated attempt or an operator's own
- * nudge, both under this one dispatcher, because they are the identical
- * message (`W8`: "not a new message… the same link"). Which one this job is
- * changes nothing about what is sent; the only thing it changes is which
- * idempotency-key prefix claimed it, and that is never read again once
- * claimed — the activity log already carries "asked automatically" versus
- * "asked by an operator", written when the job was created
- * ({@link declareDueOnboardingChasesIn}, {@link sendOnboardingNudgeIn}), not
- * here.
- *
- * Modelled directly on `dispatchOnboardingWelcomeJob` above: a separate path
- * from `dispatchJob`, for the identical reason (`job_type` is `'other'`, and
- * this job carries no invitation to claim through `claimJobIn`'s own
- * assumptions). Consent and the under-18 flag are re-checked here, at claim
- * time, exactly as the welcome's own dispatcher re-checks consent — a
- * withdrawal recorded after declaration still has to stop the send, and this
- * is the one place both the automated attempt and a nudge actually pass
- * through before anything leaves the building.
+ * The provider for one `job_type = 'other'` job, on the channel the job itself
+ * carries — the opening every person-addressed dispatcher below shares
+ * (extracted from the onboarding chase for LAN-459's details request). `null`
+ * is lights-out: the job is simply not sent yet (LAN-433). `"refused"` is a
+ * provider that cannot be resolved, recorded on the job.
  */
-export async function dispatchOnboardingChaseJob(
+async function resolveOtherJobProvider(
   jobId: string,
-  options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<DispatchOutcome> {
+  options: { source?: EnvironmentSource; transport?: Transport },
+): Promise<DeliveryContext | null | "refused"> {
   // LAN-433. Before anything is read or claimed: overnight, a held job is
   // simply not sent yet, and nothing about it changes.
-  if (await heldForLightsOut(jobId)) return "deferred";
+  if (await heldForLightsOut(jobId)) return null;
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'other'`,
@@ -2998,7 +2992,114 @@ export async function dispatchOnboardingChaseJob(
     });
     return "refused";
   }
-  const context = resolution.context;
+  return resolution.context;
+}
+
+/**
+ * Sends a claimed message and records what the provider answered, on the
+ * attempt and the job — the closing the onboarding chase and the operator
+ * details request share.
+ */
+async function concludeClaimedSend(
+  jobId: string,
+  context: DeliveryContext,
+  claimed: {
+    readonly attemptId: string;
+    readonly attemptNumber: number;
+    readonly message: OutboundMessage;
+    readonly safety: AdmissionGranted;
+  },
+): Promise<DispatchOutcome> {
+  const outcome = await context.provider.send(claimed.message);
+
+  await withTransaction(async (tx) => {
+    // LAN-394. What this answer says about the provider, before what it says
+    // about this message.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claimed.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claimed.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claimed.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+/**
+ * Sends one onboarding chase — the automated attempt or an operator's own
+ * nudge, both under this one dispatcher, because they are the identical
+ * message (`W8`: "not a new message… the same link"). Which one this job is
+ * changes nothing about what is sent; the only thing it changes is which
+ * idempotency-key prefix claimed it, and that is never read again once
+ * claimed — the activity log already carries "asked automatically" versus
+ * "asked by an operator", written when the job was created
+ * ({@link declareDueOnboardingChasesIn}, {@link sendOnboardingNudgeIn}), not
+ * here.
+ *
+ * Modelled directly on `dispatchOnboardingWelcomeJob` above: a separate path
+ * from `dispatchJob`, for the identical reason (`job_type` is `'other'`, and
+ * this job carries no invitation to claim through `claimJobIn`'s own
+ * assumptions). Consent and the under-18 flag are re-checked here, at claim
+ * time, exactly as the welcome's own dispatcher re-checks consent — a
+ * withdrawal recorded after declaration still has to stop the send, and this
+ * is the one place both the automated attempt and a nudge actually pass
+ * through before anything leaves the building.
+ */
+export async function dispatchOnboardingChaseJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<DispatchOutcome> {
+  const context = await resolveOtherJobProvider(jobId, options);
+  if (context === null) return "deferred";
+  if (context === "refused") return "refused";
 
   type ChaseOutcome =
     | { readonly kind: "no-send" }
@@ -3221,69 +3322,189 @@ export async function dispatchOnboardingChaseJob(
   // and not unnecessary.
   if (claim.kind === "deferred") return "deferred";
   if (claim.kind !== "send") return "skipped";
-  const claimed = claim;
+  return concludeClaimedSend(jobId, context, claim);
+}
 
-  const outcome = await context.provider.send(claimed.message);
+// ---------------------------------------------------------------------------
+// The operator details request — LAN-459
+// ---------------------------------------------------------------------------
 
-  await withTransaction(async (tx) => {
-    // LAN-394. What this answer says about the provider, before what it says
-    // about this message.
-    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+const OPERATOR_DETAILS_NO_SEASON_REASON =
+  "There is no current season, so the details link cannot be made.";
+const OPERATOR_DETAILS_NO_CONSENT_REASON =
+  "This person has refused or withdrawn messaging this season, so no details request is sent.";
+const OPERATOR_DETAILS_HAS_ACCOUNT_REASON =
+  "This person already has an operator account, so no details request is sent.";
+const OPERATOR_DETAILS_HAS_EMAIL_REASON =
+  "The club has an email for this person, so the invitation goes by email instead.";
 
-    if (outcome.status === "accepted") {
-      await tx.query(
-        `update public.delivery_attempts
-            set accepted_at = now(), provider_message_id = $2 where id = $1`,
-        [claimed.attemptId, outcome.providerMessageId],
-      );
-      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
-        jobId,
-      ]);
-      await recordAudit(tx, {
-        actorLabel: DISPATCH_ACTOR_LABEL,
-        action: "delivery.attempted",
-        entityTable: "notification_jobs",
-        entityId: jobId,
-        context: {
-          attemptNumber: claimed.attemptNumber,
-          provider: context.provider.name,
-          channel: context.channel,
-          providerMessageId: outcome.providerMessageId,
-        },
-      });
-      return;
-    }
+/**
+ * Sends one operator details request: the approved `onboarding_chase` template
+ * (Brian, 2 October 2026 — nothing waits on Meta), whose one button carries a
+ * fresh `operator_details` link to `/onboarding/<t>`.
+ *
+ * WhatsApp is used for this only when a phone number is all the club has, and
+ * that is re-checked here at claim time: a person who has since been given an
+ * email or an account is not messaged. Under 18 refuses as it does everywhere.
+ * Consent is a recruit concept and a coach has no consent record, so this
+ * sends without a grant — but a refusal or withdrawal recorded this season
+ * still stops it. Lights-out and the shared sending allowance apply exactly
+ * as they do to the chase (`resolveOtherJobProvider`, `admitSendIn`).
+ */
+export async function dispatchOperatorDetailsJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<DispatchOutcome> {
+  const context = await resolveOtherJobProvider(jobId, options);
+  if (context === null) return "deferred";
+  if (context === "refused") return "refused";
 
-    await tx.query(
-      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
-      [claimed.attemptId, outcome.reason],
+  type DetailsOutcome =
+    | { readonly kind: "no-send" }
+    | { readonly kind: "deferred" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<DetailsOutcome> => {
+    const locked = await tx.query<{
+      id: string;
+      idempotency_key: string;
+      person_id: string;
+      attempt_count: number;
+      requested_on: string;
+    }>(
+      `select id, idempotency_key, person_id, attempt_count,
+              to_char(created_at at time zone 'Europe/London', 'FMDD FMMonth') as requested_on
+         from public.notification_jobs
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${OPERATOR_DETAILS_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $2
+          and person_id is not null
+        for update`,
+      [jobId, MAX_ATTEMPTS],
     );
-    await tx.query(
-      `insert into public.delivery_results
-         (notification_job_id, attempt_number, outcome, channel, provider, detail)
-       values ($1, $2, $3, $4, $5, $6)
-       on conflict (notification_job_id, attempt_number) do nothing`,
-      [
+    const job = locked.rows[0];
+    if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
+    const fail = async (reason: string): Promise<DetailsOutcome> => {
+      await failClaimTerminallyIn(
+        tx,
         jobId,
-        claimed.attemptNumber,
-        outcome.retryable ? "failed" : "rejected",
+        reason,
+        await claiming.take(),
         context.channel,
         context.provider.name,
-        outcome.reason,
+      );
+      return { kind: "no-send" };
+    };
+
+    if (await isPersonUnder18In(tx, job.person_id)) return fail(ONBOARDING_CHASE_UNDER_18_REASON);
+    const accounts = await tx.query("select 1 from public.operator_accounts where person_id = $1", [
+      job.person_id,
+    ]);
+    if (accounts.rows.length > 0) return fail(OPERATOR_DETAILS_HAS_ACCOUNT_REASON);
+    if (await hasUsableEmailIn(tx, job.person_id)) return fail(OPERATOR_DETAILS_HAS_EMAIL_REASON);
+
+    const season = await findCurrentSeasonIn(tx);
+    if (season === null) return fail(OPERATOR_DETAILS_NO_SEASON_REASON);
+    const consent = await readSeasonMessagingConsentIn(tx, job.person_id, season.id);
+    if (consent?.state === "refused" || consent?.state === "withdrawn") {
+      return fail(OPERATOR_DETAILS_NO_CONSENT_REASON);
+    }
+
+    const person = await tx.query<{ given_name: string }>(
+      `select given_name from public.people where id = $1::uuid`,
+      [job.person_id],
+    );
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1::uuid
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+    const recipient = selectMobileNumber(
+      contacts.rows.map((row) => ({
+        kind: row.kind,
+        rawValue: row.raw_value,
+        normalisedValue: row.normalised_value,
+        isPreferred: row.is_preferred,
+      })),
+      context.defaultCallingCode,
+    );
+    if (!recipient) return fail(NO_USABLE_NUMBER_REASON);
+
+    // Minted at dispatch, as the chase's own link is, and revoked when the
+    // form is saved — the single-purpose link the ticket asks for.
+    const issued = await issuePersonTokenIn(tx, job.person_id, season.id, {
+      actorPersonId: null,
+      purpose: "operator_details",
+    });
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning id`,
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
       ],
     );
-    await tx.query(
-      `update public.notification_jobs
-          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
-              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
-              automatic_attempts = automatic_attempts + 1,
-              updated_at = now()
-        where id = $1`,
-      [jobId, outcome.reason, outcome.retryable],
-    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber,
+      safety: admission,
+      message: {
+        kind: "onboarding_chase",
+        recipient,
+        inviteeName: person.rows[0]?.given_name ?? "",
+        eventName: "",
+        // The template's date slot: the day the request was made.
+        whenLabel: job.requested_on,
+        rsvpUrl: "",
+        formUrl: onboardingUrl(context.appBaseUrl, issued.token),
+      },
+    };
   });
 
-  return outcome.status === "accepted" ? "accepted" : "refused";
+  if (claim.kind === "deferred") return "deferred";
+  if (claim.kind !== "send") return "skipped";
+  return concludeClaimedSend(jobId, context, claim);
 }
 
 export interface OnboardingNudgeResult {

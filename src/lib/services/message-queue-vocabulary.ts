@@ -75,6 +75,8 @@ const MESSAGE_KINDS = Object.freeze([
   "onboarding_escalation",
   // LAN-465. The attendance sheet, an hour before an approved event.
   "attendance_sheet",
+  // LAN-459. The details request to an operator the club has only a phone number for.
+  "operator_details",
   "other",
 ] as const);
 export type MessageKind = (typeof MESSAGE_KINDS)[number];
@@ -91,7 +93,7 @@ export const KIND_FAMILIES = Object.freeze({
     "recruit_interest_ask",
     "recruit_interest_reminder",
   ],
-  onboarding: ["onboarding_welcome", "onboarding_chase", "onboarding_nudge"],
+  onboarding: ["onboarding_welcome", "onboarding_chase", "onboarding_nudge", "operator_details"],
   attendance: ["attendance_sheet"],
 } as const satisfies Record<string, readonly MessageKind[]>);
 export type KindFamily = keyof typeof KIND_FAMILIES;

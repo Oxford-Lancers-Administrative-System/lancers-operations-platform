@@ -24,7 +24,7 @@ export const OPERATORS_AND_ROLES_PAGE: PlaybookPage = {
     alt: "The operator flow: invite, invitation email, invitation pending, active, and the routes to deactivated and to a vacant seat.",
     description: [
       [
-        "An operator is invited by name, email and at least one role. The invitation cannot be sent without a role.",
+        "An operator is invited by name, an email or a phone number, and at least one role. The invitation cannot be sent without a role.",
         " The email lands on their person record classified: an Oxford address as college email, any other as personal email. A person seated with no email on record gets the login email the same way.",
       ],
       [
@@ -76,9 +76,25 @@ export const OPERATORS_AND_ROLES_PAGE: PlaybookPage = {
       ],
     },
     {
+      operator: [
+        "If the club has only a phone number for them, leave the email blank and give the phone.",
+      ],
+      then: [
+        "Email is always used when the club has one. With a phone number alone, they hold the role at once with no account yet, and get one WhatsApp message with a link to a short details form. When they save it, their account is opened and the invitation goes to the email they gave, with nothing for you to do. The seat's line reads ",
+        state("Details requested"),
+        ", ",
+        state("Details request not delivered"),
+        " or ",
+        state("Details received"),
+        " with that email; ",
+        control("Send details request"),
+        " sends the message again.",
+      ],
+    },
+    {
       operator: ["Nothing. They follow the link and choose their own password."],
       then: [
-        "Nobody ever sets somebody else's password, and there is no public sign-up. The invitation buys exactly one thing: the chance to set a password.",
+        "Nobody ever sets somebody else's password, and there is no public sign-up. The invitation buys exactly one thing: the chance to set a password. The first time they sign in, anyone missing a name, mobile or personal email fills in the same details form before reaching the app.",
       ],
     },
     {
