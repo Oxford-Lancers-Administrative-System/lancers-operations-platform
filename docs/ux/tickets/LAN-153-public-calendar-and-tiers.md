@@ -121,8 +121,13 @@ use. Counts are raw pairs, never percentages (D62).
 A **cancelled** event stays on the public list, marked cancelled (D57, and
 correction C1 to `W1`): `W2` keeps it in the subscription feed, so hiding it here
 would make two public surfaces disagree. That is one bit — `isCancelled` — and not
-the status column: a public reader learns the event is off and nothing about
-drafts.
+the status column: a public reader learns the event is off.
+
+A **draft** stays on the public list too (D5), but since LAN-463 (Stu and Brian,
+2 October 2026) only as its name and when: its venue, description, required
+equipment and joining link are read as null, and the list and event page show
+no Where for it. That is a second bit, `isDraft`, still not the status column,
+and nothing on the page labels the event a draft.
 
 ## Calendar View
 

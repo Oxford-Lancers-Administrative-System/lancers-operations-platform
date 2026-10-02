@@ -87,6 +87,7 @@ describe("GET /calendar/feed.ics", () => {
           venue: "Iffley Road Astro",
           isMandatory: false,
           isCancelled: false,
+          isDraft: false,
           description: null,
           requiredEquipment: null,
           joiningUrl: null,

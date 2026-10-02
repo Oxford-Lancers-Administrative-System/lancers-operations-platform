@@ -114,7 +114,11 @@ tiers apart is the **projection**: `listPublicSeasonEvents` and `readPublicEvent
 in `src/lib/services/events.ts` select different columns, so a joining URL, a
 participation count or a status is never read out of the database rather than
 hidden after loading, and the operator's projection is reached only through a
-service-layer guard (`src/lib/auth/event-tier.ts`). See
+service-layer guard (`src/lib/auth/event-tier.ts`). D5 keeps every event on the
+public tier, drafts included, but since LAN-463 (Stu and Brian, 2 October 2026)
+a draft's detail is no longer world-readable: the public projection reads a
+draft's venue, description, required equipment and joining link as null, so the
+public pages and the subscription feed carry its name and when only. See
 [`ux/tickets/LAN-153-public-calendar-and-tiers.md`](ux/tickets/LAN-153-public-calendar-and-tiers.md).
 
 Route protection in `proxy.ts` is convenience, not the authorization boundary.

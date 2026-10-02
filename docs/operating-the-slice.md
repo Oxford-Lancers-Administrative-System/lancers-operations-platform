@@ -1087,6 +1087,17 @@ earlier never-public rule). The calendar itself stays open, with no password: th
 protection lives on the meeting, which requires its own passcode. The event
 editor warns the operator of that whenever the delivery mode is online.
 
+**A draft is shown as its name and when, and nothing else** (LAN-463, Stu and
+Brian, 2026-10-02). It stays on the list, the calendars and the subscription feed,
+but its where, required equipment, description and joining link are withheld —
+read as nothing from the database, not hidden after loading — and the list and
+event page show no Where for it at all. Nothing marks it as a draft on these
+pages. In the subscription feed (`/calendar/feed.ics`) a draft's entry carries
+its name, its date and time, the line "Details to be confirmed. They may
+change." in place of the description, and `STATUS:TENTATIVE`. Approving it
+fills in the same entry with everything on the subscriber's next refresh: the
+same `UID`, a later `SEQUENCE`, `STATUS:CONFIRMED`.
+
 `/calendar/view` gives the same two calendar arrangements. Nothing on any of these
 pages asks you to sign in, and reading them creates no record of any kind.
 

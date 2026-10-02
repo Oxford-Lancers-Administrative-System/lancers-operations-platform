@@ -31,11 +31,22 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
+import { withTransaction } from "@/lib/db";
 import { addDays } from "@/lib/services/calendar";
-import { buildCalendarFeed, buildEventUid, deriveSequence } from "@/lib/services/calendar-feed";
+import {
+  buildCalendarFeed,
+  buildEventUid,
+  deriveSequence,
+  DRAFT_PLACEHOLDER,
+  escapeText,
+} from "@/lib/services/calendar-feed";
+import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
+import { listAudienceCatalogueIn } from "@/lib/services/event-audience";
 import {
   createEventDraft,
+  listPublicSeasonEvents,
   listPublicSeasonEventsForFeed,
+  readPublicEvent,
   type EventDetail,
 } from "@/lib/services/events";
 import { openLocalClient } from "./helpers/domain-fixture";
@@ -79,6 +90,9 @@ async function draftFixtureEvent(
     endsAt: string | null;
     deliveryMode: "in_person" | "online";
     venue: string | null;
+    description: string | null;
+    requiredEquipment: string | null;
+    joiningUrl: string | null;
   }> = {},
 ): Promise<EventDetail> {
   return createEventDraft(actorPersonId, {
@@ -95,6 +109,21 @@ async function draftFixtureEvent(
     isMandatory: false,
     ...overrides,
   });
+}
+
+/**
+ * LAN-463: approve a fixture draft through the real path — one seeded invitee,
+ * `saveEventAudience` then `approveEvent` — so the feed reads the same row an
+ * operator's approval leaves.
+ */
+async function approve(event: EventDetail): Promise<void> {
+  const catalogue = await withTransaction((tx) =>
+    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
+  );
+  const invitee = catalogue.candidates.find((one) => one.capacity === "player");
+  if (!invitee) throw new Error("the seeded season offers no player to invite");
+  await saveEventAudience(actorPersonId, event.id, [invitee.key]);
+  await approveEvent(actorPersonId, event.id);
 }
 
 /** The real feed for the whole open season, built the same way the route does. */
@@ -117,6 +146,8 @@ async function seededOnlineEventWithJoiningUrl(): Promise<{
        join public.seasons s on s.id = e.season_id
       where e.delivery_mode = 'online'
         and e.joining_url is not null
+        -- LAN-463: a draft's joining URL is withheld, so only an approved event proves it carried.
+        and e.status = 'approved'
         and s.status = any(array['open','active','closing']::public.season_status[])
       order by e.scheduled_on desc nulls last
       limit 1`,
@@ -150,6 +181,23 @@ beforeAll(async () => {
 }, 60_000);
 
 afterEach(async () => {
+  // LAN-463: an approved fixture carries an audience, invitations, jobs and a
+  // frozen messaging plan, each referencing its event; they go first, in the
+  // dependency order `participation.test.ts` keeps.
+  const events = "(select id from public.events where name like $1)";
+  const invitations = `(select id from public.invitations where event_id in ${events})`;
+  for (const statement of [
+    `delete from public.delivery_results where notification_job_id in
+       (select id from public.notification_jobs where event_id in ${events})`,
+    `delete from public.nonresponse_flags where invitation_id in ${invitations}`,
+    `delete from public.event_messaging_plans where event_id in ${events}`,
+    `delete from public.notification_jobs where event_id in ${events}`,
+    `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
+    `delete from public.invitations where event_id in ${events}`,
+    `delete from public.event_audience_members where event_id in ${events}`,
+  ]) {
+    await observer.query(statement, [`${NAME_MARKER}%`]);
+  }
   // Audit rows first — they name the event, and the delete below removes it.
   await observer.query(
     `delete from public.audit_events
@@ -184,9 +232,81 @@ describe("a read", () => {
   }, 60_000);
 });
 
+describe("a draft, then its approval — LAN-463", () => {
+  const DETAIL = {
+    venue: `${NAME_MARKER} pitch three`,
+    description: `${NAME_MARKER} install review`,
+    requiredEquipment: `${NAME_MARKER} gumshield`,
+  };
+
+  it("carries a draft as title and time with the placeholder, and fills the same entry in on approval", async () => {
+    const event = await draftFixtureEvent(DETAIL);
+    const uid = buildEventUid(event.id);
+    // The draft is moved back a few seconds, as any real gap between drafting
+    // and approving does: SEQUENCE counts whole seconds, and a test is faster
+    // than an operator.
+    await observer.query(
+      "update public.events set updated_at = updated_at - interval '5 seconds' where id = $1",
+      [event.id],
+    );
+
+    const before = unfold((await fetchFeedDocument()).document);
+    const draft = vEventBlock(before, uid);
+    expect(draft).toContain(`SUMMARY:${escapeText(event.name)}`);
+    expect(draft).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+    expect(draft).toContain(`DESCRIPTION:${escapeText(DRAFT_PLACEHOLDER)}`);
+    expect(draft).toContain("STATUS:TENTATIVE");
+    expect(draft).not.toContain("LOCATION:");
+    expect(draft).not.toContain("URL:");
+    for (const withheld of Object.values(DETAIL)) expect(draft).not.toContain(withheld);
+    const draftSequence = Number(draft.match(/SEQUENCE:(\d+)/)![1]);
+
+    await approve(event);
+
+    const after = unfold((await fetchFeedDocument()).document);
+    expect(occurrencesOf(after, `UID:${uid}`), "approval created a second entry").toBe(1);
+    const approved = vEventBlock(after, uid);
+    expect(Number(approved.match(/SEQUENCE:(\d+)/)![1])).toBeGreaterThan(draftSequence);
+    expect(approved).toContain(`LOCATION:${escapeText(DETAIL.venue)}`);
+    expect(approved).toContain(DETAIL.description);
+    expect(approved).toContain(DETAIL.requiredEquipment);
+    expect(approved).toContain("STATUS:CONFIRMED");
+    expect(approved).not.toContain(escapeText(DRAFT_PLACEHOLDER));
+  }, 60_000);
+
+  it("withholds a draft's detail from the public list and event page as the feed does", async () => {
+    const event = await draftFixtureEvent({
+      ...DETAIL,
+      deliveryMode: "online",
+      joiningUrl: "https://teams.example.invalid/l/meetup-join/lan463",
+    });
+
+    const detail = await readPublicEvent(event.id);
+    expect(detail).toMatchObject({
+      name: event.name,
+      scheduledOn: event.scheduledOn,
+      startsAt: "18:00",
+      isDraft: true,
+      venue: null,
+      description: null,
+      requiredEquipment: null,
+      joiningUrl: null,
+    });
+
+    const list = await listPublicSeasonEvents();
+    const entry = list.events.find((one) => one.id === event.id);
+    expect(entry).toMatchObject({ isDraft: true, venue: null });
+    // Nor can a search find it by the venue it is not showing.
+    const searched = await listPublicSeasonEvents({ search: DETAIL.venue });
+    expect(searched.events.some((one) => one.id === event.id)).toBe(false);
+  }, 60_000);
+});
+
 describe("identity and revision", () => {
   it("an amendment updates the existing entry rather than duplicating it", async () => {
+    // LAN-463: an approved event, whose entry carries its full detail.
     const event = await draftFixtureEvent();
+    await approve(event);
 
     const before = await fetchFeedDocument();
     const uid = buildEventUid(event.id);

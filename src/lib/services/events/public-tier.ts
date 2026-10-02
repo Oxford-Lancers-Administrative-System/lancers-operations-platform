@@ -34,6 +34,9 @@ export interface PublicEventListEntry {
   venue: string | null; // an address in person; online events say "Online" and stop there
   isMandatory: boolean;
   isCancelled: boolean; // D57, correction C1 — one bit, not the status column
+  // LAN-463: one bit, like isCancelled. A draft is title and date/time only — venue (and so the
+  // delivery mode as a place), description, equipment and joining link are withheld in SQL.
+  isDraft: boolean;
 }
 
 export interface PublicEventDetail extends PublicEventListEntry {
@@ -48,14 +51,29 @@ export interface PublicEventList {
   totalInSeason: number; // events in the season before any filter — tells the two empty states apart
 }
 
+/**
+ * LAN-463 (Stu and Brian, 2 October 2026): a draft is not yet the club's word, so the public tier
+ * carries its title and date/time only. The withheld columns read as null here, in SQL, so no
+ * caller — the feed, the list, the tiles or the event page — can show what was never read.
+ */
+function unlessDraft(column: string): string {
+  return `case when e.status = 'draft' then null else ${column} end`;
+}
+
 // Every column the public tier reads, and there are no others (exported so a test can assert on
 // it). PARTICIPATION_TABLES stays absent (REQ-public-calendar). See relocations.md.
 export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, ${TEMPLATE_COLUMNS},
             e.event_type::text as event_type,
             e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
-            e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
-            e.joining_url,
-            (e.status = 'cancelled') as is_cancelled`;
+            e.delivery_mode::text as delivery_mode, ${unlessDraft("e.venue")} as venue,
+            e.is_mandatory,
+            ${unlessDraft("e.joining_url")} as joining_url,
+            (e.status = 'cancelled') as is_cancelled,
+            (e.status = 'draft') as is_draft`;
+
+/** LAN-463: description and required equipment, withheld on a draft like the columns above. */
+const PUBLIC_DETAIL_COLUMNS = `${unlessDraft("e.description")} as description,
+            ${unlessDraft("e.required_equipment")} as required_equipment`;
 
 interface PublicEventRow {
   id: string;
@@ -72,6 +90,7 @@ interface PublicEventRow {
   is_mandatory: boolean;
   joining_url: string | null;
   is_cancelled: boolean;
+  is_draft: boolean;
 }
 
 function toPublicEntry(row: PublicEventRow): PublicEventListEntry {
@@ -89,6 +108,7 @@ function toPublicEntry(row: PublicEventRow): PublicEventListEntry {
     venue: row.venue,
     isMandatory: row.is_mandatory,
     isCancelled: row.is_cancelled,
+    isDraft: row.is_draft,
   };
 }
 
@@ -110,11 +130,17 @@ export const PUBLIC_EVENT_SORT_COLUMNS: readonly string[] = Object.freeze([
 
 function publicOrderBy(sort: string | null, direction: string | null): string {
   const key = sort !== null && PUBLIC_EVENT_SORT_COLUMNS.includes(sort) ? sort : DEFAULT_EVENT_SORT;
+  // LAN-463: a draft's venue is withheld, so it sorts as no venue rather than by the one it has.
+  if (key === "venue") {
+    const dir = direction === "desc" ? "desc" : "asc";
+    return `${unlessDraft("e.venue")} ${dir} nulls last, e.created_at desc`;
+  }
   return orderBy(key, direction);
 }
 
 // The open season's events, at the public tier — no session, no token, no cookie, no write
-// (REQ-public-calendar). D5: every event is here, drafts included — narrowed in what it says, not which events it shows.
+// (REQ-public-calendar). D5: every event is here, drafts included — narrowed in what it says, not which events it shows;
+// LAN-463 narrows a draft further, to its title and date/time.
 export async function listPublicSeasonEvents(
   filters: PublicEventListFilters = {},
 ): Promise<PublicEventList> {
@@ -130,7 +156,7 @@ export async function listPublicSeasonEvents(
          ${TEMPLATE_JOIN}
         where e.season_id = $1
           and ($2::text is null or e.name ilike '%' || $2 || '%'
-                                or coalesce(e.venue, '') ilike '%' || $2 || '%')
+                                or coalesce(${unlessDraft("e.venue")}, '') ilike '%' || $2 || '%')
           and ($3::text is null or e.template_id::text = $3)
         order by ${publicOrderBy(optional(filters.sort), optional(filters.direction))}`,
       [season.id, search, templateId],
@@ -161,7 +187,7 @@ export async function readPublicEvent(eventId: string): Promise<PublicEventDetai
     const result = await tx.query<
       PublicEventRow & { description: string | null; required_equipment: string | null }
     >(
-      `select ${PUBLIC_EVENT_COLUMNS}, e.description, e.required_equipment
+      `select ${PUBLIC_EVENT_COLUMNS}, ${PUBLIC_DETAIL_COLUMNS}
          from public.events e
          ${TEMPLATE_JOIN}
         where e.id = $1 and e.season_id = $2`,
@@ -211,7 +237,7 @@ export async function listPublicSeasonEventsForFeed(): Promise<{
         updated_at: Date | string;
       }
     >(
-      `select ${PUBLIC_EVENT_COLUMNS}, e.description, e.required_equipment, e.updated_at
+      `select ${PUBLIC_EVENT_COLUMNS}, ${PUBLIC_DETAIL_COLUMNS}, e.updated_at
          from public.events e
          ${TEMPLATE_JOIN}
         where e.season_id = $1

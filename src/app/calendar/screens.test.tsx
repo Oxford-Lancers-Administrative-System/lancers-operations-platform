@@ -128,6 +128,7 @@ function entry(overrides: Partial<PublicEventListEntry> = {}): PublicEventListEn
     venue: "Iffley Road Astro",
     isMandatory: false,
     isCancelled: false,
+    isDraft: false,
     ...overrides,
   };
 }
@@ -241,6 +242,23 @@ describe("the public list", () => {
 
     expect(text).toContain("Online");
     expect(text).not.toMatch(/no link|link not shown|not available/i);
+  });
+
+  // LAN-463: a draft stays on the list (D5), with nothing about where.
+  it("lists a draft with no Where, in the table and on the phone card", async () => {
+    givenEvents([
+      entry({ name: "Draft chalk", deliveryMode: "online", venue: null, isDraft: true }),
+    ]);
+
+    const { container } = render(await PublicCalendarPage(listProps()));
+
+    const row = screen.getByTestId("public-event-row");
+    expect(flatten(row.textContent)).toContain("Draft chalk");
+    expect(flatten(row.textContent)).not.toContain("Online");
+    const card = screen.getByTestId("public-event-card");
+    expect(flatten(card.textContent)).toContain("Draft chalk");
+    expect(flatten(card.textContent)).not.toContain("Online");
+    expect(flatten(container.textContent)).not.toMatch(/draft event|to be confirmed/i);
   });
 
   it("keeps a cancelled event on the list, marked cancelled", async () => {
@@ -612,6 +630,34 @@ describe("the public event page", () => {
     expect(text).toContain("Install review for the Brackenridge fixture.");
     // And its Oxford coordinate, from the same year the calendar draws.
     expect(text).toContain("MT 4th");
+  });
+
+  // LAN-463: the service reads a draft's venue, description, equipment and link
+  // as null; the page then says nothing of where either, as the feed does not.
+  it("states a draft's title and time only", async () => {
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({
+        isDraft: true,
+        deliveryMode: "online",
+        venue: null,
+        scheduledOn: "2026-11-03",
+        startsAt: "18:00",
+        endsAt: "19:00",
+      }),
+    );
+
+    const { container } = render(await PublicEventPage(eventProps()));
+    const text = flatten(container.textContent);
+
+    expect(screen.getByTestId("public-event-name").textContent).toContain(
+      "Chalk — michaelmas week 4",
+    );
+    expect(text).toContain("Tuesday, 3 November 2026");
+    expect(text).toContain("18:00–19:00");
+    expect(text).not.toContain("Where");
+    expect(text).not.toContain("Online");
+    expect(text).not.toMatch(/draft|to be confirmed/i);
+    expect(screen.queryByTestId("public-event-joining-url")).toBeNull();
   });
 
   it("says nothing about people", async () => {
