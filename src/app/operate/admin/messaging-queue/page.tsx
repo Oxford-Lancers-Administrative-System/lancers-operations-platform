@@ -41,12 +41,14 @@ function windowSubtitle(queue: MessageQueue): string {
 }
 
 /**
- * **Messages** — LAN-468, a proposal. Every message the club has sent, is
+ * **Messaging queue** — LAN-468. Every message the club has sent, is
  * sending and has queued, across events, recruitment and onboarding, in one
  * running list. Read-only. `delivery_administration`, the capability that
  * already reads messaging safety for the whole club.
  */
-export default async function MessagesPage({ searchParams }: PageProps<"/operate/admin/messages">) {
+export default async function MessagesPage({
+  searchParams,
+}: PageProps<"/operate/admin/messaging-queue">) {
   const gate = await gateShellPage(MESSAGES_PATH, "delivery_administration");
   if ("screen" in gate) return gate.screen;
 

@@ -37,7 +37,7 @@ import {
 import { personDisplayNameSql } from "./sql-text";
 
 /**
- * The whole-club message queue — LAN-468, a proposal for Brian's review.
+ * The whole-club message queue — LAN-468.
  *
  * Every message the application has sent, is sending, or will send, across
  * events, recruitment and onboarding, read from `notification_jobs` (one row

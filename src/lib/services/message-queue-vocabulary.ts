@@ -1,5 +1,5 @@
 /**
- * The whole-club message queue's codes — LAN-468 (proposal).
+ * The whole-club message queue's codes — LAN-468.
  *
  * Pure, with no `server-only`, so the page's filter (a client component) and
  * the read service share one list of what a status, a channel, a kind and a

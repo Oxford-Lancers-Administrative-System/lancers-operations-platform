@@ -72,11 +72,11 @@ const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
     label: "Operators",
     access: "role_management" as AccessRule,
   }),
-  // LAN-468 (proposal). The whole-club queue, beside the settings that shape
+  // LAN-468. The whole-club queue, beside the settings that shape
   // it, for the seats that already read messaging safety.
   Object.freeze({
-    href: "/operate/admin/messages",
-    label: "Messages",
+    href: "/operate/admin/messaging-queue",
+    label: "Messaging queue",
     access: "delivery_administration" as AccessRule,
   }),
   Object.freeze({

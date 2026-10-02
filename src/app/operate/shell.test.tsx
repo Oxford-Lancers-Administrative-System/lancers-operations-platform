@@ -485,7 +485,7 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     // not ordinary destinations of their own. LAN-204 adds Recruitment as a
     // fourth ordinary destination, beneath Roster, and LAN-399 adds Guide as a
     // fifth Administration entry: the Secretary is one of the core four.
-    // LAN-468 (proposal) adds Messages, on `delivery_administration`.
+    // LAN-468 adds Messaging queue, on `delivery_administration`.
     expect(screen.getAllByRole("link")).toHaveLength(10);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
@@ -1288,10 +1288,10 @@ describe("LAN-133 — Administration in the shell", () => {
       // LAN-399 adds Guide to two of these three: it is the core four's, and
       // the IT Officer is not one of them.
       const guide = seat === "it_officer" ? 0 : 1;
-      // LAN-468 (proposal): Messages, on `delivery_administration`, which all three hold.
-      expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+      // LAN-468: Messages, on `delivery_administration`, which all three hold.
+      expect(screen.getByRole("link", { name: "Messaging queue" })).toHaveAttribute(
         "href",
-        "/operate/admin/messages",
+        "/operate/admin/messaging-queue",
       );
       expect(screen.getAllByRole("link")).toHaveLength(11 + guide);
     },
@@ -1313,7 +1313,7 @@ describe("LAN-133 — Administration in the shell", () => {
       "People",
       "Missing data",
       "Operators",
-      "Messages",
+      "Messaging queue",
       "Messaging schedule",
       "Roles",
     ]);
@@ -1367,10 +1367,10 @@ describe("LAN-133 — Administration in the shell", () => {
         "/operate/admin/guide/workflows",
       );
       expect(container.textContent).toContain("Administration");
-      // LAN-468 (proposal): both hold `delivery_administration`, so both see Messages.
-      expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+      // LAN-468: both hold `delivery_administration`, so both see Messaging queue.
+      expect(screen.getByRole("link", { name: "Messaging queue" })).toHaveAttribute(
         "href",
-        "/operate/admin/messages",
+        "/operate/admin/messaging-queue",
       );
       expect(screen.getAllByRole("link")).toHaveLength(10);
     },

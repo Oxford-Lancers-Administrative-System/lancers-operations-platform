@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The whole-club message queue — LAN-468 (proposal).
+ * The whole-club message queue — LAN-468.
  *
  * Read-only against the seeded local database, with the auth floor mocked:
  * `requireCapability` is the one dependency that is not a database read. Nothing

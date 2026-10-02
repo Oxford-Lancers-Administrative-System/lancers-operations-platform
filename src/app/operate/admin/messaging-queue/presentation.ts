@@ -1,4 +1,4 @@
-// The whole-club message queue's words — LAN-468 (proposal). Labels, values
+// The whole-club message queue's words — LAN-468. Labels, values
 // and states only. State words are the delivery screen's own (`DELIVERY_LABELS`,
 // `docs/ux/slice-ux.md` § 6); the waiting words are messaging safety's.
 
@@ -13,8 +13,8 @@ import type {
   StatusFilter,
 } from "@/lib/services/message-queue-vocabulary";
 
-export const PAGE_HEADING = "Messages";
-export const MESSAGES_PATH = "/operate/admin/messages";
+export const PAGE_HEADING = "Messaging queue";
+export const MESSAGES_PATH = "/operate/admin/messaging-queue";
 
 export { CHANNEL_LABELS };
 
