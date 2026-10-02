@@ -3260,6 +3260,93 @@ describe("the participation table on the event page", () => {
       expect(card.querySelector("[data-discrepancy]")).not.toBeNull();
     });
 
+    /**
+     * LAN-458 (Stu, 30 September; Brian, 1 October 2026): a fourth box under
+     * the three blocks, every invitee's full name under Yes, No or No
+     * response, each group with its count. Nothing collapses, at either width:
+     * the phone stacks the groups and the desktop sets them side by side, by
+     * breakpoint alone, so the same names are in the page at both.
+     */
+    describe("LAN-458 — the name-and-response box", () => {
+      const person = PARTICIPATION.people[0];
+      const NAMED: OperatorParticipation = {
+        ...PARTICIPATION,
+        people: [
+          { ...person, key: "player:a", displayName: "Aldous None", answer: null },
+          { ...person, key: "player:b", displayName: "Bryony No", answer: "no" },
+          { ...person, key: "player:c", displayName: "Cyril Yes", answer: "yes" },
+          { ...person, key: "coach:d", capacity: "coach", displayName: "Delia Yes", answer: "yes" },
+          {
+            ...person,
+            key: "player:e",
+            displayName: "Edwin Walkup",
+            answer: null,
+            isWalkUp: true,
+            invitationId: null,
+          },
+          ...Array.from({ length: 40 }, (_, at) => ({
+            ...person,
+            key: `player:n${at}`,
+            displayName: `Quorra Pending ${String(at).padStart(2, "0")}`,
+            answer: null as "yes" | "no" | null,
+          })),
+        ],
+      };
+
+      const jsdomWidth = window.innerWidth;
+      afterEach(() => {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: jsdomWidth });
+      });
+
+      async function renderNamed(width: number) {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+        vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+        vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+        vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+        vi.mocked(readOperatorParticipation).mockResolvedValue(NAMED);
+        return render(await EventDetailPage(detailProps()));
+      }
+
+      for (const width of [1280, 375]) {
+        it(`lists every invitee by answer, Yes, No, then No response, at ${width}px`, async () => {
+          await renderNamed(width);
+
+          const box = screen.getByTestId("response-names");
+          const groups = [...box.querySelectorAll('[data-testid^="response-names-"]')];
+          expect(groups.map((node) => node.getAttribute("data-testid"))).toEqual([
+            "response-names-yes",
+            "response-names-no",
+            "response-names-none",
+          ]);
+          const names = (group: Element) =>
+            [...group.querySelectorAll("li")].map((item) => item.textContent);
+
+          expect(groups[0].textContent).toContain("Yes · 2");
+          expect(names(groups[0])).toEqual(["Cyril Yes", "Delia Yes"]);
+          expect(groups[1].textContent).toContain("No · 1");
+          expect(names(groups[1])).toEqual(["Bryony No"]);
+          // Every nonresponder is listed — no "show more" — and the walk-up,
+          // who was never invited, is not.
+          expect(groups[2].textContent).toContain("No response · 41");
+          expect(names(groups[2])).toHaveLength(41);
+          expect(names(groups[2])[0]).toBe("Aldous None");
+          expect(box.textContent).not.toContain("Edwin Walkup");
+          expect(within(box).queryByRole("button")).toBeNull();
+        });
+      }
+
+      it("sits directly under the response blocks", async () => {
+        const { container } = await renderNamed(1280);
+
+        const order = [...container.querySelectorAll("[data-testid]")]
+          .map((node) => node.getAttribute("data-testid"))
+          .filter((id): id is string =>
+            ["response-progress", "response-names", "audience-fact"].includes(id ?? ""),
+          );
+        expect(order).toEqual(["response-progress", "response-names", "audience-fact"]);
+      });
+    });
+
     it("shows no block at all before approval, when nobody is invited", async () => {
       vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
       vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
@@ -3268,6 +3355,7 @@ describe("the participation table on the event page", () => {
       render(await EventDetailPage(detailProps()));
 
       expect(screen.queryByTestId("response-progress")).toBeNull();
+      expect(screen.queryByTestId("response-names")).toBeNull();
     });
 
     it("puts the register below Audience and distribution, and no Showed card above it", async () => {
