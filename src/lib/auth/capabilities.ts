@@ -1191,6 +1191,18 @@ export function describeHeldCoachingSeats(roleCodes: readonly string[]): string 
  */
 export const COACH_ROLE_CODES: readonly string[] = FIXED_COACHING_ROLE_CODES;
 
+/**
+ * LAN-466 (Stu's call, 2 October 2026; confirmed by Brian the same day): the
+ * committee seats whose holder, invited to an event as committee only, is
+ * counted under Coaches in the event page's response progress. Display only —
+ * it grants nothing and changes no capacity. Read by
+ * `src/lib/services/event-response-progress.ts`.
+ */
+export const COACH_COUNTED_COMMITTEE_ROLE_CODES: readonly string[] = Object.freeze([
+  "general_manager",
+  "it_officer",
+]);
+
 /** Every capability key, for tests and for exhaustive iteration. */
 export const CAPABILITY_KEYS: readonly CapabilityKey[] = Object.freeze(
   Object.keys(CAPABILITIES) as CapabilityKey[],

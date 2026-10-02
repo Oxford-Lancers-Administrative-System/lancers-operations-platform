@@ -25,6 +25,7 @@
  * `participation-view.ts`, which both the operator page and the public Event
  * info link page already read.
  */
+import { COACH_COUNTED_COMMITTEE_ROLE_CODES } from "@/lib/auth/capabilities";
 
 /** The four capacities an invitation can carry, as `public.invitation_capacity` spells them. */
 type ResponseCapacity = "recruit" | "coach" | "player" | "committee";
@@ -64,13 +65,10 @@ const RESPONSE_CAPACITY_LABELS: Readonly<Record<DisplayCapacity, string>> = Obje
 
 /**
  * The committee seats whose holder is tallied as a coach — LAN-466 (Stu's
- * call, 2 October 2026; confirmed by Brian the same day). Codes as
- * `public.roles.code` spells them.
+ * call, 2 October 2026; confirmed by Brian the same day). The codes live in
+ * the capability map, the one module that may name a seat.
  */
-export const COACH_COUNTED_SEAT_CODES: readonly string[] = Object.freeze([
-  "general_manager",
-  "it_officer",
-]);
+export const COACH_COUNTED_SEAT_CODES: readonly string[] = COACH_COUNTED_COMMITTEE_ROLE_CODES;
 
 /**
  * LAN-440 (Brian, 2026-09-26): a committee-only invitee is tallied as a

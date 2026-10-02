@@ -1680,6 +1680,8 @@ describe("the public tier reads a narrower event", () => {
       "eventType",
       "id",
       "isCancelled",
+      // LAN-463. One bit, like isCancelled: a draft's detail is withheld.
+      "isDraft",
       "isMandatory",
       "name",
       "scheduledOn",
@@ -1722,6 +1724,10 @@ describe("the public tier reads a narrower event", () => {
 
     expect(publicCancelled?.isCancelled).toBe(true);
     expect(publicDraft?.isCancelled).toBe(false);
+    // LAN-463: and a draft as a draft, with its venue withheld.
+    expect(publicDraft?.isDraft).toBe(true);
+    expect(publicDraft?.venue).toBeNull();
+    expect(publicCancelled?.isDraft).toBe(false);
   });
 
   it("narrows by type, and leaves the season's total alone", async () => {
@@ -1772,6 +1778,7 @@ describe("the public tier reads a narrower event", () => {
       "eventType",
       "id",
       "isCancelled",
+      "isDraft", // LAN-463
       "isMandatory",
       // LAN-284. The public tier gained exactly one key, and this exact-key-set
       // assertion is what proves nothing else came with it.
