@@ -485,7 +485,8 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     // not ordinary destinations of their own. LAN-204 adds Recruitment as a
     // fourth ordinary destination, beneath Roster, and LAN-399 adds Guide as a
     // fifth Administration entry: the Secretary is one of the core four.
-    expect(screen.getAllByRole("link")).toHaveLength(9);
+    // LAN-468 (proposal) adds Messages, on `delivery_administration`.
+    expect(screen.getAllByRole("link")).toHaveLength(10);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -1287,7 +1288,12 @@ describe("LAN-133 — Administration in the shell", () => {
       // LAN-399 adds Guide to two of these three: it is the core four's, and
       // the IT Officer is not one of them.
       const guide = seat === "it_officer" ? 0 : 1;
-      expect(screen.getAllByRole("link")).toHaveLength(10 + guide);
+      // LAN-468 (proposal): Messages, on `delivery_administration`, which all three hold.
+      expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+        "href",
+        "/operate/admin/messages",
+      );
+      expect(screen.getAllByRole("link")).toHaveLength(11 + guide);
     },
   );
 
@@ -1307,6 +1313,7 @@ describe("LAN-133 — Administration in the shell", () => {
       "People",
       "Missing data",
       "Operators",
+      "Messages",
       "Messaging schedule",
       "Roles",
     ]);
@@ -1360,7 +1367,12 @@ describe("LAN-133 — Administration in the shell", () => {
         "/operate/admin/guide/workflows",
       );
       expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(9);
+      // LAN-468 (proposal): both hold `delivery_administration`, so both see Messages.
+      expect(screen.getByRole("link", { name: "Messages" })).toHaveAttribute(
+        "href",
+        "/operate/admin/messages",
+      );
+      expect(screen.getAllByRole("link")).toHaveLength(10);
     },
   );
 
