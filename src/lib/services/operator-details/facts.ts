@@ -113,7 +113,7 @@ export async function holdsOrIsDueASeatIn(tx: Tx, personId: string): Promise<boo
 export const DETAILS_REQUEST_NO_SEAT_REASON =
   "This person no longer holds a role, so the details request was withdrawn.";
 /** Why a live details link was revoked when the person's last seat ended. */
-export const DETAILS_LINK_NO_SEAT_REASON = "The person no longer holds a role.";
+const DETAILS_LINK_NO_SEAT_REASON = "The person no longer holds a role.";
 /** Why a live details link was revoked when an account was opened for the person. */
 export const DETAILS_LINK_ACCOUNT_OPENED_REASON = "An operator account was opened for the person.";
 
