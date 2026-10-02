@@ -1,10 +1,19 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
 
+// `club-link.ts` is server-only; this file reads one constant from it.
+vi.mock("server-only", () => ({}));
+
+import { CORE_FOUR_ROLE_CODES } from "@/lib/auth/capabilities";
+import { CLUB_LINK_LIFETIME_DAYS } from "@/lib/services/club-link";
+import { isLightsOut, LIGHTS_OUT_EXEMPT } from "@/lib/services/messaging-schedule/lights-out";
 import { OPERATOR_ACCOUNT_STATE_DEFINITIONS } from "@/lib/services/operator-account-state";
 import {
   ADMINISTRATION_ACTION_LABELS,
   ADMINISTRATION_GUIDE,
+  COMPLIANCE_SECTION,
   guideText,
   HOLDER_HISTORY,
   OPERATOR_AUDIT_HISTORY,
@@ -238,5 +247,86 @@ describe("the rules an administrator will otherwise get wrong", () => {
     expect(answer).not.toMatch(/earlier year can be opened/i);
     expect(answer).toMatch(/Holder history/);
     expect(answer).toMatch(/this year and past years/i);
+  });
+});
+
+/**
+ * LAN-467 — Compliance and user protections. Every sentence is a claim about
+ * the running application, so each claim that can be pinned to a constant is
+ * pinned here, and every label it quotes is checked against `src/`.
+ */
+describe("Compliance and user protections", () => {
+  const compliance = guideText([COMPLIANCE_SECTION]);
+
+  const SRC = path.resolve(import.meta.dirname, "../../../../..");
+  const SELF = import.meta.dirname;
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir).flatMap((entry) => {
+      const full = path.join(dir, entry);
+      if (full.startsWith(SELF)) return [];
+      if (statSync(full).isDirectory()) return sourceFiles(full);
+      if (!/\.tsx?$/.test(entry) || /\.test\.tsx?$/.test(entry)) return [];
+      return [full];
+    });
+  }
+  const APPLICATION_SOURCE = sourceFiles(SRC)
+    .map((file) => readFileSync(file, "utf8"))
+    .join("\n");
+
+  it("quotes only labels the application itself shows", () => {
+    const quoted = [
+      "Privacy notice",
+      "Export everything held about this person",
+      "Anonymise this person",
+      "Stop messages",
+    ];
+    for (const label of quoted) {
+      expect(compliance).toContain(label);
+      expect(APPLICATION_SOURCE, label).toContain(`"${label}"`);
+    }
+  });
+
+  it("names the four seats erasure accepts, and only them", () => {
+    expect([...CORE_FOUR_ROLE_CODES].sort()).toEqual(
+      ["general_manager", "president", "secretary", "vice_president"].sort(),
+    );
+    expect(compliance).toMatch(
+      /among the President, General Manager, Vice-President and Secretary/,
+    );
+  });
+
+  it("states lights-out as the code holds it: 22:00 to 07:00, three kinds exempt", () => {
+    // October is BST, UTC+1: 21:59 and 07:00 go, 22:00 and 06:59 wait.
+    expect(isLightsOut(new Date("2026-10-05T20:59:00Z"))).toBe(false);
+    expect(isLightsOut(new Date("2026-10-05T21:00:00Z"))).toBe(true);
+    expect(isLightsOut(new Date("2026-10-06T05:59:00Z"))).toBe(true);
+    expect(isLightsOut(new Date("2026-10-06T06:00:00Z"))).toBe(false);
+    expect(compliance).toContain("between 22:00 and 07:00 UK time");
+
+    const exempt = Object.entries(LIGHTS_OUT_EXEMPT)
+      .filter(([, goes]) => goes)
+      .map(([kind]) => kind)
+      .sort();
+    expect(exempt).toEqual(["cancellation", "change_notice", "question_change"]);
+    expect(compliance).toMatch(
+      /an event's cancellation, a change to an event, and a change to its questions/,
+    );
+  });
+
+  it("states the shared event link's lifetime as the code holds it", () => {
+    expect(CLUB_LINK_LIFETIME_DAYS).toBe(7);
+    expect(compliance).toContain("seven days after the event");
+  });
+
+  it("gives no number an attacker could use", () => {
+    // The two clock times above are the only figures in the section.
+    expect(compliance.replace(/22:00|07:00/g, "")).not.toMatch(/\d/);
+    expect(compliance).not.toMatch(/per (?:second|minute|hour)|\/api\b|https?:|requests? per/i);
+  });
+
+  it("leaves the controller and the retention periods to the privacy notice", () => {
+    expect(compliance).not.toMatch(/University of Oxford|data controller|privacy contact/i);
+    expect(compliance).not.toMatch(/\bkept for\b|\bmonths?\b|\byears?\b|end of the season/i);
+    expect(compliance).toMatch(/Privacy notice[^.]*who is responsible[^.]*how long/);
   });
 });

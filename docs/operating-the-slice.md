@@ -1129,7 +1129,14 @@ under Administration.
 
 **Expected.** An index of eight workflows: Recruitment, Onboarding, Events,
 Messaging, Roster, People and data, Operators and roles, and Reports, plus a
-link to the existing **How administration works** page, which is unchanged.
+link to the existing **How administration works** page.
+
+**How administration works** ends with one more collapsed section, **Compliance
+and user protections** (LAN-467, Stu and Brian, 2026-10-02): a plain account of
+personal data, messages, quiet hours, and access and security, for a reader at
+the club or the university. Each statement is pinned by
+`src/app/operate/admin/guide/content.test.ts` to the code it describes. It
+leaves who is responsible for the data, and retention, to the privacy notice.
 
 Open any one of them. Each page is the same four bands: a flowchart (a committed
 SVG under `public/guide/`, with the same diagram written out beneath it), the
