@@ -409,7 +409,7 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
 });
 
 describe("templates — a new template's lines, and a deleted one's", () => {
-  it("seeds twenty lines: manage for the fixed seats, none for every other", async () => {
+  it("seeds one line per seat: manage for the fixed seats, none for every other", async () => {
     const created = await createEventTemplate(
       actorPersonId,
       templateInput(`${NAME_MARKER} Film review`),
@@ -422,7 +422,7 @@ describe("templates — a new template's lines, and a deleted one's", () => {
         where g.template_id = $1::uuid order by r.code`,
       [created.id],
     );
-    expect(lines.rows).toHaveLength(20);
+    expect(lines.rows).toHaveLength(21);
     const managers = lines.rows.filter((row) => row.level === "manage").map((row) => row.code);
     expect(managers.sort()).toEqual(["general_manager", "it_officer", "president"]);
     expect(

@@ -48,9 +48,11 @@ import {
  * against the real `public.roles` table, so a typo fails a test rather than
  * silently denying a legitimate operator forever.
  *
- * The catalogue that migration installs has twenty seats, and this map grants
- * capabilities to a subset of them. Ten of them are the fixed coaching
- * hierarchy, and since LAN-129 all ten hold the same narrow attendance pair —
+ * The catalogue that migration installs had twenty seats; LAN-460 added the
+ * Running Backs Coach in `20261009090000_running_backs_coach.sql`, making
+ * twenty-one. This map grants capabilities to a subset of them. Eleven are the
+ * fixed coaching hierarchy, and since LAN-129 all of them hold the same narrow
+ * attendance pair —
  * see `FIXED_COACHING_ROLE_CODES` for what that grant is and where it came
  * from. The other seats that hold nothing (Treasurer aside, who holds
  * membership activation) hold nothing because no decision has reached them.
@@ -220,6 +222,7 @@ export const ROLE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   offence_coach: "Offensive Coordinator",
   defence_coach: "Defensive Coordinator",
   quarterbacks_coach: "Quarterbacks Coach",
+  running_backs_coach: "Running Backs Coach",
   offensive_line_coach: "Offensive Line Coach",
   wide_receivers_coach: "Wide Receivers Coach",
   defensive_line_coach: "Defensive Line Coach",
@@ -384,6 +387,7 @@ export const FIXED_COACHING_ROLE_CODES: readonly string[] = Object.freeze([
   "offence_coach",
   "defence_coach",
   "quarterbacks_coach",
+  "running_backs_coach",
   "offensive_line_coach",
   "wide_receivers_coach",
   "defensive_line_coach",

@@ -2106,13 +2106,13 @@ describe("a season-scoped role that is not a coaching seat", () => {
     // Read from the catalogue rather than retyped: since LAN-128 the club calls
     // two of the seats "Offensive Coordinator" and "Defensive Coordinator", so a
     // `/Coach/` pattern would have quietly stopped matching them, and since
-    // LAN-129 there are ten of them rather than three.
+    // LAN-129 there are ten of them rather than three (eleven since LAN-460).
     const coachingSeatNames = await observer.query<{ name: string }>(
       "select name from public.roles where code = any($1::text[])",
       [[...COACH_ROLE_CODES]],
     );
     const permitted = coachingSeatNames.rows.map((row) => row.name);
-    expect(permitted).toHaveLength(10);
+    expect(permitted).toHaveLength(11);
     for (const coach of catalogue.candidates.filter((entry) => entry.capacity === "coach")) {
       expect(permitted).toContain(coach.standing);
     }

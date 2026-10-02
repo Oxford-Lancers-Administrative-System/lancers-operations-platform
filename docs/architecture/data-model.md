@@ -21,7 +21,7 @@ model wins and the difference is a defect here.
 | Identity-join migration, added after the baseline      | 1 — `operator_accounts` (LAN-71)                                                                                                                              |
 | Delivery-machinery migration                           | 1 — RSVP tokens, attempts and callbacks (LAN-78)                                                                                                              |
 | View-correction migration                              | 1 — the mismatch view sees walk-ups (LAN-81)                                                                                                                  |
-| Role-catalogue migrations                              | 2 — structure, then the twenty approved seats (LAN-128)                                                                                                       |
+| Role-catalogue migrations                              | 3 — structure, then the twenty approved seats (LAN-128), then the Running Backs Coach (LAN-460)                                                               |
 | Invitation-state migration                             | 1 — invitation state on `operator_accounts` (LAN-131)                                                                                                         |
 | Email re-home migration                                | 1 — `email_rehome_pending_at` on `operator_accounts` (LAN-132)                                                                                                |
 | Events target-state migration                          | 1 — the seven-type model, templates and the club link (LAN-151)                                                                                               |
@@ -389,6 +389,19 @@ governs the player record's Attendance section and nothing else (recording
 attendance on an event keeps `attendance_recording`/`attendance_recorder`). It
 widens `role_access_grants_vocabulary` and seeds one row per seat on the same
 rule — the five seats at `view`, every other seat at `none`.
+
+`20261009090000_running_backs_coach.sql` (LAN-460, QA 2026-10-01) adds the
+twenty-first seat, **Running Backs Coach** (`running_backs_coach`): Coaching
+Staff, season-scoped, any number of holders, sorted directly after Quarterbacks
+Coach. It takes position 11 and the six seats below it 12–17, so Coaching Staff
+reads 1–4, 11–17: only the order is ever read, and a range the original file
+never uses keeps a re-run of both files free of a `roles_group_sort_order_key`
+collision. It is seeded like
+every other assistant coach — every access line present, every line at `none` —
+and `src/lib/auth/capabilities.ts` lists it in `FIXED_COACHING_ROLE_CODES`, so it
+holds the coaching attendance pair and is invited as a coach like the other ten.
+Every statement is an upsert or a guarded insert; `tests/role-catalogue.test.ts`
+re-runs both catalogue files in order and asserts nothing changed.
 
 A code is an identifier and is not renamed for presentation: `offence_coach` and
 `defence_coach` are named "Offensive Coordinator" and "Defensive Coordinator"
@@ -1416,7 +1429,7 @@ and the half the service layer owns (E1b), rather than continuing to present the
 event check as proof of a confirmed audience.
 
 **2026-08-19 — the role catalogue became a migration** (LAN-128). The twenty
-approved seats, their groups and their order now reach hosted and local through
+approved seats (twenty-one since LAN-460 added the Running Backs Coach), their groups and their order now reach hosted and local through
 the same reviewable artifact; the local seed and the owner-run showcase loader
 read the catalogue instead of each carrying a copy of it. `roles` gained a
 group, a position, a second single-holder rule and a generated
