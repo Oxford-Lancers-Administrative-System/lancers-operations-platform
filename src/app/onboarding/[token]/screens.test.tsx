@@ -264,6 +264,15 @@ describe("LAN-459 — an operator_details link opens the operator details form",
         ? { state: "valid", resolved: { personId: PERSON_ID, seasonId: SEASON_ID } }
         : { state: "unknown", resolved: null },
     );
+    // R470-01/02: the link is live only while the person has no account and
+    // holds a seat; `resolveOperatorDetailsLinkIn` asks both.
+    vi.mocked(withTransaction).mockImplementation(async (work: (tx: never) => unknown) =>
+      work({
+        query: vi.fn(async (sql: string) => ({
+          rows: sql.includes("role_assignments") ? [{ "?column?": 1 }] : [],
+        })),
+      } as never),
+    );
     vi.mocked(readOperatorDetailsViewIn).mockResolvedValue({
       personId: PERSON_ID,
       missing: ["personal_email"],
