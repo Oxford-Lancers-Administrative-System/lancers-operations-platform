@@ -44,9 +44,10 @@ import type { Tx } from "@/lib/db";
  * A move is read at dispatch: a job whose event now starts more than an hour
  * away is put back to the new one-hour mark rather than sent.
  *
- * Lights-out (22:00–07:00) holds this email like every other automated
- * message: an event starting before 08:00, or after 23:00, gets its sheet at
- * 07:00 if it has not started by then, and none if it has.
+ * Lights-out (22:00–07:00) does not hold this email (Brian, 2 October 2026):
+ * it goes at its one-hour mark at any hour, so an early event still gets its
+ * sheet. `LIGHTS_OUT_EXEMPT.attendance_sheet` and the key prefix in
+ * `OTHER_JOB_KEY_PREFIX_KINDS` (`messaging-schedule/lights-out.ts`) say so.
  */
 
 /** The `notification_jobs.idempotency_key` prefix every attendance-sheet job carries. */

@@ -14,7 +14,7 @@ import {
   NOT_DELIVERED_EXPRESSION,
 } from "./delivery";
 import {
-  isJobTypeLightsOutExempt,
+  isJobLightsOutExempt,
   isLightsOut,
   lightsOutNow,
   lightsOutReleaseAt,
@@ -128,6 +128,7 @@ const MESSAGES_CTE = `
            ${AT_EXPRESSION} as at,
            j.channel::text as channel,
            j.job_type::text as job_type,
+           j.idempotency_key,
            j.person_id,
            coalesce(j.event_id, i.event_id) as event_id,
            j.status::text as status,
@@ -149,6 +150,7 @@ const MESSAGES_CTE = `
            i.created_at,
            null,
            'invitation',
+           null,
            coalesce(i.person_id, m.person_id),
            i.event_id,
            'withheld',
@@ -296,6 +298,7 @@ interface ListRow {
   at: Date;
   channel: string | null;
   job_type: string;
+  idempotency_key: string | null;
   person_id: string | null;
   event_id: string | null;
   attempt_count: number;
@@ -359,6 +362,8 @@ export function queuedTiming(
   row: {
     readonly state: string;
     readonly jobType: string;
+    /** `null` for an invitation withheld before any job existed. */
+    readonly idempotencyKey: string | null;
     readonly at: Date;
     readonly safetyReasonCode: string | null;
     readonly safetyRetryAt: Date | null;
@@ -374,7 +379,7 @@ export function queuedTiming(
     };
   }
   const moment = row.at > now ? row.at : now;
-  if (!isJobTypeLightsOutExempt(row.jobType) && isLightsOut(moment)) {
+  if (!isJobLightsOutExempt(row.jobType, row.idempotencyKey) && isLightsOut(moment)) {
     return { sendsAt: lightsOutReleaseAt(moment), waiting: null };
   }
   return { sendsAt: moment, waiting: null };
@@ -415,6 +420,7 @@ export async function readMessageQueue(filters: MessageQueueFilters = {}): Promi
         {
           state: row.state,
           jobType: row.job_type,
+          idempotencyKey: row.idempotency_key,
           at: row.at,
           safetyReasonCode: row.safety_reason_code,
           safetyRetryAt: row.safety_retry_at,

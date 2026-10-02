@@ -125,7 +125,7 @@ import {
  * `REQ-no-quiet-hours` was reversed by Brian on 2026-09-26 (LAN-433). From
  * 22:00 to 07:00 club time nothing automated is dispatched except the three
  * notices an operator sent — a cancellation, a change notice, a question
- * change. A rung due at 03:00 is still due at 03:00 (the ladder is unmoved);
+ * change — and the attendance sheet email (LAN-465, Brian 2026-10-02). A rung due at 03:00 is still due at 03:00 (the ladder is unmoved);
  * `readDueJobs` does not select it and every dispatcher refuses it until 07:00,
  * when it goes with every dispatch-time check re-run. Held, never dropped.
  */

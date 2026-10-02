@@ -295,7 +295,7 @@ describe("Compliance and user protections", () => {
     );
   });
 
-  it("states lights-out as the code holds it: 22:00 to 07:00, three kinds exempt", () => {
+  it("states lights-out as the code holds it: 22:00 to 07:00, four kinds exempt", () => {
     // October is BST, UTC+1: 21:59 and 07:00 go, 22:00 and 06:59 wait.
     expect(isLightsOut(new Date("2026-10-05T20:59:00Z"))).toBe(false);
     expect(isLightsOut(new Date("2026-10-05T21:00:00Z"))).toBe(true);
@@ -307,10 +307,16 @@ describe("Compliance and user protections", () => {
       .filter(([, goes]) => goes)
       .map(([kind]) => kind)
       .sort();
-    expect(exempt).toEqual(["cancellation", "change_notice", "question_change"]);
+    expect(exempt).toEqual([
+      "attendance_sheet",
+      "cancellation",
+      "change_notice",
+      "question_change",
+    ]);
     expect(compliance).toMatch(
       /an event's cancellation, a change to an event, and a change to its questions/,
     );
+    expect(compliance).toMatch(/so is the attendance sheet email an hour before an event/);
   });
 
   it("states the shared event link's lifetime as the code holds it", () => {

@@ -34,11 +34,7 @@ import { JOB_CANCELLED_REASON } from "./rsvp";
 import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 import { personDisplayAliasSql } from "./sql-text";
-import {
-  isJobTypeLightsOutExempt,
-  isLightsOut,
-  lightsOutNow,
-} from "./messaging-schedule/lights-out";
+import { isJobLightsOutExempt, isLightsOut, lightsOutNow } from "./messaging-schedule/lights-out";
 
 /**
  * Automated delivery. LAN-78.
@@ -1104,13 +1100,14 @@ async function dispatchFallbackBestEffort(
 export async function heldForLightsOut(jobId: string): Promise<boolean> {
   if (!isLightsOut(lightsOutNow())) return false;
   const row = await withTransaction((tx) =>
-    tx.query<{ job_type: string }>(
-      "select job_type::text as job_type from public.notification_jobs where id = $1",
+    tx.query<{ job_type: string; idempotency_key: string | null }>(
+      `select job_type::text as job_type, idempotency_key
+         from public.notification_jobs where id = $1`,
       [jobId],
     ),
   );
-  const jobType = row.rows[0]?.job_type;
-  return jobType !== undefined && !isJobTypeLightsOutExempt(jobType);
+  const job = row.rows[0];
+  return job !== undefined && !isJobLightsOutExempt(job.job_type, job.idempotency_key);
 }
 
 /**

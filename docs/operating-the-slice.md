@@ -613,7 +613,8 @@ moment falls in the window is held until 07:00. That covers everything: an
 invitation that would otherwise go the moment an event is approved, reminders,
 event and onboarding nudges, the recruitment and onboarding messages, the
 onboarding chase, a retry whose backoff lands overnight, an operator's
-**Retry**, and both escalations to the office. Held means queued: nothing is
+**Retry**, and both escalations to the office — everything but the four kinds
+below. Held means queued: nothing is
 dropped, marked sent or spent against the attempt ceiling, and an operator
 action overnight reads **Queued — sends at 07:00** — on **Retry**, **Reissue**,
 the recruitment and onboarding **Send** buttons, the Missing-data nudge and the
@@ -622,9 +623,11 @@ for a daytime hold. A **Retry** on a failed delivery that is held, overnight or 
 the sending allowance in the day, puts the delivery back to **Queued**, so the
 first sweep once it is allowed sends it (LAN-442).
 
-Exactly three kinds go at any hour, because an operator pressed Send on them
-and the news cannot wait: a **cancellation notice**, a **change notice** and a
-**question change**.
+Exactly four kinds go at any hour. Three because an operator pressed Send on
+them and the news cannot wait: a **cancellation notice**, a **change notice** and
+a **question change**. The fourth is the **attendance sheet** email (below),
+because it goes an hour before an event and an early event would otherwise get
+none (Brian 2026-10-02).
 
 At 07:00 the held messages go through the ordinary sweep, under the ordinary
 pacing — a large overnight pile drains over the following ticks rather than
@@ -669,9 +672,9 @@ gets one per event, even if they qualify twice (a President who also coaches and
 said Yes). A coach who answers Yes inside the last hour gets their copy on the
 next sweep; after the start, nobody does. A cancelled event sends nothing, and
 neither does an event with no start time. A moved event moves the send: an email
-declared before the move waits for the new one-hour mark. Lights-out holds it
-like every other automated message, so an event starting after 07:00 and before
-08:00 gets its sheet at 07:00, and one starting from 23:00 to 07:00 gets none.
+declared before the move waits for the new one-hour mark. Lights-out does not
+hold it (Brian 2026-10-02): it goes at its one-hour mark at any hour, so an
+event starting at 06:30 gets its sheet at 05:30.
 
 The link opens the page for anyone allowed to record attendance — the General
 Manager, the President and every coaching seat hold that capability, and the

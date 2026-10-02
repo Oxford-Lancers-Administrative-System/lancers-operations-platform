@@ -108,10 +108,11 @@ export type MessageKind =
  *
  * Kept apart from {@link MessageKind} on purpose. Every `MessageKind` is a
  * WhatsApp template Meta has to approve, and the registries keyed on it
- * (`TEMPLATE_NAMES`, the production submission records, lights-out) say so by
- * requiring an entry per kind. An email-only kind has no template and needs no
- * approval, so it never enters those registries and can never be sent on the
- * WhatsApp channel (`whatsapp-cloud.ts` refuses it).
+ * (`TEMPLATE_NAMES`, the production submission records) say so by requiring an
+ * entry per kind. An email-only kind has no template and needs no approval, so
+ * it never enters those registries and can never be sent on the WhatsApp
+ * channel (`whatsapp-cloud.ts` refuses it). Lights-out is the exception: it
+ * decides for every kind of both sorts (`LIGHTS_OUT_EXEMPT`).
  */
 export type EmailOnlyMessageKind =
   /**

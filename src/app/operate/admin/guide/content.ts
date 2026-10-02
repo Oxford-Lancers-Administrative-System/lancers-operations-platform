@@ -481,7 +481,9 @@ export const COMPLIANCE_SECTION: GuideEntry = Object.freeze({
       ],
       [
         "Only an event's cancellation, a change to an event, and a change to its questions " +
-          "are sent at any hour, because the news cannot wait for the morning.",
+          "are sent at any hour, because the news cannot wait for the morning, and so is the " +
+          "attendance sheet email an hour before an event, because an early event needs it " +
+          "before 07:00.",
       ],
     ),
     paragraph(s("Access and security")),

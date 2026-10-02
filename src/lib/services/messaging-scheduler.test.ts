@@ -279,6 +279,7 @@ afterEach(async () => {
     `delete from public.nonresponse_flags where invitation_id in ${invitations}`,
     [scope],
   );
+  await observer.query(`delete from public.audit_events where entity_id in ${jobs}`, [scope]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.schedule_changes where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
@@ -2448,5 +2449,71 @@ describe("LAN-433 — lights-out holds automated messages from 22:00 to 07:00", 
 
     expect(sent.length).toBeGreaterThanOrEqual(1);
     expect((await jobRow(target.jobId)).status).toBe("processing");
+  });
+
+  // LAN-465 (Brian, 2 October 2026). The attendance sheet email goes an hour
+  // before the event whatever the hour, so an event starting at 06:30 still
+  // gets one. The lights-out clock reads 05:30 while the database's own clock
+  // puts the event thirty minutes ahead, so its one-hour mark has passed.
+  it("sends the attendance sheet email when its one-hour mark falls in quiet hours", async () => {
+    const start = await observer.query<{ scheduled_on: string; starts_at: string }>(
+      `select to_char(local, 'YYYY-MM-DD') as scheduled_on, to_char(local, 'HH24:MI') as starts_at
+         from (select (now() + interval '30 minutes') at time zone 'Europe/London' as local) t`,
+    );
+    const target = await fixture({
+      email: null,
+      invitationOffsetHours: EXTREME_OVERDUE_HOURS,
+      eventAt: { scheduledOn: start.rows[0].scheduled_on, startsAt: start.rows[0].starts_at },
+    });
+
+    const coach = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name, created_at)
+       values ($1, 'Coach', now() + interval '100 years') returning id`,
+      [MARKER],
+    );
+    const coachId = coach.rows[0].id;
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, normalised_value, is_preferred)
+       values ($1, 'email', $2, $2, true)`,
+      [coachId, EMAIL],
+    );
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'coach', $3, $3, $4) returning id`,
+      [target.eventId, seasonId, coachId, anchorPersonId],
+    );
+    const invitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, person_id, status, audience_member_id)
+       values ($1, 'approved', $2, 'coach', $3, 'issued', $4) returning id`,
+      [target.eventId, seasonId, coachId, audience.rows[0].id],
+    );
+    await answerDirectly(invitation.rows[0].id, "yes");
+
+    atClubTime("05:30", "2026-10-02");
+    await agePastSafetyPacing(observer);
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    const sheet = await observer.query<{ id: string }>(
+      `select id from public.notification_jobs
+        where event_id = $1 and person_id = $2 and idempotency_key like 'attendance-sheet:%'`,
+      [target.eventId, coachId],
+    );
+    expect(sheet.rows).toHaveLength(1);
+    const job = await jobRow(sheet.rows[0].id);
+    expect(job.status).toBe("processing");
+    expect(job.attempt_count).toBe(1);
+    const mine = sent.filter((entry) => entry.url.endsWith("/emails"));
+    expect(mine).toHaveLength(1);
+    expect(String(mine[0].body.text)).toContain(
+      `https://lancers.example.org/operate/events/${target.eventId}/attendance`,
+    );
+
+    // Lights-out was on: the same sweep left the event's overdue invitation held.
+    const held = await jobRow(target.invitationJobId);
+    expect(held.status).toBe("pending");
+    expect(held.attempt_count).toBe(0);
   });
 });

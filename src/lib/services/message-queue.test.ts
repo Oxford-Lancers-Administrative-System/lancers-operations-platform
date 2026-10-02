@@ -125,6 +125,7 @@ describe("queuedTiming", () => {
   const row = (over: Partial<Parameters<typeof queuedTiming>[0]>) => ({
     state: "queued",
     jobType: "reminder",
+    idempotencyKey: null,
     at: evening,
     safetyReasonCode: null,
     safetyRetryAt: null,
@@ -138,6 +139,13 @@ describe("queuedTiming", () => {
 
   it("lets the three exempt notices go at any hour", () => {
     expect(queuedTiming(row({ jobType: "cancellation_notice" }), noon).sendsAt).toEqual(evening);
+  });
+
+  it("lets the attendance sheet email go at any hour, and no other 'other' job (LAN-465)", () => {
+    const sheet = row({ jobType: "other", idempotencyKey: "attendance-sheet:e1:p1" });
+    expect(queuedTiming(sheet, noon).sendsAt).toEqual(evening);
+    const chase = row({ jobType: "other", idempotencyKey: "onboarding-chase:m1:1" });
+    expect(queuedTiming(chase, noon).sendsAt).toEqual(new Date("2026-10-03T06:00:00Z"));
   });
 
   it("says what the safety guard is holding, in the existing words", () => {
