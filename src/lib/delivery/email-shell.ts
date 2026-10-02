@@ -34,9 +34,11 @@
  *     crest is `crest-email.png`, served from the application's own origin.
  *
  * `color-scheme: light` is there for the same family of reasons: Apple Mail and
- * Outlook will otherwise invert a light message in dark mode, and the crest is
- * Oxford Blue ink on transparency — inverted, it goes to navy on near-black.
- * Declaring the scheme is what stops a client guessing.
+ * Outlook will otherwise invert a light message in dark mode. The crest is the
+ * application's own mark — LAN-456: the white crest with the brown football on
+ * an opaque club-navy tile, baked into the raster — and a client guessing at
+ * the scheme could recolour the card around it. Declaring the scheme is what
+ * stops a client guessing.
  *
  * ## The signature block, and where the Stop line goes
  *

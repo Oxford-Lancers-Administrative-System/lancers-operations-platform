@@ -55,18 +55,25 @@ It is not used for the link previews: both cards are supplied pictures, below.
 The recruit sign-up card used to be drawn from `crest.svg` at request time, and
 LAN-383 replaced that with the club's own recruitment image.
 
-### In an email — LAN-398
+### In an email — LAN-398, LAN-456
 
-- `crest-email.png` (114×96) and `crest-email@1x.png` (57×48) — the **blue**
-  mark rasterised at its own 1.183 ratio. Every email the app sends through
-  Resend carries it twice: 48px tall in the header beside "Oxford Lancers", and
-  32px tall in the signature block. `crest-email.png` is the 2x of the larger
-  slot and is what `src` points at; `@1x` is offered beside it through `srcset`,
-  so a client that ignores `srcset` still gets the sharp one.
+- `crest-email.png` (114×96) and `crest-email@1x.png` (57×48) — the **white**
+  mark, `crest.svg`, on an opaque club-navy (`#002147`) tile at its own 1.183
+  ratio, the mark inset a tenth of the height from each edge. Every email the
+  app sends through Resend carries it twice: 48px tall in the header beside
+  "Oxford Lancers", and 32px tall in the signature block. `crest-email.png` is
+  the 2x of the larger slot and is what `src` points at; `@1x` is offered beside
+  it through `srcset`, so a client that ignores `srcset` still gets the sharp
+  one.
 
-  Blue and not white, because an email's shell is a white card on the same warm
-  off-white the application uses. Raster and not SVG, because Outlook on Windows
-  draws HTML through Word, which renders an SVG `<img>` as an empty box.
+  The same mark the application header shows, white with the brown football on
+  navy, so one mark is in circulation (LAN-456, Brian, 29 September 2026). It
+  replaced LAN-398's blue-on-transparent raster, whose football read as black
+  laces on the white card. The navy is in the raster rather than in the email's
+  HTML because the shell is a white card and a white mark on transparency would
+  vanish into it; a tile needs no change to any template. Raster and not SVG,
+  because Outlook on Windows draws HTML through Word, which renders an SVG
+  `<img>` as an empty box.
 
   It is served from the application's own origin at `/brand/crest-email.png` and
   referenced absolutely, off `APP_BASE_URL`: a mail client has no page to
