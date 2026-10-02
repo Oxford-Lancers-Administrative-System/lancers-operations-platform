@@ -73,6 +73,36 @@ describe("one block per capacity present in the audience", () => {
     expect(blocks.map((block) => block.capacity)).toEqual(["coach"]);
   });
 
+  // LAN-466 (Stu's call, 2 October 2026): the GM and the IT Officer count as Coaches.
+  it("counts a committee-only General Manager or IT Officer under Coaches", () => {
+    const blocks = responseProgressByCapacity([
+      ...cohort("coach", 6, 3, 1),
+      ...cohort("player", 4, 2, 0),
+      invitee("committee", "yes", { countsAsCoach: true }),
+      invitee("committee", null, { countsAsCoach: true }),
+    ]);
+
+    expect(blocks.map((block) => block.label)).toEqual(["Players", "Coaches"]);
+    expect(blocks[0]).toMatchObject({ capacity: "player", invited: 4, yes: 2, no: 0 });
+    expect(blocks[1]).toMatchObject({ capacity: "coach", invited: 8, yes: 4, no: 1 });
+  });
+
+  it("still counts a committee-only invitee holding any other seat under Players", () => {
+    const blocks = responseProgressByCapacity([
+      invitee("committee", "no", { countsAsCoach: false }),
+      invitee("committee", "yes"),
+    ]);
+
+    expect(blocks.map((block) => block.capacity)).toEqual(["player"]);
+    expect(blocks[0]).toMatchObject({ invited: 2, yes: 1, no: 1 });
+  });
+
+  it("keeps someone invited as a player under Players whatever seat they hold", () => {
+    const blocks = responseProgressByCapacity([invitee("player", "yes", { countsAsCoach: true })]);
+
+    expect(blocks.map((block) => block.capacity)).toEqual(["player"]);
+  });
+
   it("returns nothing at all for an audience with no invitations", () => {
     expect(responseProgressByCapacity([])).toEqual([]);
   });

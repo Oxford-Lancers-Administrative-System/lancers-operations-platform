@@ -827,7 +827,10 @@ Stewart's "OPS EVENTS UPDATES" of 2026-09-22, change 2). One block per capacity
 present in the audience, in the order **Recruits, Players, Coaches** — a
 capacity nobody was invited under shows no block at all, so a practice with no
 recruits shows Players and Coaches only. **A committee-only invitee is counted
-under Players** (LAN-440, Brian, 2026-09-26), and the participation table's
+under Players** (LAN-440, Brian, 2026-09-26), **except one holding the General
+Manager or IT Officer seat on the event's date, who is counted under Coaches**
+(LAN-466, 2026-10-02) — someone invited as a player stays under Players
+whatever seat they hold. Only the blocks move: the participation table's
 **As** column reads them as Player, and its **As** filter offers Recruit,
 Player and Coach, with Player matching them too (an old `?as=committee` link
 opens on Player), and sorting by **As** puts them among the players; the stored capacity, the audience builder,
