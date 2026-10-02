@@ -2,6 +2,8 @@ import "server-only";
 
 import { isServiceError, withTransaction, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
+import { EMPTY_ATTENDANCE_SCORE, type AttendanceScore } from "./attendance-score";
+import { readAttendanceScoresIn } from "./attendance-score-read";
 import { isAttendancePresence, type AttendancePresence } from "./attendance-vocabulary";
 import { derivedEventState, type DerivedEventState, type EventStatus } from "./event-input";
 import {
@@ -82,13 +84,17 @@ export interface OtherSeasonSummary {
   blues: BluesValue;
 }
 
-/** `public.invitations.status` — never `pending` on a row this module returns (Q15-attendance). */
-type AttendanceInvitationStatus = "issued" | "responded" | "expired" | "cancelled";
+/**
+ * `public.invitations.status`. `pending` is on the list since LAN-457: an
+ * invitation stays pending until the player answers, so the row is chosen by
+ * whether it was messaged, never by its status.
+ */
+type AttendanceInvitationStatus = "pending" | "issued" | "responded" | "expired" | "cancelled";
 
 /** `public.rsvp_value` — binary, no "maybe" (Requirement 5). */
 type AttendanceRsvp = "yes" | "no";
 
-/** One event this membership held a sent invitation for, this season — `Q15-attendance`. */
+/** One event this membership was messaged an invitation for, this season — `Q15-attendance`. */
 export interface AttendanceEvent {
   id: string;
   eventName: string;
@@ -265,8 +271,14 @@ export interface PlayerRecordData {
   /** Every current holder in this membership's season, both kits — never the filtered view. */
   jerseyHolders: JerseyHolders;
   otherSeasons: OtherSeasonSummary[];
-  /** Every event this membership had an invitation sent for, this season — `Q15-attendance`. */
+  /** Every event this membership was messaged an invitation for, this season — `Q15-attendance`. */
   attendance: AttendanceEvent[];
+  /**
+   * LAN-457: this season's Mandatory, BPS and All events tallies, by the same
+   * read and the same `scoreAttendance` the roster board uses. Never follows
+   * the section's filters, so the record and the board always agree.
+   */
+  attendanceScore: AttendanceScore;
   /** The full, unredacted person record. The caller redacts for the viewer's role. */
   person: PersonRecord;
   /** What the **Send onboarding questionnaire** control shows and whether it may be pressed — LAN-266. */
@@ -425,7 +437,9 @@ interface AttendanceEventRow {
 
 /**
  * The Attendance band's own read — `Q15-attendance`. Every event with a
- * *sent* invitation this season (`status <> 'pending'`); `rsvp` and
+ * *messaged* invitation this season (`message_withheld_reason is null`,
+ * LAN-457 — not `status <> 'pending'`, which hid every invitation the player
+ * never answered); `rsvp` and
  * `attendance` are two independent reads, never one derived from the other
  * (locked Requirement 7). Returns raw rows only — scoring is the caller's
  * job. `eventStatus` is `derivedEventState()`'s answer (D30), read against
@@ -452,7 +466,7 @@ async function readAttendanceHistoryIn(
          on ar.event_id = i.event_id and ar.season_membership_id = i.season_membership_id
       where i.season_membership_id = $1::uuid
         and i.season_id = $2::uuid
-        and i.status <> 'pending'
+        and i.message_withheld_reason is null
       order by e.scheduled_on desc nulls last, e.name`,
     [membershipId, seasonId],
   );
@@ -624,6 +638,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     otherSeasons,
     milestones,
     attendance,
+    attendanceScore,
     itemHistoryByItem,
     activityLog,
     send,
@@ -641,6 +656,13 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     const otherSeasons = await readOtherSeasonsIn(tx, membership.personId, membershipId);
     const milestones = await readMilestonesIn(tx, membershipId);
     const attendance = await readAttendanceHistoryIn(tx, membershipId, membership.seasonId);
+    const attendanceScores = await readAttendanceScoresIn(
+      tx,
+      membership.seasonId,
+      todayInClubZone(),
+      [membershipId],
+    );
+    const attendanceScore = attendanceScores.get(membershipId) ?? EMPTY_ATTENDANCE_SCORE;
     const itemHistoryByItem = await readOnboardingItemHistoryDisplayIn(
       tx,
       membership.onboardingItems,
@@ -660,6 +682,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
       otherSeasons,
       milestones,
       attendance,
+      attendanceScore,
       itemHistoryByItem,
       activityLog,
       send,
@@ -703,6 +726,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     jerseyHolders,
     otherSeasons,
     attendance,
+    attendanceScore,
     person,
     send,
   };

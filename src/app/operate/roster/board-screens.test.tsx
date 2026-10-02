@@ -17,6 +17,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { EMPTY_ATTENDANCE_SCORE } from "@/lib/services/attendance-score";
 
 const routerPush = vi.fn();
 vi.mock("server-only", () => ({}));
@@ -78,6 +79,7 @@ import {
 } from "./board-columns";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { GRANT_REQUIREMENT } from "@/lib/auth/access";
+import { mergeGrantRows } from "@/lib/auth/grants";
 import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 
 function operator(roleCodes: string[]): ResolvedOperator {
@@ -143,6 +145,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     eligibility: null,
     availability: "green",
     bps: "No",
+    attendance: EMPTY_ATTENDANCE_SCORE,
     onboardingItems: {},
     ...overrides,
   };
@@ -217,7 +220,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("67 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("70 columns");
   });
 
   it("groups the columns the way the 2026-09-16 call settled (LAN-387)", async () => {
@@ -704,6 +707,109 @@ describe("the BPS column — a plain yes/no, never an onboarding item", () => {
   });
 });
 
+describe("the Attendance group — LAN-457", () => {
+  const SCORE = {
+    mandatory: { attended: 9, counted: 9 },
+    bps: { attended: 4, counted: 6 },
+    all: { attended: 18, counted: 25 },
+  };
+
+  it("sits immediately right of Availability, with three read-only tallies", async () => {
+    signedInAs(["secretary"]);
+    givenBoard({ rows: [row({ attendance: SCORE })] });
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    const groups = Array.from(board.querySelectorAll('[data-testid^="band-toggle-"]')).map(
+      (element) => element.getAttribute("data-testid")!.replace("band-toggle-", ""),
+    );
+    expect(
+      groups.slice(groups.indexOf("availability"), groups.indexOf("availability") + 3),
+    ).toEqual(["availability", "attendance", "coaching"]);
+
+    const cells = within(within(board).getByTestId("roster-row")).getAllByRole("cell");
+    const texts = cells.map((cell) => cell.textContent);
+    const at = texts.indexOf("9/9 · 100%");
+    expect(texts.slice(at, at + 3)).toEqual(["9/9 · 100%", "4/6 · 67%", "18/25 · 72%"]);
+    // Read-only: none of the three opens an editor.
+    for (const cell of cells.slice(at, at + 3)) {
+      expect(cell).not.toHaveAttribute("data-testid", "editable-cell");
+    }
+  });
+
+  it("sorts on a column with a dash last in either direction", async () => {
+    signedInAs(["secretary"]);
+    givenBoard({
+      rows: [
+        row({
+          membershipId: "m-none",
+          displayName: "Nobody Counted",
+          attendance: EMPTY_ATTENDANCE_SCORE,
+        }),
+        row({
+          membershipId: "m-half",
+          displayName: "Half Present",
+          attendance: { ...SCORE, all: { attended: 1, counted: 2 } },
+        }),
+        row({
+          membershipId: "m-full",
+          displayName: "Full Present",
+          attendance: { ...SCORE, all: { attended: 2, counted: 2 } },
+        }),
+      ],
+      totalInSeason: 3,
+    });
+    render(await RosterPage(pageProps()));
+    const board = screen.getByTestId("roster-board");
+    const names = () =>
+      within(board)
+        .getAllByTestId("roster-row")
+        .map((tableRow) => within(tableRow).getAllByRole("link")[0].textContent);
+
+    await act(async () => {
+      fireEvent.click(within(board).getByRole("button", { name: "All events" }));
+    });
+    expect(names()).toEqual(["Half Present", "Full Present", "Nobody Counted"]);
+    await act(async () => {
+      fireEvent.click(within(board).getByRole("button", { name: "All events" }));
+    });
+    expect(names()).toEqual(["Full Present", "Half Present", "Nobody Counted"]);
+    expect(within(board).getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("is absent, with its figures, for a seat without Attendance view", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        ...operator([]),
+        grants: mergeGrantRows(
+          (
+            [
+              ["person", "view"],
+              ["membership", "edit"],
+              ["availability", "edit"],
+            ] as const
+          ).map(([key, level]) => ({
+            subject_kind: "roster_category",
+            subject_key: key,
+            template_id: null,
+            level,
+          })),
+        ),
+      },
+    });
+    givenBoard({ rows: [row({ attendance: SCORE })] });
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).queryByTestId("band-toggle-attendance")).not.toBeInTheDocument();
+    expect(within(board).queryByText("All events")).not.toBeInTheDocument();
+    expect(within(board).queryByText("9/9 · 100%")).not.toBeInTheDocument();
+    // Membership's BPS flag is its own column, still drawn.
+    expect(within(board).getAllByText("BPS")).toHaveLength(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // LAN-186 item 9 — the label alone, never the raw value beside it
 // ---------------------------------------------------------------------------
@@ -1008,7 +1114,8 @@ describe("which groups are folded away, remembered on the account", () => {
     expect(folded).toHaveTextContent("Availability");
     // Membership is untouched: its own columns are still drawn.
     expect(within(board).queryByTestId("band-collapsed-label-membership")).not.toBeInTheDocument();
-    expect(within(board).getByText("BPS")).toBeInTheDocument();
+    // Membership's BPS flag, and the Attendance group's BPS tally (LAN-457).
+    expect(within(board).getAllByText("BPS")).toHaveLength(2);
 
     // The 600ms debounce, on a fake clock rather than a real wait.
     await act(async () => {

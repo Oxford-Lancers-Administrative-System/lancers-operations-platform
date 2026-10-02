@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { EMPTY_ATTENDANCE_SCORE } from "@/lib/services/attendance-score";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
@@ -74,6 +75,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     eligibility: "eligible",
     availability: "green",
     bps: "No",
+    attendance: EMPTY_ATTENDANCE_SCORE,
     onboardingItems: {},
     ...overrides,
   };
@@ -87,11 +89,15 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
  * whether any particular role is narrowed today.
  */
 describe("visibleColumns / redactRow — the grant-driven mechanism (LAN-432)", () => {
-  it("keeps every column, editable, for a seat holding every roster category at edit", () => {
+  it("keeps every column for a seat holding every roster category at its maximum, editable but Attendance", () => {
     const columns = buildColumns(POSITION_OPTIONS);
     const visible = visibleColumns(columns, seededGrantsFor(["secretary"]));
     expect(visible).toHaveLength(columns.length);
-    expect(visible.some((column) => column.viewOnly)).toBe(false);
+    // LAN-457: the Attendance line stops at view, so its three columns are
+    // text for every seat, and nothing else is.
+    for (const column of visible) {
+      expect(column.viewOnly === true, column.key).toBe(column.band === "attendance");
+    }
   });
 
   it("drops every column for a seat holding nothing", () => {
@@ -161,6 +167,39 @@ describe("visibleColumns / redactRow — the grant-driven mechanism (LAN-432)", 
     expect(redactRow(row(), visible, grants).phoneForCall).toBe("+44 7700 900101");
   });
 
+  // LAN-457: the Attendance group follows the existing Attendance line.
+  it("Attendance at view: the three tallies are drawn, as text, and the score travels", () => {
+    const grants = seat({ person: "view", attendance: "view" });
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), grants);
+    const attendance = visible.filter((column) => column.band === "attendance");
+    expect(attendance.map((column) => [column.key, column.label])).toEqual([
+      ["attendanceMandatory", "Mandatory"],
+      ["attendanceBps", "BPS"],
+      ["attendanceAll", "All events"],
+    ]);
+    for (const column of attendance) {
+      expect(column.category).toBe("attendance");
+      expect(column.viewOnly).toBe(true);
+      expect(column.sortable).toBe(true);
+      expect(column.filterable).toBe(false);
+    }
+    const score = {
+      mandatory: { attended: 9, counted: 9 },
+      bps: { attended: 4, counted: 6 },
+      all: { attended: 18, counted: 25 },
+    };
+    expect(redactRow(row({ attendance: score }), visible, grants).attendance).toEqual(score);
+  });
+
+  it("Attendance at none: no Attendance column, and the score never travels", () => {
+    const grants = seat({ person: "view", availability: "edit", membership: "edit" });
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), grants);
+    expect(visible.some((column) => column.band === "attendance")).toBe(false);
+    // Membership's own BPS flag is a different column, and still there.
+    expect(visible.some((column) => column.key === "bps")).toBe(true);
+    expect("attendance" in redactRow(row(), visible, grants)).toBe(false);
+  });
+
   it("redacts a row to the name and ids when no column is granted", () => {
     const grants = seededGrantsFor(["head_coach"]);
     const visible = visibleColumns(buildColumns(POSITION_OPTIONS), grants);
@@ -220,6 +259,8 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
       "membership",
       // LAN-412: Stewart's own category, immediately after Membership.
       "availability",
+      // LAN-457: the three attendance tallies, immediately after Availability.
+      "attendance",
       "coaching",
       "offensive",
       "defensive",

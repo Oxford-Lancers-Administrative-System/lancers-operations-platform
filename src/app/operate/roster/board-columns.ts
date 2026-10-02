@@ -39,12 +39,18 @@ import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
  * fact that is granted separately has to be foldable separately. It sits where
  * it does because it is the fact read most often after the membership facts
  * themselves. It holds one column, and adding a second is not this issue's.
+ *
+ * LAN-457 adds `attendance`, immediately after Availability: three read-only
+ * tallies, governed by the existing Attendance access line. It shares its key
+ * with the record's Attendance section, as every other group shares its key
+ * with the record section showing the same facts, so one fold folds both.
  */
 export type Band =
   | "person"
   | "onboarding"
   | "membership"
   | "availability"
+  | "attendance"
   | "coaching"
   | "offensive"
   | "defensive"
@@ -148,6 +154,10 @@ const BANDS: readonly Pick<BandDef, "key" | "label">[] = Object.freeze([
     label: "Availability",
   }),
   Object.freeze({
+    key: "attendance" as const,
+    label: "Attendance",
+  }),
+  Object.freeze({
     key: "coaching" as const,
     label: "Coaching assignments",
   }),
@@ -211,15 +221,13 @@ export function collapsedBandsFrom(stored: readonly string[] | undefined): Reado
  * the same screen family. `collapsedBandsFrom` already drops what it does not
  * recognise, so the board simply never sees them.
  */
-type RecordSection =
-  "contactEmergency" | "activity" | "attendance" | "otherSeasons" | "statusHistory";
+type RecordSection = "contactEmergency" | "activity" | "otherSeasons" | "statusHistory";
 export type RecordGroup = Band | RecordSection;
 
 const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([
   // LAN-432: Contact & emergency, split out of Person. It opens as Person does.
   "contactEmergency",
   "activity",
-  "attendance",
   "otherSeasons",
   "statusHistory",
 ]);
@@ -229,11 +237,13 @@ const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([
  * board's own three, plus the record's four, which are the long tail by the
  * same rule — a log, a term's attendance, previous seasons and the status
  * history are none of them what a reader opened this record for. Person,
- * Onboarding and Membership stay open.
+ * Onboarding and Membership stay open. Attendance is a board group since
+ * LAN-457 and open there by default, but the record keeps it closed.
  */
 const RECORD_COLLAPSED_BY_DEFAULT: ReadonlySet<RecordGroup> = Object.freeze(
   new Set<RecordGroup>([
     ...COLLAPSED_BY_DEFAULT,
+    "attendance",
     ...RECORD_SECTIONS.filter((section) => section !== "contactEmergency"),
   ]),
 );
@@ -271,6 +281,18 @@ export function bandOf(
   const found = BANDS.find((band) => band.key === key);
   if (!found) throw new Error(`Unknown band: ${key}`);
   return { ...found, ...colours[key] };
+}
+
+/** LAN-457: the Attendance group's three columns, keyed apart from Membership's BPS flag (`bps`). */
+export const ATTENDANCE_COLUMN_TALLIES = Object.freeze({
+  attendanceMandatory: "mandatory",
+  attendanceBps: "bps",
+  attendanceAll: "all",
+} as const);
+export type AttendanceColumnKey = keyof typeof ATTENDANCE_COLUMN_TALLIES;
+
+export function isAttendanceColumnKey(key: string): key is AttendanceColumnKey {
+  return Object.hasOwn(ATTENDANCE_COLUMN_TALLIES, key);
 }
 
 // `record` routes to the person record; `select`/`multiselect`/`jersey` edit
@@ -632,6 +654,38 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       sortable: true,
       filterable: true,
     },
+    // --------------------------------------------------------- Attendance --
+    // LAN-457. Three read-only tallies, `attended/counted · percentage`, by
+    // `scoreAttendance` — the record's own rule. They sort (a dash last either
+    // way) and do not filter. "BPS" here is strength and conditioning
+    // attendance; the group header tells it apart from Membership's BPS flag.
+    {
+      key: "attendanceMandatory",
+      label: "Mandatory",
+      band: "attendance",
+      edit: "none",
+      width: 128,
+      sortable: true,
+      filterable: false,
+    },
+    {
+      key: "attendanceBps",
+      label: "BPS",
+      band: "attendance",
+      edit: "none",
+      width: 128,
+      sortable: true,
+      filterable: false,
+    },
+    {
+      key: "attendanceAll",
+      label: "All events",
+      band: "attendance",
+      edit: "none",
+      width: 128,
+      sortable: true,
+      filterable: false,
+    },
     // ---------------------------------------------- Coaching assignments --
     // Three uncapped multi-selects (LAN-387). A player may be in every group
     // on the list; Stewart's sheet has several who are.
@@ -827,6 +881,9 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     eligibility: ["eligibility"],
     availability: ["availability"],
     bps: ["bps"],
+    attendanceMandatory: ["attendance"],
+    attendanceBps: ["attendance"],
+    attendanceAll: ["attendance"],
     subsInvoiced: ["onboardingItems"],
     subsPaid: ["onboardingItems"],
     kitDistributed: ["onboardingItems"],

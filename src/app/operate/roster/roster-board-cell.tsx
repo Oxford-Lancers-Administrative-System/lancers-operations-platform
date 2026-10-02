@@ -17,7 +17,14 @@ import {
   SQUAD_BOUNDARY_BORDER,
   type ColumnDef,
 } from "./board-columns";
-import { displayOf, NOT_RECORDED, onboardingLabel, optionListLabel, rawValue } from "./board-data";
+import {
+  displayOf,
+  NOT_RECORDED,
+  NOTHING_COUNTED,
+  onboardingLabel,
+  optionListLabel,
+  rawValue,
+} from "./board-data";
 import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
@@ -313,7 +320,9 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
   return (
     <Typography
       variant="body2"
-      sx={{ color: text === NOT_RECORDED ? "text.disabled" : "text.primary" }}
+      sx={{
+        color: text === NOT_RECORDED || text === NOTHING_COUNTED ? "text.disabled" : "text.primary",
+      }}
     >
       {text}
     </Typography>

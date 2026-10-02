@@ -24,6 +24,7 @@ import {
   commitBlues,
   commitCoachingGroups,
   commitPosition,
+  listRosterBoard,
   readPositionOptions,
 } from "./roster-board";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
@@ -247,27 +248,40 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
   let cancelledEventId: string;
   let pendingEventId: string;
   let expiredEventId: string;
+  let withheldEventId: string;
+  let excusedEventId: string;
+  let unmarkedEventId: string;
+  let futureEventId: string;
+  let bpsEventId: string;
   const eventIds: string[] = [];
   const audienceMemberIds: string[] = [];
   const invitationIds: string[] = [];
 
-  async function insertEvent(name: string, isMandatory: boolean): Promise<string> {
+  async function insertEvent(
+    name: string,
+    isMandatory: boolean,
+    { eventType = "practice", daysAgo = 7 }: { eventType?: string; daysAgo?: number } = {},
+  ): Promise<string> {
     const event = await observer.query<{ id: string }>(
       `insert into public.events (
          season_id, name, event_type, status, scheduled_on, is_mandatory,
          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
-       values ($1::uuid, $2, 'practice', 'approved', current_date - 7, $3,
+       values ($1::uuid, $2, $5::public.event_type, 'approved', current_date - $6::int, $3,
                now(), $4::uuid, now(), $4::uuid,
-               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
+               (select tpl.id from public.event_templates tpl where tpl.event_type = $5::public.event_type order by lower(tpl.name) limit 1))
        returning id`,
-      [seasonId, name, isMandatory, actorPersonId],
+      [seasonId, name, isMandatory, actorPersonId, eventType, daysAgo],
     );
     const id = event.rows[0].id;
     eventIds.push(id);
     return id;
   }
 
-  async function inviteMembership(eventId: string, status: string): Promise<string> {
+  async function inviteMembership(
+    eventId: string,
+    status: string,
+    withheldReason: string | null = null,
+  ): Promise<string> {
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
          (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
@@ -280,12 +294,13 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
       `insert into public.invitations (
          event_id, event_status, season_id, audience_member_id,
          capacity, season_membership_id, status,
-         issued_at, cancelled_at)
+         issued_at, cancelled_at, message_withheld_reason)
        values ($1::uuid, 'approved', $2::uuid, $3::uuid, 'player', $4::uuid, $5::public.invitation_status,
                case when $5 = 'pending' then null else now() end,
-               case when $5 = 'cancelled' then now() else null end)
+               case when $5 = 'cancelled' then now() else null end,
+               $6)
        returning id`,
-      [eventId, seasonId, audience.rows[0].id, membershipId, status],
+      [eventId, seasonId, audience.rows[0].id, membershipId, status, withheldReason],
     );
     invitationIds.push(invitation.rows[0].id);
     return invitation.rows[0].id;
@@ -312,20 +327,50 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
     cancelledEventId = await insertEvent(`${MARKER} cancelled`, true);
     await inviteMembership(cancelledEventId, "cancelled");
 
-    // Pending: never sent. Must not appear at all.
+    // Pending: messaged, never answered, and marked Absent. LAN-457: an
+    // invitation stays pending until the player answers, so this is the row
+    // the old `status <> 'pending'` filter hid, flattering the score.
     pendingEventId = await insertEvent(`${MARKER} pending`, false);
     await inviteMembership(pendingEventId, "pending");
+    await mark(pendingEventId, "absent");
 
     // Expired: lapsed unanswered, but the event still happened and Absent was
     // recorded — attendance reads attendance, not the invitation's own status.
     expiredEventId = await insertEvent(`${MARKER} expired`, true);
     await inviteMembership(expiredEventId, "expired");
+    await mark(expiredEventId, "absent");
+
+    // LAN-457's remaining cases. Never messaged (no consent), marked Absent:
+    // treated as excused, and not on the list.
+    withheldEventId = await insertEvent(`${MARKER} withheld`, true);
+    await inviteMembership(withheldEventId, "pending", "no_consent");
+    await mark(withheldEventId, "absent");
+    // Excused: out of the equation entirely.
+    excusedEventId = await insertEvent(`${MARKER} excused`, true);
+    await inviteMembership(excusedEventId, "responded");
+    await mark(excusedEventId, "excused");
+    // Happened, but nobody took the register for this player: left out.
+    unmarkedEventId = await insertEvent(`${MARKER} unmarked`, true);
+    await inviteMembership(unmarkedEventId, "issued");
+    // Not yet happened, though marked: left out.
+    futureEventId = await insertEvent(`${MARKER} future`, true, { daysAgo: -7 });
+    await inviteMembership(futureEventId, "issued");
+    await mark(futureEventId, "absent");
+    // Strength and conditioning, not mandatory, attended: the BPS figure.
+    bpsEventId = await insertEvent(`${MARKER} bps`, false, {
+      eventType: "strength_and_conditioning",
+    });
+    await inviteMembership(bpsEventId, "responded");
+    await mark(bpsEventId, "late");
+  });
+
+  async function mark(eventId: string, presence: string): Promise<void> {
     await observer.query(
       `insert into public.attendance_records (event_id, event_status, season_id, capacity, season_membership_id, presence, recorded_by_person_id)
-       values ($1::uuid, 'approved', $2::uuid, 'player', $3::uuid, 'absent', $4::uuid)`,
-      [expiredEventId, seasonId, membershipId, actorPersonId],
+       values ($1::uuid, 'approved', $2::uuid, 'player', $3::uuid, $4::public.attendance_presence, $5::uuid)`,
+      [eventId, seasonId, membershipId, presence, actorPersonId],
     );
-  });
+  }
 
   afterAll(async () => {
     await observer.query(`delete from public.attendance_records where event_id = any($1::uuid[])`, [
@@ -344,14 +389,41 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
     await observer.query(`delete from public.events where id = any($1::uuid[])`, [eventIds]);
   });
 
-  it("lists only invitations actually sent, excluding a pending one", async () => {
+  it("lists every messaged invitation, a pending one included, and none never messaged (LAN-457)", async () => {
     const result = await readPlayerRecord(membershipId);
     const data = (result as PlayerRecordFound).data;
     const ids = data.attendance.map((event) => event.id);
     expect(ids).toEqual(
-      expect.arrayContaining([attendedEventId, cancelledEventId, expiredEventId]),
+      expect.arrayContaining([attendedEventId, cancelledEventId, expiredEventId, pendingEventId]),
     );
-    expect(ids).not.toContain(pendingEventId);
+    expect(ids).not.toContain(withheldEventId);
+    const pending = data.attendance.find((event) => event.id === pendingEventId);
+    expect(pending?.invitationStatus).toBe("pending");
+    expect(pending?.attendance).toBe("absent");
+  });
+
+  // Counted: attended (mandatory, Present), pending (Absent), expired
+  // (mandatory, Absent) and bps (strength and conditioning, Late). Left out:
+  // cancelled and unmarked (no mark), withheld (never messaged), excused, and
+  // future (not yet happened).
+  const EXPECTED_SCORE = {
+    mandatory: { attended: 1, counted: 2 },
+    bps: { attended: 1, counted: 1 },
+    all: { attended: 2, counted: 4 },
+  };
+
+  it("scores the season by Brian's rule: excused, never messaged, unmarked and future left out (LAN-457)", async () => {
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    expect(data.attendanceScore).toEqual(EXPECTED_SCORE);
+  });
+
+  it("gives the roster board's season-wide read the same figures as the record (LAN-457)", async () => {
+    const board = await listRosterBoard();
+    const boardRow = board.rows.find((candidate) => candidate.membershipId === membershipId);
+    expect(boardRow?.attendance).toEqual(EXPECTED_SCORE);
+    const result = await readPlayerRecord(membershipId);
+    expect((result as PlayerRecordFound).data.attendanceScore).toEqual(boardRow?.attendance);
   });
 
   it("reads RSVP and attendance as two independent records, neither implying the other", async () => {

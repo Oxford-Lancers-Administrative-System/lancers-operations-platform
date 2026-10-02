@@ -10,6 +10,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
+import { EMPTY_ATTENDANCE_SCORE } from "@/lib/services/attendance-score";
 import type { MembershipStatus, OnboardingItemStatus } from "@/lib/services/membership";
 import {
   SUBS_INVOICED_ITEM_CODE,
@@ -667,7 +668,10 @@ export default function PlayerRecordView({
           defaultOpen={!collapsedGroups.has("attendance")}
           onToggleOpen={(open) => toggleGroup("attendance", open)}
         >
-          <AttendanceSection events={record.attendance ?? []} />
+          <AttendanceSection
+            events={record.attendance ?? []}
+            score={record.attendanceScore ?? EMPTY_ATTENDANCE_SCORE}
+          />
         </Section>
       )}
 

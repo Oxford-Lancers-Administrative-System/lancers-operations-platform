@@ -161,8 +161,8 @@ on the list, the calendar, Follow-ups or by typed URL; View shows everything in
 the event, including the Event info link; Manage adds every create, edit,
 delete, send, approve, delivery and chase control and that template's messaging
 schedule (LAN-431). Attendance recording is unchanged for every seat: the
-Attendance line governs only the player record's Attendance section, and the
-roster board has no attendance columns.
+Attendance line governs the player record's Attendance section and the roster
+board's Attendance group (LAN-457), and nothing else.
 
 **A seat holder is always an operator (LAN-434, Brian 2026-09-26).** On a
 seat's page (Administration → Roles → a seat, which a person record's **Assign a
@@ -206,7 +206,7 @@ of it is sent to the browser. The player record's sections read Person, Contact
 after Person), Onboarding (and Onboarding activity), Membership, Availability, the five
 assignment groups and Kit; Their other seasons and Status history read as
 Membership; Attendance reads as its own Attendance line (None / View), which
-governs only that section — recording attendance on an event is unchanged. On People and a person's record
+governs that section and the board's Attendance group — recording attendance on an event is unchanged. On People and a person's record
 (LAN-462: **Personal information**, then **Student information**, then
 Restricted), the names, the student facts, Restricted, Where they stand,
 Messaging and What changed read as Person; the mobile, both emails and the
@@ -227,6 +227,29 @@ re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
 **Add recruit** and **QR code** only with "May add recruits"; their pages and
 actions refuse without it.
+
+**The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
+board (and a phone on its side) an **Attendance** group sits immediately right
+of Availability with three read-only columns: **Mandatory**, **BPS** and **All
+events**, each `attended/counted · percentage` (`9/9 · 100%`). Each sorts; a
+player with nothing counted shows a dash, last in either direction. There is
+no filter and no colour, the phone cards are unchanged, and the group shows
+only to a seat with View on the Attendance line. Its **BPS** is strength and
+conditioning attendance (any event of type Strength and conditioning); the
+Membership group's BPS Yes/No is a different column and is untouched. The rule,
+for one player this season: an event counts once it has happened (approved,
+dated today or earlier), the player was invited as a player, and the register
+marks them Present, Late or Absent; Present and Late are attended. Excused is
+left out entirely (ten mandatory, nine attended, one excused reads `9/9`); an
+unexcused Absent counts against; an invitation never messaged (no WhatsApp
+consent, or the event started before the send) counts as excused; an event
+with no register mark is left out; availability excuses nobody. The player
+record's Attendance section heads with the same three figures from the same
+read and the same rule, over the whole season — they no longer follow the
+list's filters, so the record and the board always agree; "N attendants not
+recorded" beside them still reads the filtered list. The list itself now shows
+every messaged invitation, including one still pending because the player never
+answered; an invitation never messaged is not listed.
 
 **The sign-up code page (LAN-428, Brian 2026-09-26).** Recruitment → **QR
 code** opens with three numbers for the live code: **Visits** (times

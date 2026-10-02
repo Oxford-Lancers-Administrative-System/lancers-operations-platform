@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { EMPTY_ATTENDANCE_SCORE } from "@/lib/services/attendance-score";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns } from "./board-columns";
 import {
@@ -55,6 +56,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     eligibility: null,
     availability: null,
     bps: "No",
+    attendance: EMPTY_ATTENDANCE_SCORE,
     onboardingItems: {},
     ...overrides,
   };
@@ -354,6 +356,48 @@ describe("displayOf / optionListLabel — the board reads each item's own word (
     expect(() => displayOf(corrupted, SUBS_INVOICED_COLUMN)).toThrow();
     const overReached = row({ onboardingItems: { hudl_access: { id: "i1", status: "complete" } } });
     expect(() => displayOf(overReached, HUDL_ACCESS_COLUMN)).toThrow();
+  });
+});
+
+describe("the Attendance group — LAN-457", () => {
+  const tally = (attended: number, counted: number) => ({ attended, counted });
+  const scored = (mandatory: [number, number], bps: [number, number], all: [number, number]) => ({
+    mandatory: tally(...mandatory),
+    bps: tally(...bps),
+    all: tally(...all),
+  });
+  const column = (key: string) => COLUMNS.find((candidate) => candidate.key === key)!;
+
+  it("prints attended/counted · percentage, and a dash when nothing is counted", () => {
+    const player = row({ attendance: scored([9, 9], [4, 6], [18, 25]) });
+    expect(displayOf(player, column("attendanceMandatory"))).toBe("9/9 · 100%");
+    expect(displayOf(player, column("attendanceBps"))).toBe("4/6 · 67%");
+    expect(displayOf(player, column("attendanceAll"))).toBe("18/25 · 72%");
+    expect(displayOf(row(), column("attendanceAll"))).toBe("—");
+  });
+
+  it("leaves Membership's BPS flag alone", () => {
+    const player = row({ bps: "Yes", attendance: scored([0, 0], [1, 2], [1, 2]) });
+    expect(displayOf(player, column("bps"))).toBe("Yes");
+    expect(displayOf(player, column("attendanceBps"))).toBe("1/2 · 50%");
+  });
+
+  it("sorts on the fraction attended, with a dash last in either direction", () => {
+    const players = [
+      row({ membershipId: "half", attendance: scored([1, 2], [0, 0], [1, 2]) }),
+      row({ membershipId: "none", attendance: EMPTY_ATTENDANCE_SCORE }),
+      row({ membershipId: "all", attendance: scored([3, 3], [0, 0], [3, 3]) }),
+      row({ membershipId: "third", attendance: scored([1, 3], [0, 0], [1, 3]) }),
+    ];
+    const order = (direction: "asc" | "desc") =>
+      applyBoard(players, {
+        search: "",
+        filters: {},
+        sort: { key: "attendanceMandatory", direction },
+      }).visible.map((player) => player.membershipId);
+    expect(order("asc")).toEqual(["third", "half", "all", "none"]);
+    expect(order("desc")).toEqual(["all", "half", "third", "none"]);
+    expect(rawValue(players[1], "attendanceBps")).toBeNull();
   });
 });
 

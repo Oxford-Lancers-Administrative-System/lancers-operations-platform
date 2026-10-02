@@ -66,12 +66,13 @@ export const WHOLE_RECORD_AUTHORITY: GrantRule = Object.freeze({
   ]),
 }) as GrantRule;
 
-/** The ten roster groups as the board names them (`Band` in `board-columns.ts`). */
+/** The board's groups as it names them (`Band` in `board-columns.ts`): the ten roster groups and, since LAN-457, Attendance. */
 export type RosterBoardBand =
   | "person"
   | "onboarding"
   | "membership"
   | "availability"
+  | "attendance"
   | "coaching"
   | "offensive"
   | "defensive"
@@ -79,7 +80,7 @@ export type RosterBoardBand =
   | "warmup"
   | "kit";
 
-/** A board group's roster category. Only Special teams is spelled differently. */
+/** A board group's roster category. Only Special teams is spelled differently; Attendance is the Attendance line (LAN-457). */
 export function categoryOfBand(band: RosterBoardBand): RosterCategory {
   return band === "specialTeams" ? "special_teams" : band;
 }
