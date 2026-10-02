@@ -202,6 +202,16 @@ refused in Personal email. Saving it records the details, revokes the link, and
 — with no operator step — opens the account and sends the sign-in invitation to
 the email they gave; the page then reads **Details saved** with **Sign-in
 invitation sent to** that address. They sign in with their details complete.
+An email the club already holds — on another person's record, or as another
+account's sign-in — is refused on the link form with one sentence, **This email
+cannot be used. Give another.**, whichever it is; the signed-in form keeps the
+specific reason. The journey ends with the seat and with the account: ending a
+person's last seat (End role, or Replace role handing it on), even with an end
+date of tomorrow, cancels any request still waiting and revokes any live link,
+and a request or link for someone who no longer holds or is due a seat sends
+nothing and opens nothing. Once the person has an operator account, by whatever
+path (Send invitation after an email is added, say), the link is revoked and is
+dead.
 An operator invited by email instead meets the same form at `/me/details` the
 first time they sign in, whenever their personal facts (first name, last name,
 mobile, personal email — the required-fields check at an operator's rung) are

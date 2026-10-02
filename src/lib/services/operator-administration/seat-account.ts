@@ -403,6 +403,10 @@ export async function openAccountFromDetails(params: {
     const subject = await readAdministrationSubject(tx, params.personId, {
       includeScheduled: true,
     });
+    // R470-01: the account is for a seat; a person whose seat has ended gets none.
+    if (subject.roleCodes.length === 0) {
+      throw new InvalidTransition(NO_SEAT_HELD_MESSAGE, { rule: NO_SEAT_HELD_RULE });
+    }
     return {
       email,
       callbackUrl,

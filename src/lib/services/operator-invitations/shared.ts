@@ -14,6 +14,10 @@ import {
   type Tx,
 } from "@/lib/db";
 import { operatorAccountState } from "../operator-account-state";
+import {
+  DETAILS_LINK_ACCOUNT_OPENED_REASON,
+  revokeOperatorDetailsLinksIn,
+} from "../operator-details/facts";
 import { recordClassifiedEmailIn, recordLoginEmailIfNoneIn } from "../person-email-classification";
 import { validatePhoneNumber } from "../person-validation";
 import { readOperatorAccountIn, type OperatorAccountRecord } from "./account-read";
@@ -390,6 +394,9 @@ export async function insertOperatorAccount(
      returning id`,
     [input.authUserId, input.personId, input.email],
   );
+  // R470-02: the details link exists to open this account. Once one is open,
+  // by whatever path, a link still in the person's WhatsApp is dead.
+  await revokeOperatorDetailsLinksIn(tx, input.personId, DETAILS_LINK_ACCOUNT_OPENED_REASON);
   return inserted.rows[0].id;
 }
 

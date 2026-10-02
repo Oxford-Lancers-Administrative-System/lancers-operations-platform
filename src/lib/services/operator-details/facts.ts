@@ -93,6 +93,89 @@ export async function hasCurrentPhoneIn(tx: Tx, personId: string): Promise<boole
 }
 
 /**
+ * Does this person hold a seat, or are they due to hold one? The same reading
+ * as `readAdministrationSubject(…, { includeScheduled: true })`: an assignment
+ * not yet ended, whether or not it has started. A details request, its link
+ * and the account it opens exist only for a seat (R470-01).
+ */
+export async function holdsOrIsDueASeatIn(tx: Tx, personId: string): Promise<boolean> {
+  const result = await tx.query(
+    `select 1 from public.role_assignments
+      where person_id = $1::uuid
+        and (effective_to is null or effective_to > current_date)
+      limit 1`,
+    [personId],
+  );
+  return result.rows.length > 0;
+}
+
+/** Why a queued details request was cancelled when the person's last seat ended. */
+export const DETAILS_REQUEST_NO_SEAT_REASON =
+  "This person no longer holds a role, so the details request was withdrawn.";
+/** Why a live details link was revoked when the person's last seat ended. */
+export const DETAILS_LINK_NO_SEAT_REASON = "The person no longer holds a role.";
+/** Why a live details link was revoked when an account was opened for the person. */
+export const DETAILS_LINK_ACCOUNT_OPENED_REASON = "An operator account was opened for the person.";
+
+/**
+ * Revokes every live `operator_details` link the person holds, in any season.
+ * Returns how many were revoked.
+ */
+export async function revokeOperatorDetailsLinksIn(
+  tx: Tx,
+  personId: string,
+  reason: string,
+): Promise<number> {
+  const revoked = await tx.query(
+    `update public.person_access_tokens
+        set revoked_at = now(), revoked_reason = $2
+      where person_id = $1::uuid
+        and purpose = 'operator_details'
+        and revoked_at is null`,
+    [personId, reason],
+  );
+  return revoked.rowCount ?? 0;
+}
+
+/**
+ * An operator has just ended one of the person's seats on `endsOn` (End role,
+ * or Replace role handing it on). If no seat of theirs runs past that day,
+ * this was their last: stand the details journey down now, the way an event's
+ * cancellation stands its messages down — every queued request cancelled with
+ * a reason, every live link revoked. Now, not on `endsOn`: a seat cannot end
+ * on the day it began, so the earliest end of a mistyped seat is tomorrow, and
+ * a link left live until then could still open an account.
+ */
+export async function standDownOperatorDetailsIfSeatlessIn(
+  tx: Tx,
+  personId: string,
+  endsOn: string,
+): Promise<{ requestsCancelled: number; linksRevoked: number }> {
+  const remaining = await tx.query(
+    `select 1 from public.role_assignments
+      where person_id = $1::uuid
+        and (effective_to is null or effective_to > $2::date)
+      limit 1`,
+    [personId, endsOn],
+  );
+  if (remaining.rows.length > 0) return { requestsCancelled: 0, linksRevoked: 0 };
+  const cancelled = await tx.query(
+    `update public.notification_jobs
+        set status = 'cancelled', cancelled_reason = $2,
+            claimed_at = null, claimed_by = null, updated_at = now()
+      where person_id = $1::uuid
+        and job_type = 'other'
+        and idempotency_key like '${OPERATOR_DETAILS_KEY_PREFIX}%'
+        and status in ('pending', 'ready', 'failed')`,
+    [personId, DETAILS_REQUEST_NO_SEAT_REASON],
+  );
+  return {
+    requestsCancelled: cancelled.rowCount ?? 0,
+    linksRevoked: await revokeOperatorDetailsLinksIn(tx, personId, DETAILS_LINK_NO_SEAT_REASON),
+  };
+}
+
+/**
  * Must this signed-in operator complete the details form before reaching the
  * app? Yes while a request stands (either path) and the check still finds a
  * personal fact missing. Completing the facts by any route — the form, or an

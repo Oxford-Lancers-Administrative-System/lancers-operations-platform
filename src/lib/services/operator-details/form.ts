@@ -17,6 +17,7 @@ import { supersedeContactPoint, updatePersonField, type PersonFieldUpdate } from
 import { resolvePersonTokenIn, revokePersonTokenIn } from "../player-answer-tokens";
 import { findCurrentSeasonIn } from "../seasons";
 import {
+  holdsOrIsDueASeatIn,
   missingOperatorDetails,
   operatorDetailsDueIn,
   OPERATOR_DETAILS_RECEIVED_ACTION,
@@ -54,7 +55,11 @@ const SOURCE = "operator details form";
 const REPLACED_REASON = "Supplied by the person on the operator details form.";
 
 const CONTACT_IN_USE_MESSAGE = "Already held by another record.";
-const LOGIN_IN_USE_MESSAGE = "Already used to sign in by another account.";
+/**
+ * R470-03: the link path's one refusal for an address the club already holds,
+ * either way. An unauthenticated link holder learns only that it cannot be used.
+ */
+export const LINK_EMAIL_UNAVAILABLE_MESSAGE = "This email cannot be used. Give another.";
 export const COLLEGE_ADDRESS_MESSAGE = "Give a personal email, not a college address.";
 
 export interface OperatorDetailsView {
@@ -131,7 +136,7 @@ async function validateIn(
   personId: string,
   shown: ReadonlySet<OperatorDetailsField>,
   values: OperatorDetailsValues,
-  refuseTakenLogin: boolean,
+  fromLink: boolean,
 ): Promise<OperatorDetailsErrors> {
   const errors: OperatorDetailsErrors = {};
   for (const field of shown) {
@@ -168,15 +173,16 @@ async function validateIn(
           limit 1`,
         [values.personalEmail, personId],
       );
-      if (held.rows.length > 0) errors.personalEmail = CONTACT_IN_USE_MESSAGE;
-      else if (refuseTakenLogin) {
+      if (held.rows.length > 0) {
+        errors.personalEmail = fromLink ? LINK_EMAIL_UNAVAILABLE_MESSAGE : CONTACT_IN_USE_MESSAGE;
+      } else if (fromLink) {
         const login = await tx.query(
           `select 1 from public.operator_accounts
             where lower(login_email) = lower($1::text) and person_id <> $2::uuid
             limit 1`,
           [values.personalEmail, personId],
         );
-        if (login.rows.length > 0) errors.personalEmail = LOGIN_IN_USE_MESSAGE;
+        if (login.rows.length > 0) errors.personalEmail = LINK_EMAIL_UNAVAILABLE_MESSAGE;
       }
     }
   }
@@ -207,14 +213,18 @@ export async function saveOperatorDetails(input: {
   readonly personId: string;
   readonly actorPersonId: string;
   readonly values: OperatorDetailsValues;
-  /** The link path, where saving opens an account: the email must not already sign somebody else in. */
-  readonly refuseTakenLogin?: boolean;
+  /**
+   * The link path, where saving opens an account: the email must not already
+   * sign somebody else in, and an address the club holds is refused in one
+   * generic sentence (R470-03).
+   */
+  readonly fromLink?: boolean;
 }): Promise<OperatorDetailsSaveResult> {
   const { personId, actorPersonId, values } = input;
   const prepared = await withTransaction(async (tx) => {
     const view = await readOperatorDetailsViewIn(tx, personId);
     const shown = new Set(view.fields);
-    const errors = await validateIn(tx, personId, shown, values, input.refuseTakenLogin ?? false);
+    const errors = await validateIn(tx, personId, shown, values, input.fromLink ?? false);
     return { view, shown, errors, record: await readPersonRecordIn(tx, personId) };
   });
   if (Object.keys(prepared.errors).length > 0) return { ok: false, errors: prepared.errors };
@@ -316,13 +326,25 @@ async function setKnownAsIn(
   });
 }
 
-/** The person a live `operator_details` link opens, or `null`. Writes nothing. */
+/**
+ * The person a live `operator_details` link opens, or `null`. Writes nothing.
+ * The link is dead once the person has an operator account, by whatever path
+ * (R470-02), or holds no seat and is due none (R470-01): either way there is
+ * no account left for it to open. The page and the save both resolve here.
+ */
 export async function resolveOperatorDetailsLinkIn(
   tx: Tx,
   token: string,
 ): Promise<{ personId: string; seasonId: string } | null> {
   const resolution = await resolvePersonTokenIn(tx, token, "operator_details");
-  return resolution.state === "valid" ? resolution.resolved : null;
+  if (resolution.state !== "valid" || resolution.resolved === null) return null;
+  const { personId } = resolution.resolved;
+  const account = await tx.query("select 1 from public.operator_accounts where person_id = $1", [
+    personId,
+  ]);
+  if (account.rows.length > 0) return null;
+  if (!(await holdsOrIsDueASeatIn(tx, personId))) return null;
+  return resolution.resolved;
 }
 
 export type LinkSaveResult =
@@ -350,7 +372,7 @@ export async function completeOperatorDetailsFromLink(input: {
     personId: link.personId,
     actorPersonId: link.personId,
     values: input.values,
-    refuseTakenLogin: true,
+    fromLink: true,
   });
   if (!saved.ok) return { kind: "invalid", errors: saved.errors };
 

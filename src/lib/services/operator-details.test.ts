@@ -31,8 +31,13 @@ import {
   withdrawSeasonMessagingConsentIn,
 } from "./messaging-consent";
 import { setLightsOutClockForTesting } from "./messaging-schedule/lights-out";
+import { dispatchOperatorDetailsJob } from "./messaging-scheduler";
 import {
   assignRole,
+  endRoleAssignment,
+  inviteSeatHolder,
+  NO_SEAT_HELD_RULE,
+  openAccountFromDetails,
   replaceRoleHolder,
   SEAT_LOGIN_EMAIL_REQUIRED_RULE,
 } from "./operator-administration";
@@ -40,12 +45,13 @@ import {
   COLLEGE_ADDRESS_MESSAGE,
   completeOperatorDetailsFromLink,
   inviteOperatorWithoutEmail,
+  LINK_EMAIL_UNAVAILABLE_MESSAGE,
   readOperatorDetailsStatuses,
   readOperatorDetailsView,
   saveOperatorDetails,
   sendOperatorDetailsRequest,
 } from "./operator-details";
-import { operatorDetailsDueIn } from "./operator-details/facts";
+import { DETAILS_REQUEST_NO_SEAT_REASON, operatorDetailsDueIn } from "./operator-details/facts";
 import { supabaseOperatorIdentity, type OperatorIdentityPort } from "./operator-identity";
 import { activateOperatorAccount } from "./operator-invitations";
 import { resolvePersonTokenIn } from "./player-answer-tokens";
@@ -643,4 +649,227 @@ it("a granted consent row does not stop the request", async () => {
   const personId = await person("granted", { phone: phone() });
   await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
   expect((await seat(personId)).detailsRequest?.outcome).toBe("sent");
+});
+
+/**
+ * The independent review of the LAN-470 batch (R470-01..03): the details
+ * journey exists to open an account for a seat, so it ends with the seat and
+ * with the account, and its public form gives nothing away.
+ */
+describe("the details journey ends with the seat and with the account", () => {
+  async function tomorrow(): Promise<string> {
+    const day = await observer.query<{ day: string }>(
+      "select ((now() at time zone 'Europe/London')::date + 1)::text as day",
+    );
+    return day.rows[0].day;
+  }
+
+  async function job(jobId: string) {
+    const result = await observer.query<{
+      status: string;
+      cancelled_reason: string | null;
+      last_error: string | null;
+    }>(
+      `select status::text as status, cancelled_reason, last_error
+         from public.notification_jobs where id = $1`,
+      [jobId],
+    );
+    return result.rows[0];
+  }
+
+  /** Seated by day (the link sent), then a second request queued overnight and held. */
+  async function seatedWithLinkAndHeldRequest(tag: string) {
+    daytime();
+    const personId = await person(tag, { phone: phone() });
+    const seated = await seat(personId);
+    const token = lastSentToken();
+    await agePastSafetyPacing(observer);
+    setLightsOutClockForTesting(() => new Date("2026-10-05T23:30:00Z"));
+    const held = await sendOperatorDetailsRequest({
+      operator: administrator(),
+      personId,
+      messaging,
+    });
+    expect(held.outcome).toBe("waiting");
+    const heldJob = (await detailsJobs(personId)).at(-1)!;
+    expect(heldJob.status).toBe("pending");
+    sent = [];
+    return { personId, roleAssignmentId: seated.roleAssignmentId, token, heldJobId: heldJob.id };
+  }
+
+  const LINK_VALUES = { ...COMPLETE, familyName: "Stranger", mobile: "+447700900999" };
+
+  it("R470-01: ending the last seat cancels the held request and kills the link, which opens no account", async () => {
+    const { personId, roleAssignmentId, token, heldJobId } =
+      await seatedWithLinkAndHeldRequest("seat-ended");
+
+    // A seat cannot end on the day it began: the earliest end is tomorrow.
+    await endRoleAssignment({
+      operator: administrator(),
+      roleAssignmentId,
+      effectiveTo: await tomorrow(),
+      reason: "Seated at a mistyped number",
+    });
+
+    // (a) The held request is cancelled, with a reason.
+    expect(await job(heldJobId)).toMatchObject({
+      status: "cancelled",
+      cancelled_reason: DETAILS_REQUEST_NO_SEAT_REASON,
+    });
+
+    // (b) Saving the link is refused and opens no account.
+    const saved = await completeOperatorDetailsFromLink({
+      token,
+      values: { ...LINK_VALUES, personalEmail: address("stranger") },
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+    expect(saved).toEqual({ kind: "unknown" });
+    expect(await accountOf(personId)).toBeNull();
+    expect(invitations).toHaveLength(0);
+
+    // (c) At 07:00 the dispatcher sends nothing.
+    daytime();
+    await dispatchOperatorDetailsJob(heldJobId, messaging);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("R470-01: a seat whose end date has passed sends nothing and its link opens no account", async () => {
+    const { personId, token, heldJobId } = await seatedWithLinkAndHeldRequest("seat-lapsed");
+    // Ended on a date set earlier, which has now arrived: nothing stood the journey down.
+    await observer.query(
+      `update public.role_assignments
+          set effective_from = current_date - 1, effective_to = current_date
+        where person_id = $1`,
+      [personId],
+    );
+
+    daytime();
+    const outcome = await dispatchOperatorDetailsJob(heldJobId, messaging);
+    expect(outcome).not.toBe("accepted");
+    expect(sent).toHaveLength(0);
+    expect(await job(heldJobId)).toMatchObject({
+      status: "failed",
+      last_error: DETAILS_REQUEST_NO_SEAT_REASON,
+    });
+
+    const saved = await completeOperatorDetailsFromLink({
+      token,
+      values: { ...LINK_VALUES, personalEmail: address("lapsed") },
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+    expect(saved).toEqual({ kind: "unknown" });
+    expect(await accountOf(personId)).toBeNull();
+  });
+
+  it("R470-01: no account is opened from details for a person who holds no seat", async () => {
+    const personId = await person("no-seat", { phone: phone() });
+    await expect(
+      openAccountFromDetails({
+        personId,
+        email: address("no-seat"),
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      }),
+    ).rejects.toMatchObject({ rule: NO_SEAT_HELD_RULE });
+    expect(await accountOf(personId)).toBeNull();
+  });
+
+  it("R470-02: an account opened by Send invitation revokes the link, and the link is dead while the account exists", async () => {
+    daytime();
+    const personId = await person("invited-instead", { phone: phone() });
+    await seat(personId);
+    const token = lastSentToken();
+    const email = address("invited-instead");
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source)
+       values ($1, 'email', 'personal', $2, true, 'fixture')`,
+      [personId, email],
+    );
+
+    const invited = await inviteSeatHolder({
+      operator: administrator(),
+      personId,
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+    expect(invited.loginEmail).toBe(email);
+
+    const links = await observer.query<{ revoked: boolean }>(
+      `select revoked_at is not null as revoked from public.person_access_tokens
+        where person_id = $1 and purpose = 'operator_details'`,
+      [personId],
+    );
+    expect(links.rows.length).toBeGreaterThan(0);
+    expect(links.rows.every((row) => row.revoked)).toBe(true);
+
+    // Even a link the revocation missed is dead once the account exists.
+    await observer.query(
+      `update public.person_access_tokens set revoked_at = null, revoked_reason = null
+        where person_id = $1 and purpose = 'operator_details'`,
+      [personId],
+    );
+    const saved = await completeOperatorDetailsFromLink({
+      token,
+      values: { ...LINK_VALUES, personalEmail: address("rewrite") },
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+    expect(saved).toEqual({ kind: "unknown" });
+    const family = await observer.query<{ family_name: string }>(
+      "select family_name from public.people where id = $1",
+      [personId],
+    );
+    expect(family.rows[0].family_name).toBe("invited-instead");
+  });
+
+  it("R470-03: the link answers an address held on a record and one used to sign in identically", async () => {
+    daytime();
+    // An address on another person's record.
+    const onRecord = address("on-record");
+    await person("holds-address", { email: onRecord });
+    // An address only an operator account signs in with: seated by email, then
+    // the contact point closed, so only `operator_accounts.login_email` holds it.
+    const loginOnly = address("login-only");
+    const operatorId = await person("signs-in", { email: loginOnly });
+    await seat(operatorId);
+    await observer.query(
+      `update public.contact_points set valid_until = now(), is_preferred = false
+        where person_id = $1 and kind = 'email'`,
+      [operatorId],
+    );
+
+    const personId = await person("asks", { phone: phone() });
+    await seat(personId);
+    const token = lastSentToken();
+
+    const save = (personalEmail: string) =>
+      completeOperatorDetailsFromLink({
+        token,
+        values: { ...COMPLETE, mobile: "+447700900998", personalEmail },
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      });
+    const held = await save(onRecord);
+    const signsIn = await save(loginOnly);
+
+    expect(held).toEqual({
+      kind: "invalid",
+      errors: { personalEmail: LINK_EMAIL_UNAVAILABLE_MESSAGE },
+    });
+    expect(signsIn).toEqual(held);
+    expect(await accountOf(personId)).toBeNull();
+
+    // Signed in, the person's own form keeps the specific sentence.
+    const own = await saveOperatorDetails({
+      personId,
+      actorPersonId: personId,
+      values: { ...COMPLETE, mobile: "+447700900998", personalEmail: onRecord },
+    });
+    expect(own).toEqual({
+      ok: false,
+      errors: { personalEmail: "Already held by another record." },
+    });
+  });
 });

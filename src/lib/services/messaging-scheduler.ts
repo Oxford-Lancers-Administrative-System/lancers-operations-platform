@@ -50,7 +50,12 @@ import {
   mayReceiveWelcomeContactIn,
   readSeasonMessagingConsentIn,
 } from "./messaging-consent";
-import { OPERATOR_DETAILS_KEY_PREFIX, hasUsableEmailIn } from "./operator-details/facts";
+import {
+  DETAILS_REQUEST_NO_SEAT_REASON,
+  OPERATOR_DETAILS_KEY_PREFIX,
+  hasUsableEmailIn,
+  holdsOrIsDueASeatIn,
+} from "./operator-details/facts";
 import { findCurrentSeasonIn } from "./seasons";
 import {
   ONBOARDING_CHASE_ESCALATION_KEY_PREFIX,
@@ -3614,8 +3619,8 @@ const OPERATOR_DETAILS_HAS_EMAIL_REASON =
  *
  * WhatsApp is used for this only when a phone number is all the club has, and
  * that is re-checked here at claim time: a person who has since been given an
- * email or an account is not messaged. Under 18 refuses as it does everywhere.
- * Consent is a recruit concept and a coach has no consent record, so this
+ * email or an account, or no longer holds or is due a seat, is not messaged.
+ * Under 18 refuses as it does everywhere. Consent is a recruit concept and a coach has no consent record, so this
  * sends without a grant — but a refusal or withdrawal recorded this season
  * still stops it. Lights-out and the shared sending allowance apply exactly
  * as they do to the chase (`resolveOtherJobProvider`, `admitSendIn`).
@@ -3676,6 +3681,11 @@ export async function dispatchOperatorDetailsJob(
     };
 
     if (await isPersonUnder18In(tx, job.person_id)) return fail(ONBOARDING_CHASE_UNDER_18_REASON);
+    // R470-01: a request held overnight, or retried, for someone whose seat has
+    // since ended (on a date set earlier, so nothing stood it down) is not sent.
+    if (!(await holdsOrIsDueASeatIn(tx, job.person_id))) {
+      return fail(DETAILS_REQUEST_NO_SEAT_REASON);
+    }
     const accounts = await tx.query("select 1 from public.operator_accounts where person_id = $1", [
       job.person_id,
     ]);

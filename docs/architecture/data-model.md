@@ -675,7 +675,10 @@ Notification Job that carries a message. What it had no home for was **when**.
   `operator_details`, each to its own page and nothing else. The credential is
   minted at dispatch for the current season (`season_id` is not null, so no
   current season means no request is sent) and revoked by purpose when the form
-  is saved, so it dies on save.
+  is saved, so it dies on save. It is also revoked, in every season, when an
+  `operator_accounts` row is inserted for the person by any path, and when an
+  operator ends the person's last seat; and it resolves as `unknown` while the
+  person has an account or holds no seat and is due none.
 
   **Each route resolves exactly one purpose and refuses every other credential**
   — collapsed to the same `unknown` an invented token gets, so nothing about

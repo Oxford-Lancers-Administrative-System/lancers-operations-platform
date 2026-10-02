@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
 import { applyAudienceGroupRuleIn } from "../event-audience-rule";
+import { standDownOperatorDetailsIfSeatlessIn } from "../operator-details/facts";
 import { findCurrentSeasonIn } from "../seasons";
 import {
   currentDateIn,
@@ -242,6 +243,8 @@ async function writeReplacementIn(
     outgoing.id,
     effectiveFrom,
   ]);
+  // R470-01: as End role — the outgoing holder's last seat stands their details journey down.
+  await standDownOperatorDetailsIfSeatlessIn(tx, outgoing.personId, effectiveFrom);
 
   await recordAdministrationEvent(tx, {
     action: "administration.role.ended",
