@@ -205,7 +205,7 @@ export interface MessageQueueRow {
   readonly mayOpenEvent: boolean;
 }
 
-export interface MessageQueueSummary {
+interface MessageQueueSummary {
   /** Every queued message that will still send, at any date. */
   readonly queued: number;
   /** Of those, how many are already due and waiting for the sweep. */

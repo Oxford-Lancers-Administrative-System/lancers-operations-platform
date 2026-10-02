@@ -19,7 +19,7 @@ import { addClubDays } from "@/lib/club-time";
  *   either the invitation was written with `message_withheld_reason`, or the
  *   send was refused at claim time with `NO_CONSENT_REASON`.
  */
-export const MESSAGE_STATES = Object.freeze([
+const MESSAGE_STATES = Object.freeze([
   "queued",
   "attempted",
   "delivered",
@@ -57,7 +57,7 @@ export type ChannelFilter = (typeof CHANNEL_FILTERS)[number];
  * recruit's reminder is LAN-203's follow-up), and — for `job_type = 'other'` —
  * the idempotency-key prefix every dispatcher already routes on.
  */
-export const MESSAGE_KINDS = Object.freeze([
+const MESSAGE_KINDS = Object.freeze([
   "invitation",
   "reminder",
   "recruit_followup",
