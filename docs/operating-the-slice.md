@@ -623,6 +623,45 @@ was never invited, or an invitation still pending) reaches the sign-in page,
 not the sheet. These emails appear on the **Messaging queue** as **Attendance
 sheet**.
 
+### The Messaging queue: every message in one place
+
+**Administration → Messaging queue** (`/operate/admin/messaging-queue`,
+directly above Messaging schedule; LAN-468, Brian 2026-10-02) is every message
+the application has sent, is sending or will send — events, recruitment and
+onboarding together — rather than one event at a time. It opens for the seats
+that already administer delivery (`delivery_administration`: President,
+Vice-President, Secretary, General Manager, IT Officer) and is read-only.
+
+**Expected.** Four tiles: **Queued** (with **Due now** or the next due time
+under it), **Attempted**, **Delivered today** and **Failed today**, the last two
+with **Yesterday** under them. The lights-out line while 22:00–07:00 applies,
+and a warning when any message is held. Filters **When** (opens on **Today**;
+Yesterday, Last 7 days, Next 7 days), **Status**, **Channel** and **Message**
+type. The list — fifty a page, cards on a phone — shows the time, who it is
+to (linked to the person where the viewer may open people), the message type,
+the channel, the event it belongs to and the status; no message text and no
+personal link. Two statuses the event's Delivery screen never needs: **Not sent
+— event passed** (queued against an event that has started or is no longer
+approved, so no sweep will ever send it) and **Withheld — no consent**.
+
+Two things the page computes rather than reads. **A queued message's "Sends
+07:00"** under its time is worked out when the page loads, from the lights-out
+hours, because the database does not record that a message was held overnight —
+reload after 07:00 and it reads differently. And **an email the provider
+accepted reads Attempted, not Delivered**: the email provider sends no delivery
+confirmation, so acceptance is the most the club ever learns about an email. A
+WhatsApp message moves from Attempted to Delivered only when WhatsApp confirms
+it. So **Delivered today** counts confirmed WhatsApp deliveries; an accepted
+email is counted under **Attempted** — until `WHATSAPP_MESSAGE_TTL_HOURS` (720 by
+default) has passed, when the sweep concludes every accepted attempt that was
+never confirmed as failed, an email's included.
+
+**Read cost** (measured on production through `npm run prod:inspect`, 2 October
+2026, 1,029 jobs): the summary and a day's page each run in about 6 ms on the
+server and a seven-day page in about 11 ms, scanning the jobs table without an
+index. That grows with the table; no index was added because nothing here calls
+for one yet.
+
 ### Nothing advances unless something sweeps
 
 The ladder is driven by `POST /api/scheduler/messaging`, authenticated by

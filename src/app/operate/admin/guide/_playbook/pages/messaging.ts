@@ -97,6 +97,20 @@ export const MESSAGING_PAGE: PlaybookPage = {
     },
     {
       operator: [
+        "To see every message across the club at once — sent, sending and still to come — open ",
+        screen("Messaging queue"),
+        ". It opens on today; filter by when, status, channel and message type.",
+      ],
+      then: [
+        "A queued message shows when it will actually leave, overnight messages included. An email the provider accepted reads ",
+        state("Attempted"),
+        ": email sends no delivery confirmation, so only a WhatsApp message ever reads ",
+        state("Delivered"),
+        ".",
+      ],
+    },
+    {
+      operator: [
         "When something looks wrong on one event, open its delivery page and use ",
         control("View diagnostics"),
         ", then ",
@@ -154,6 +168,12 @@ export const MESSAGING_PAGE: PlaybookPage = {
       ],
     },
     {
+      label: "The attendance sheet goes an hour before",
+      fact: [
+        "An hour before an approved event starts, the General Manager, the President and every coach who answered Yes are emailed the link to its attendance page. Nobody chooses who receives it.",
+      ],
+    },
+    {
       label: "A schedule change is not retroactive",
       fact: ["Events already approved keep the schedule they were approved with."],
     },
@@ -185,6 +205,11 @@ export const MESSAGING_PAGE: PlaybookPage = {
     },
   ],
   whereToLook: [
+    {
+      href: "/operate/admin/messaging-queue",
+      label: "Messaging queue",
+      shows: ["Every message across the club, queued, in flight, delivered and failed."],
+    },
     {
       href: "/operate/admin/messaging",
       label: "Messaging schedule",
