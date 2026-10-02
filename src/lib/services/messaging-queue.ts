@@ -89,6 +89,11 @@ export const DUE_JOB_PREDICATE = `held_at is null
             or (job_type = 'other' and idempotency_key like 'onboarding-chase:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-nudge:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
+            -- LAN-465. The attendance-sheet email, an hour before an approved
+            -- event. It carries its event, so it is deliberately NOT in the
+            -- exemption list below: a cancelled or started event's sheet is
+            -- never due.
+            or (job_type = 'other' and idempotency_key like 'attendance-sheet:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep

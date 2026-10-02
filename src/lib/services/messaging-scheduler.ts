@@ -3,6 +3,7 @@ import "server-only";
 import { LEADERSHIP_TIER_SEATS } from "@/lib/auth/capabilities";
 import { withTransaction, type Tx } from "@/lib/db";
 import {
+  attendanceSheetUrl,
   onboardingUrl,
   recruitBackgroundUrl,
   resolveDeliveryProvider,
@@ -74,6 +75,12 @@ import {
 } from "./messaging-schedule/lights-out";
 import type { MessagingPlan } from "./messaging-schedule";
 import { personDisplayAliasSql } from "./sql-text";
+import {
+  ATTENDANCE_SHEET_KEY_PREFIX,
+  ATTENDANCE_SHEET_LEAD_MINUTES,
+  EVENT_START_SQL,
+  declareDueAttendanceSheetEmailsIn,
+} from "./attendance-sheet-email";
 
 /**
  * The scheduler sweep. LAN-169.
@@ -148,6 +155,8 @@ export interface SweepSummary {
   readonly onboardingEscalationsCreated: number;
   /** LAN-218. Onboarding exhaustions held because the escalation office is vacant. */
   readonly onboardingEscalationsHeld: number;
+  /** LAN-465. Attendance-sheet emails declared this tick, one per recipient per event. */
+  readonly attendanceSheetsDeclared: number;
   /**
    * LAN-288. Accepted messages the provider never confirmed, whose delivery
    * window has passed — concluded as failures this tick rather than left
@@ -798,6 +807,9 @@ export async function runMessagingSweep(
   // than waiting for the next one.
   const declaredChases = await declareDueOnboardingChasesIn();
   const onboardingEscalations = await raiseDueOnboardingChaseEscalations();
+  // LAN-465. The attendance sheet, an hour before each approved event, on the
+  // same declare-then-dispatch tick.
+  const declaredSheets = await withTransaction((tx) => declareDueAttendanceSheetEmailsIn(tx));
 
   // LAN-288. Before the tick dispatches anything, it closes the books on
   // messages WhatsApp dropped: Meta sends no callback for those, so the only
@@ -855,17 +867,20 @@ export async function runMessagingSweep(
                 // its idempotency_key carries the recruit-cycle: prefix
                 // (LAN-203), the onboarding-welcome: prefix (LAN-215), the
                 // onboarding-chase:/onboarding-nudge: prefixes or the
-                // onboarding-chase-escalation: prefix (LAN-218), so every
-                // 'other' row reaching this loop is one of those five.
+                // onboarding-chase-escalation: prefix (LAN-218) or the
+                // attendance-sheet: prefix (LAN-465), so every 'other' row
+                // reaching this loop is one of those six.
                 job.jobType === "other"
-                ? job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
-                  ? await dispatchOnboardingWelcomeJob(job.id, options)
-                  : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
-                      job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
-                    ? await dispatchOnboardingChaseJob(job.id, options)
-                    : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
-                      ? await dispatchOnboardingChaseEscalationJob(job.id, options)
-                      : await dispatchRecruitmentCycleJob(job.id, options)
+                ? job.idempotencyKey.startsWith(ATTENDANCE_SHEET_KEY_PREFIX)
+                  ? await dispatchAttendanceSheetJob(job.id, options)
+                  : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
+                    ? await dispatchOnboardingWelcomeJob(job.id, options)
+                    : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
+                        job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+                      ? await dispatchOnboardingChaseJob(job.id, options)
+                      : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
+                        ? await dispatchOnboardingChaseEscalationJob(job.id, options)
+                        : await dispatchRecruitmentCycleJob(job.id, options)
                 : await dispatchJob(job.id, { ...options, automatic: true });
 
         if (outcome === "accepted") accepted += 1;
@@ -957,6 +972,7 @@ export async function runMessagingSweep(
     onboardingChasesExhausted: onboardingEscalations.newlyExhausted,
     onboardingEscalationsCreated: onboardingEscalations.escalationsCreated,
     onboardingEscalationsHeld: onboardingEscalations.escalationsHeld,
+    attendanceSheetsDeclared: declaredSheets.declared,
     deliveriesExpired,
   };
 }
@@ -2586,6 +2602,272 @@ export async function dispatchOnboardingChaseEscalationJob(
   await withTransaction(async (tx) => {
     // LAN-394. What this answer says about the provider, before what it says
     // about this message.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claimed.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claimed.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claimed.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+// ---------------------------------------------------------------------------
+// The attendance-sheet email — LAN-465
+// ---------------------------------------------------------------------------
+
+const ATTENDANCE_SHEET_NO_EVENT_REASON =
+  "This event is no longer approved with a start time, so no attendance sheet is sent.";
+
+/**
+ * Sends one attendance-sheet email (`attendance-sheet-email.ts` says who gets
+ * one and when). Modelled on {@link dispatchOnboardingChaseEscalationJob}:
+ * lock, read, admit, claim, send, record — email only, to the person's
+ * current email of either kind, preferred first.
+ *
+ * The event is re-read here rather than trusted from the declaration. One that
+ * is no longer approved, or has lost its start time, is failed terminally with
+ * a reason (the due predicate normally stops it first). One that has moved so
+ * that its start is now more than an hour away is put back to the new
+ * one-hour mark and not sent: a moved event moves the send.
+ */
+export async function dispatchAttendanceSheetJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    "email",
+  );
+  if (!resolution.ok) {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, updated_at = now()
+          where id = $1 and status in ('pending', 'ready', 'failed')`,
+        [jobId, resolution.reason],
+      );
+    });
+    return "refused";
+  }
+  const context = resolution.context;
+
+  type SheetOutcome =
+    | { readonly kind: "no-send" }
+    | { readonly kind: "deferred" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<SheetOutcome> => {
+    const locked = await tx.query<{
+      id: string;
+      person_id: string;
+      event_id: string;
+      attempt_count: number;
+    }>(
+      `select id, person_id, event_id, attempt_count
+         from public.notification_jobs
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${ATTENDANCE_SHEET_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $2
+          and person_id is not null
+          and event_id is not null
+        for update`,
+      [jobId, MAX_ATTEMPTS],
+    );
+    const job = locked.rows[0];
+    if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
+
+    const details = await tx.query<{
+      event_name: string;
+      venue: string | null;
+      when_label: string;
+      sends_at: Date;
+      due_now: boolean;
+      sendable: boolean;
+      given_name: string;
+      display_alias: string | null;
+    }>(
+      `select e.name as event_name,
+              e.venue,
+              to_char(${EVENT_START_SQL} at time zone 'Europe/London',
+                      'FMDay FMDD FMMonth, HH24:MI') as when_label,
+              ${EVENT_START_SQL} - make_interval(mins => $3) as sends_at,
+              ${EVENT_START_SQL} - make_interval(mins => $3) <= now() as due_now,
+              (e.status = 'approved' and e.starts_at is not null and ${EVENT_START_SQL} > now())
+                as sendable,
+              p.given_name,
+              ${personDisplayAliasSql("p")} as display_alias
+         from public.events e
+         cross join public.people p
+        where e.id = $1 and p.id = $2`,
+      [job.event_id, job.person_id, ATTENDANCE_SHEET_LEAD_MINUTES],
+    );
+    const detail = details.rows[0];
+
+    if (!detail || !detail.sendable) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ATTENDANCE_SHEET_NO_EVENT_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    if (!detail.due_now) {
+      // Moved later since it was declared: wait for the new one-hour mark.
+      await tx.query(
+        `update public.notification_jobs
+            set scheduled_for = $2, updated_at = now()
+          where id = $1`,
+        [jobId, detail.sends_at],
+      );
+      return { kind: "no-send" };
+    }
+
+    const email = await tx.query<{ raw_value: string; normalised_value: string | null }>(
+      `select raw_value, normalised_value
+         from public.contact_points
+        where person_id = $1
+          and kind = 'email'
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id
+        limit 1`,
+      [job.person_id],
+    );
+    const recipient = email.rows[0]?.normalised_value ?? email.rows[0]?.raw_value ?? null;
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        NO_USABLE_EMAIL_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning id`,
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
+    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber,
+      safety: admission,
+      message: {
+        kind: "attendance_sheet",
+        recipient,
+        inviteeName: detail.display_alias ?? detail.given_name,
+        eventName: detail.event_name,
+        whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
+        venue: detail.venue,
+        rsvpUrl: "",
+        attendanceUrl: attendanceSheetUrl(context.appBaseUrl, job.event_id),
+      },
+    };
+  });
+
+  if (claim.kind === "deferred") return "deferred";
+  if (claim.kind !== "send") return "skipped";
+  const claimed = claim;
+
+  const outcome = await context.provider.send(claimed.message);
+
+  await withTransaction(async (tx) => {
     await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
 
     if (outcome.status === "accepted") {

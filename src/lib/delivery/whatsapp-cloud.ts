@@ -11,7 +11,7 @@ import type {
   SendOutcome,
   Transport,
 } from "./provider";
-import { templateFor, templateNameFor } from "./templates";
+import { isEmailOnlyKind, templateFor, templateNameFor } from "./templates";
 
 /**
  * The direct Meta Cloud API adapter. LAN-92 chose it; LAN-78 builds it.
@@ -239,6 +239,10 @@ export function buildMessageBody(
   // oversight here: a message sent this way demonstrates that delivery works
   // and demonstrates nothing else.
   const kind = message.kind ?? "invitation";
+  // LAN-465. An email-only kind has no approved template to send through.
+  if (isEmailOnlyKind(kind)) {
+    throw new Error(`The ${kind} message is sent by email only and has no WhatsApp template.`);
+  }
   const templateName = templateNameFor(kind, config);
 
   if (config.templateParameters === "none") {

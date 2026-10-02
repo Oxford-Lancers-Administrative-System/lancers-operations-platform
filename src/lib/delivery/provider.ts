@@ -104,6 +104,24 @@ export type MessageKind =
   | "onboarding_chase_escalation";
 
 /**
+ * Messages the club sends by email only — LAN-465.
+ *
+ * Kept apart from {@link MessageKind} on purpose. Every `MessageKind` is a
+ * WhatsApp template Meta has to approve, and the registries keyed on it
+ * (`TEMPLATE_NAMES`, the production submission records, lights-out) say so by
+ * requiring an entry per kind. An email-only kind has no template and needs no
+ * approval, so it never enters those registries and can never be sent on the
+ * WhatsApp channel (`whatsapp-cloud.ts` refuses it).
+ */
+export type EmailOnlyMessageKind =
+  /**
+   * LAN-465. One hour before an approved event starts, the link to its
+   * attendance sheet, to the General Manager, the President and every coach
+   * who answered Yes. To an operator, about an event: no player data.
+   */
+  "attendance_sheet";
+
+/**
  * One message, reduced to what any channel would need to send it.
  *
  * ## Why `recipient` is channel-shaped and the interface is not
@@ -130,7 +148,7 @@ export interface OutboundMessage {
    * kind resolves to something a player can answer rather than something they
    * cannot. Same reasoning `templateShape` records in `./config.ts`.
    */
-  readonly kind?: MessageKind;
+  readonly kind?: MessageKind | EmailOnlyMessageKind;
   /** E.164 digits with no `+` for WhatsApp, or an email address for email. */
   readonly recipient: string;
   /** How the club addresses this person — their known-as or given name. */
@@ -208,6 +226,11 @@ export interface OutboundMessage {
    * credential now.
    */
   readonly stopUrl?: string | null;
+  /**
+   * LAN-465. One event's attendance page, `/operate/events/<id>/attendance`,
+   * behind the operator login. `attendance_sheet` only.
+   */
+  readonly attendanceUrl?: string | null;
 }
 
 /**

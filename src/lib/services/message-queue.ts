@@ -106,6 +106,7 @@ const KIND_EXPRESSION = `
     when j.idempotency_key like 'onboarding-chase-escalation:%' then 'onboarding_escalation'
     when j.idempotency_key like 'onboarding-chase:%' then 'onboarding_chase'
     when j.idempotency_key like 'onboarding-nudge:%' then 'onboarding_nudge'
+    when j.idempotency_key like 'attendance-sheet:%' then 'attendance_sheet'
     else 'other'
   end`;
 

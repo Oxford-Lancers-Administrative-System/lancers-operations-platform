@@ -594,6 +594,35 @@ player who finishes in between is not sent it, and a player who finished after
 their last chase is not counted in the office's "chases have run out" message.
 An operator's **Nudge** is not re-checked; it is the operator's own decision.
 
+### The attendance sheet, an hour before the start
+
+One hour before an approved event starts, one email headed **Attendance sheet:**
+and the event's name goes to the holder of the **General Manager** seat, the
+holder of the **President** seat, and every **coach who answered Yes** to that
+event (an invitation as Coach whose current answer is Yes), with a link to the
+event's attendance page (LAN-465, Brian 2026-10-02). A coach who said No, or has
+not answered, gets nothing; nor does anybody invited as a player. It is
+hard-coded — no screen controls it — and it is email only, to whichever email
+the person has on file, college or personal.
+
+"One hour before" is the first sweep at or after that mark: the sweep runs every
+five minutes, so the email can arrive up to five minutes after it. Each person
+gets one per event, even if they qualify twice (a President who also coaches and
+said Yes). A coach who answers Yes inside the last hour gets their copy on the
+next sweep; after the start, nobody does. A cancelled event sends nothing, and
+neither does an event with no start time. A moved event moves the send: an email
+declared before the move waits for the new one-hour mark. Lights-out holds it
+like every other automated message, so an event starting after 07:00 and before
+08:00 gets its sheet at 07:00, and one starting from 23:00 to 07:00 gets none.
+
+The link opens the page for anyone allowed to record attendance — the General
+Manager, the President and every coaching seat hold that capability, and the
+register opens six hours before the start — but only once they are signed in. A
+recipient with no active operator account (a coach seated before LAN-434 who
+was never invited, or an invitation still pending) reaches the sign-in page,
+not the sheet. These emails appear on the **Messaging queue** as **Attendance
+sheet**.
+
 ### Nothing advances unless something sweeps
 
 The ladder is driven by `POST /api/scheduler/messaging`, authenticated by

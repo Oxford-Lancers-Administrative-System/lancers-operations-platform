@@ -73,11 +73,13 @@ export const MESSAGE_KINDS = Object.freeze([
   "onboarding_chase",
   "onboarding_nudge",
   "onboarding_escalation",
+  // LAN-465. The attendance sheet, an hour before an approved event.
+  "attendance_sheet",
   "other",
 ] as const);
 export type MessageKind = (typeof MESSAGE_KINDS)[number];
 
-/** The Kind filter's groups. A filter per kind would be sixteen options for one select. */
+/** The Kind filter's groups. A filter per kind would be seventeen options for one select. */
 export const KIND_FAMILIES = Object.freeze({
   invitation: ["invitation"],
   reminder: ["reminder", "recruit_followup"],
@@ -90,6 +92,7 @@ export const KIND_FAMILIES = Object.freeze({
     "recruit_interest_reminder",
   ],
   onboarding: ["onboarding_welcome", "onboarding_chase", "onboarding_nudge"],
+  attendance: ["attendance_sheet"],
 } as const satisfies Record<string, readonly MessageKind[]>);
 export type KindFamily = keyof typeof KIND_FAMILIES;
 export const KIND_FAMILY_KEYS = Object.freeze(Object.keys(KIND_FAMILIES) as KindFamily[]);

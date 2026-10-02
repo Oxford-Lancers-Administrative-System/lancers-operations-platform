@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { EnvironmentSource, OutboundConfig } from "./config";
-import type { MessageKind, OutboundMessage } from "./provider";
+import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "./provider";
 
 /**
  * The declared template registry. LAN-169.
@@ -187,7 +187,7 @@ export const VENUE_FALLBACK = "to be confirmed";
 
 /** One kind's declaration: what WhatsApp sends, and what the email says. */
 export interface MessageTemplate {
-  readonly kind: MessageKind;
+  readonly kind: MessageKind | EmailOnlyMessageKind;
   /**
    * The ordered body parameters, by name. The order is the contract with the
    * approved template and the sink asserts on it.
@@ -831,7 +831,48 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
  * one they cannot. Same reasoning `templateShape` records in `config.ts`.
  */
 export function templateFor(message: OutboundMessage): MessageTemplate {
-  return MESSAGE_TEMPLATES[message.kind ?? "invitation"];
+  const kind = message.kind ?? "invitation";
+  return isEmailOnlyKind(kind) ? EMAIL_ONLY_TEMPLATES[kind] : MESSAGE_TEMPLATES[kind];
+}
+
+// ---------------------------------------------------------------------------
+// Email only — LAN-465
+// ---------------------------------------------------------------------------
+
+/**
+ * `Here is the attendance sheet for {event} on {when}.` and the link — sent an
+ * hour before an approved event starts to the General Manager, the President
+ * and every coach who answered Yes (LAN-465, Brian 2026-10-02).
+ *
+ * Email only, so no WhatsApp template and no Meta approval: `parameterNames`
+ * is empty because nothing is ever sent positionally. To an operator about an
+ * event, so no player's name or contact detail: the sheet itself is behind the
+ * operator login, as the escalations' queue is.
+ */
+const ATTENDANCE_SHEET: MessageTemplate = {
+  kind: "attendance_sheet",
+  parameterNames: [],
+  parameters: () => [],
+  subject: (message) => `Attendance sheet: ${required(message.eventName, "event name")}`,
+  body: (message) => [
+    `Hello ${required(message.inviteeName, "name")}, here is the attendance sheet for ` +
+      `${required(message.eventName, "event name")} on ${required(message.whenLabel, "date and time")}.`,
+    `Venue: ${venueSlot(message)}.`,
+    required(message.attendanceUrl, "link to the attendance sheet"),
+  ],
+};
+
+export const EMAIL_ONLY_TEMPLATES: Readonly<Record<EmailOnlyMessageKind, MessageTemplate>> =
+  Object.freeze({ attendance_sheet: ATTENDANCE_SHEET });
+
+export const EMAIL_ONLY_KINDS: readonly EmailOnlyMessageKind[] = Object.freeze([
+  "attendance_sheet",
+] as const);
+
+export function isEmailOnlyKind(
+  kind: MessageKind | EmailOnlyMessageKind,
+): kind is EmailOnlyMessageKind {
+  return (EMAIL_ONLY_KINDS as readonly string[]).includes(kind);
 }
 
 /**
