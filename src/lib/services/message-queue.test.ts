@@ -3,8 +3,9 @@
  * The whole-club message queue — LAN-468.
  *
  * Read-only against the seeded local database, with the auth floor mocked:
- * `requireCapability` is the one dependency that is not a database read. Nothing
- * here writes a row, so there is nothing to clean up.
+ * `requireCapability` is the one dependency that is not a database read. The
+ * one test that writes (the chase marker) does so inside a transaction it rolls
+ * back, so nothing is left to clean up.
  *
  * What is proved is the query's shape and its bounds — a page never exceeds
  * `PAGE_SIZE`, every row sits inside its window, filters only narrow, pages do
@@ -16,6 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/guards", () => ({ requireCapability: vi.fn() }));
 
+import { randomUUID } from "node:crypto";
 import type { Client } from "pg";
 
 import { requireCapability } from "@/lib/auth/guards";
@@ -26,6 +28,7 @@ import { closePool, NotPermitted } from "@/lib/db";
 import { openObserver } from "../../../tests/helpers/service-layer";
 import { buildListQuery, queuedTiming, readMessageQueue } from "./message-queue";
 import { KIND_FAMILIES, PAGE_SIZE, windowDays } from "./message-queue-vocabulary";
+import { onboardingChaseExhaustedMarkerKey } from "./onboarding-chase/chase-state";
 import { WAITING_ALLOWANCE_LABEL } from "./messaging-safety/reasons";
 
 const OPERATOR = {
@@ -226,25 +229,40 @@ describe("readMessageQueue — against the seeded database", () => {
   });
 
   it("never lists the onboarding chase's ledger marker as a message", async () => {
-    const markers = await observer.query<{ id: string; at: Date }>(
-      `select id::text, updated_at as at from public.notification_jobs
-        where idempotency_key like 'onboarding-chase-exhausted:%'`,
-    );
-    expect(markers.rows.length).toBeGreaterThan(0);
-    // The marker is written once and never touched; read the window it falls in.
-    const today = todayInClubZone();
-    const query = buildListQuery({
-      fromDay: "2000-01-01",
-      toDay: windowDays("next7", today).toDay,
-      states: null,
-      channel: null,
-      kinds: ["other"],
-      forward: false,
-      limit: PAGE_SIZE,
-      offset: 0,
-    });
-    const listed = await observer.query<{ id: string }>(query.text, query.values);
-    const markerIds = new Set(markers.rows.map((row) => row.id));
-    expect(listed.rows.some((row) => markerIds.has(row.id))).toBe(false);
+    // Stages its own marker rather than relying on a scenario seed CI does not
+    // run: the same insert the exhaustion sweep makes (`messaging-scheduler.ts`),
+    // for a synthetic person, inside a transaction that is always rolled back.
+    await observer.query("begin");
+    try {
+      const person = await observer.query<{ id: string }>(
+        `insert into public.people (given_name, family_name)
+         values ('LAN468Fixture', 'chase-marker') returning id`,
+      );
+      const marker = await observer.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, person_id, template_variables)
+         values ($1, 'other', 'completed', $2::uuid, '{}'::jsonb)
+         returning id::text as id`,
+        [onboardingChaseExhaustedMarkerKey(randomUUID()), person.rows[0]!.id],
+      );
+      const markerId = marker.rows[0]!.id;
+
+      // Newest first from the end of the upcoming window: the just-written
+      // marker is the newest `other` row, so without the exclusion it is listed.
+      const query = buildListQuery({
+        fromDay: "2000-01-01",
+        toDay: windowDays("next7", todayInClubZone()).toDay,
+        states: null,
+        channel: null,
+        kinds: ["other"],
+        forward: false,
+        limit: PAGE_SIZE,
+        offset: 0,
+      });
+      const listed = await observer.query<{ id: string }>(query.text, query.values);
+      expect(listed.rows.some((row) => row.id === markerId)).toBe(false);
+    } finally {
+      await observer.query("rollback");
+    }
   });
 });
