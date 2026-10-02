@@ -211,9 +211,11 @@ describe("every path a message mints", () => {
     // A template that carries no link at all is a template a reader can do
     // nothing with. The two escalations and the cancellation are the deliberate
     // exceptions: the cancellation offers no control because there is nothing
-    // left to answer, and the escalations carry the operator queue only.
+    // left to answer, and the escalations carry the operator queue only. The
+    // recruit event reminder (LAN-464) goes to a recruit who has already said
+    // Yes: it states what, when and where, and there is nothing to answer.
     const withoutLinks = MESSAGE_KINDS.filter((kind) => urlsIn(kind).length === 0);
-    expect(withoutLinks).toEqual(["cancellation"]);
+    expect(withoutLinks).toEqual(["cancellation", "recruit_event_reminder"]);
   });
 
   it("sends each message to its own approved base — the LAN-343 table, verbatim", () => {
