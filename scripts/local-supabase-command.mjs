@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import {
@@ -12,6 +11,7 @@ import {
 } from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 import { ensureLocalClubLinkSecret } from "./lib/local-club-link-secret.mjs";
+import { writeEnvLocal } from "./lib/env-local.mjs";
 import { connectLocal } from "./lib/local-db.mjs";
 
 const repoPath = process.cwd();
@@ -196,7 +196,9 @@ try {
     await assertStackAtTrackedMigrations(lease);
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
     const status = JSON.parse(raw);
-    const envFile = [
+    // Only these nine lines are this command's. Every other line in the file
+    // was put there by hand and survives (`scripts/lib/env-local.mjs`).
+    writeEnvLocal(path.join(repoPath, ".env.local"), [
       `NEXT_PUBLIC_SUPABASE_URL=${status.API_URL}`,
       `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${status.PUBLISHABLE_KEY}`,
       `NEXT_PUBLIC_SUPABASE_ANON_KEY=${status.ANON_KEY}`,
@@ -210,9 +212,7 @@ try {
       // so — which is the right answer for a deployment and the wrong one for
       // a review environment Brian is asked to run no commands against.
       `CLUB_LINK_SECRET=${ensureLocalClubLinkSecret(repoPath)}`,
-      "",
-    ].join("\n");
-    fs.writeFileSync(path.join(repoPath, ".env.local"), envFile, { mode: 0o600 });
+    ]);
     provisionReviewState(lease, reviewAccount);
     console.log(`Started ${lease.slot} local Supabase stack on API port ${lease.ports.api}.`);
   } else if (operation === "stop") run(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
