@@ -419,6 +419,27 @@ describe("the send", () => {
     expect(attempts.rowCount).toBe(0);
   });
 
+  it("R470-04: stands down a coach who changed Yes to No after the sheet was declared", async () => {
+    const eventId = await event(30);
+    const coach = await person("Coach going", COACH_EMAIL);
+    await invite(eventId, coach, "coach", "yes");
+    await declare();
+    const job = (await sheetJobs(eventId)).find((row) => row.person_id === coach)!;
+    await observer.query(
+      `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
+       select i.id, 'no', 'Cannot make it now', 'operator', now() + interval '1 second'
+         from public.invitations i where i.event_id = $1 and i.person_id = $2`,
+      [eventId, coach],
+    );
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport });
+
+    expect(outcome).toBe("skipped");
+    expect(sent).toHaveLength(0);
+    expect((await sheetJobs(eventId)).find((row) => row.id === job.id)!.status).toBe("cancelled");
+  });
+
   it("sends nothing for an event cancelled after the sheet was declared", async () => {
     const eventId = await event(30);
     const coach = await person("Coach going", COACH_EMAIL);

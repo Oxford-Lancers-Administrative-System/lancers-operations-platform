@@ -90,6 +90,7 @@ import {
   ATTENDANCE_SHEET_LEAD_MINUTES,
   EVENT_START_SQL,
   declareDueAttendanceSheetEmailsIn,
+  listAttendanceSheetRecipientsIn,
 } from "./attendance-sheet-email";
 import {
   RECRUIT_EVENT_REMINDER_ENDED_STATUSES,
@@ -2700,6 +2701,9 @@ export async function dispatchOnboardingChaseEscalationJob(
 
 const ATTENDANCE_SHEET_NO_EVENT_REASON =
   "This event is no longer approved with a start time, so no attendance sheet is sent.";
+const ATTENDANCE_SHEET_NOT_RECIPIENT_REASON =
+  "This person no longer holds the seat or is no longer a coach going to this event, so no " +
+  "attendance sheet is sent.";
 
 /**
  * Sends one attendance-sheet email (`attendance-sheet-email.ts` says who gets
@@ -2810,6 +2814,29 @@ export async function dispatchAttendanceSheetJob(
         context.channel,
         context.provider.name,
       );
+      return { kind: "no-send" };
+    }
+
+    // R470-04: who receives it is read again, as the event is. A coach who has
+    // changed Yes to No, or a seat holder whose seat has ended, since the job
+    // was declared is stood down rather than sent a deferred or retried copy.
+    const recipients = await listAttendanceSheetRecipientsIn(tx, job.event_id);
+    if (!recipients.includes(job.person_id)) {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'cancelled', cancelled_reason = $2, claimed_at = null, claimed_by = null,
+                updated_at = now()
+          where id = $1`,
+        [jobId, ATTENDANCE_SHEET_NOT_RECIPIENT_REASON],
+      );
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attendance_sheet_withheld",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        toState: "cancelled",
+        reason: ATTENDANCE_SHEET_NOT_RECIPIENT_REASON,
+      });
       return { kind: "no-send" };
     }
 
