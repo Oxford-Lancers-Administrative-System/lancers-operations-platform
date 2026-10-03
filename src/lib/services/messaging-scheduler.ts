@@ -2867,7 +2867,7 @@ export async function dispatchAttendanceSheetJob(
       return { kind: "no-send" };
     }
 
-    const email =await tx.query<{ raw_value: string; normalised_value: string | null }>(
+    const email = await tx.query<{ raw_value: string; normalised_value: string | null }>(
       `select raw_value, normalised_value
          from public.contact_points
         where person_id = $1
