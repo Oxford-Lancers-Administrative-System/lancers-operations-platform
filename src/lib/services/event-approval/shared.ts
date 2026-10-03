@@ -68,7 +68,7 @@ export interface ApprovalOutcome {
 export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
 
 /** LAN-475: the words the refusal names when a current-Game-template event has no Home/Away. */
-export const MISSING_HOME_AWAY = "Home or Away";
+const MISSING_HOME_AWAY = "Home or Away";
 
 // D16's completeness gate: date and start time (D15, F-C1, Q-31), and since LAN-475 Home or Away on
 // the current Game template — a draft may be saved without it, but approval is the final gate.

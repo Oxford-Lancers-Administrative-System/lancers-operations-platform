@@ -25,7 +25,7 @@ export const GAME_TEMPLATE_ID = "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae";
 /** `public.home_away` — LAN-475. */
 export type HomeAway = "home" | "away";
 
-export const HOME_AWAY_VALUES: readonly HomeAway[] = Object.freeze(["home", "away"]);
+const HOME_AWAY_VALUES: readonly HomeAway[] = Object.freeze(["home", "away"]);
 
 export function isGameTemplate(templateId: string): boolean {
   return templateId === GAME_TEMPLATE_ID;
