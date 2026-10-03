@@ -266,6 +266,7 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    homeAway: null,
     registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
@@ -1657,6 +1658,71 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
 // ---------------------------------------------------------------------------
 // The edit view
 // ---------------------------------------------------------------------------
+
+describe("LAN-475 — Home or Away on the editor, for the current Game template only", () => {
+  const sides = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLInputElement>('input[name="homeAway"]')].map((input) => ({
+      value: input.value,
+      checked: input.checked,
+    }));
+
+  it("is not offered on a create that opens on another template", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    expect(sides(container)).toEqual([]);
+    expect(screen.queryByText("Home or Away")).not.toBeInTheDocument();
+  });
+
+  it("is offered on a Game draft, unanswered, as two choices", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        name: "vs Netherfield Nomads",
+        eventType: "game",
+        templateId: SEEDED_TEMPLATE_IDS.game,
+        templateName: "Game",
+      }),
+    );
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(screen.getByText("Home or Away")).toBeVisible();
+    expect(sides(container)).toEqual([
+      { value: "home", checked: false },
+      { value: "away", checked: false },
+    ]);
+  });
+
+  it("opens a Game draft on the side it was saved with", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        name: "vs Netherfield Nomads",
+        eventType: "game",
+        templateId: SEEDED_TEMPLATE_IDS.game,
+        templateName: "Game",
+        homeAway: "away",
+      }),
+    );
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(sides(container)).toEqual([
+      { value: "home", checked: false },
+      { value: "away", checked: true },
+    ]);
+    // The name is the name — nothing is prefixed onto it.
+    expect(container.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe(
+      "vs Netherfield Nomads",
+    );
+  });
+
+  it("is not offered on a draft of any other template", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(sides(container)).toEqual([]);
+  });
+});
 
 describe("the edit view — UX-31 against an existing draft", () => {
   it("opens with the draft's own values", async () => {

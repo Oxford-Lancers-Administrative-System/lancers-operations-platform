@@ -1434,6 +1434,27 @@ colour now; the seven seeded rows keep exactly the colours the calendar always
 gave them (`practice` blue, `strength_and_conditioning` teal, `chalk` purple,
 `game` red, `social` orange, `recruitment` green, `meeting` slate).
 
+**Home or Away belongs to the seeded Game template, by identity — LAN-475.**
+Brian and Stewart, 2026-10-02: a game's calendar tile prints `HOME` or `AWAY`
+as its own first line above the event's ordinary name. `20261012090000_game_home_away.sql`
+adds the enum `public.home_away` (`home`, `away`) and the nullable column
+`events.home_away`, with `events_home_away_is_game_template_only` restricting it
+to `template_id = '67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae'`, the fixed identifier
+this migration family gave the Game template. The scope is the template's
+identity, not the `game` class, by decision: a game-class template created later
+does not get the field. Null is legal, and nothing was backfilled — a draft may
+be saved without it, Stewart confirmed no game had been approved in production,
+and existing drafts are left unset rather than parsed from their names. The
+requirement lives in the approval service (`missingForApproval`), which refuses
+a Game-template event while it is null; the schema does not repeat it, because
+approved games from before the column (the local seed's unconfirmed BUCS
+fixtures among them) legitimately carry none. `updateEventDraft` writes null
+whenever a draft leaves the Game template, keeps the stored value when a caller
+says nothing about it (a CSV import), and the approved-event amendment path
+never writes it. Only the operator tier reads it (`EventListEntry.homeAway`);
+`PUBLIC_EVENT_COLUMNS` does not, so the public calendar, its event page and the
+ICS feed keep the name alone. No opponent, venue-side or heading field exists.
+
 `recruitment_prospects` is no longer among them. LAN-110's walk-on form writes
 one at `identified` for the event's season — somebody who turned up and is not
 on the roster is a recruitment lead, not a guest (Brian, 14 August 2026). That

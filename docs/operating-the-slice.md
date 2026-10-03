@@ -1265,6 +1265,23 @@ seeded 20:00 practice on the same day. A cancelled event appears struck through.
 Vacation weeks are numbered forward from 1 and a vacation belongs to neither
 adjacent term, which is the club's own way of reading its year.
 
+**A game prints HOME or AWAY as its own first line** (LAN-475, Brian and
+Stewart, 2026-10-02). On both arrangements, and on the phone agenda and week
+cards, a tile for an event of the **Game** template that has Home or Away set
+reads `HOME` (or `AWAY`) on a line above its ordinary `14:00 vs Brackenridge
+Bulls` line. The seeded fixtures carry the side they were seeded with; the two
+unconfirmed BUCS fixtures and the draft Hilary week 4 game carry none and print
+no extra line. To set it, open a Game draft's **Edit**: a **Home or Away** choice
+sits under **Type**, unselected until you pick one, and only for the Game
+template the migration seeded — a template the club creates later does not get
+it. A draft saves without it; **Choose audience and approve** on a Game draft
+without it shows "This event has no Home or Away yet. Add it and approve when
+you are ready." and **Approve event** refuses with the same sentence. Moving a
+draft off the Game template clears it. The name is never changed: the list, the
+event page, the public calendar, the subscription feed, RSVP pages, messages and
+reports all show the name alone. An approved game's side is not changeable on
+**Change event**.
+
 Nothing in either arrangement creates an audience, an invitation, an RSVP or a
 delivery record; they are projections of the same events, and term and week are
 derived from the date rather than entered beside it.
@@ -1297,7 +1314,8 @@ change." in place of the description, and `STATUS:TENTATIVE`. Approving it
 fills in the same entry with everything on the subscriber's next refresh: the
 same `UID`, a later `SEQUENCE`, `STATUS:CONFIRMED`.
 
-`/calendar/view` gives the same two calendar arrangements. Nothing on any of these
+`/calendar/view` gives the same two calendar arrangements, without the HOME or
+AWAY line: the public tier does not read it (LAN-475). Nothing on any of these
 pages asks you to sign in, and reading them creates no record of any kind.
 
 ---

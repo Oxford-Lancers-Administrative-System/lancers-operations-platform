@@ -238,11 +238,15 @@ async function insertDraftDirectly(input: {
     // `event_type` is read off the template rather than passed: LAN-265 made
     // `events_template_fkey` composite, so the pair on the row has to agree
     // with the template's own class or the insert is refused.
+    // LAN-475: a Game-template draft says Home, because approval now refuses one that says
+    // neither; every other template has no Home/Away to say.
     `insert into public.events
        (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
-        is_mandatory, owner_person_id)
+        is_mandatory, owner_person_id, home_away)
      select $1, $2, tpl.id, tpl.event_type, 'club_controlled', 'draft', $4, $6::time,
-            true, $5
+            true, $5,
+            case when tpl.id = '${SEEDED_TEMPLATE_IDS.game}'::uuid
+                 then 'home'::public.home_away end
        from public.event_templates tpl
       where tpl.id = $3::uuid
      returning id, event_type::text as event_type`,
@@ -606,6 +610,62 @@ describe("F-C1 — approval refuses an event with no start time", () => {
 
     const error = await caught(() => approve(event.id, keys));
     expect(error.message).toMatch(/date/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-475: approval is the gate for Home or Away on the current Game template
+// ---------------------------------------------------------------------------
+
+describe("LAN-475 — a Game-template event needs Home or Away to be approved", () => {
+  const game = (overrides: Partial<EventDraftInput> = {}) =>
+    newDraft({
+      name: `${NAME_MARKER} vs Brackenridge Bulls`,
+      templateId: SEEDED_TEMPLATE_IDS.game,
+      ...overrides,
+    });
+
+  it("refuses a Game draft with neither, naming it, and approves nothing", async () => {
+    const event = await game();
+    expect(event.homeAway).toBeNull();
+    const keys = await keysFor(event, "player", 2);
+
+    const error = await caught(() => approve(event.id, keys));
+
+    expect(error.kind).toBe("constraint_violated");
+    expect(error.message).toBe(
+      "This event has no Home or Away yet. Add it and approve when you are ready.",
+    );
+    expect((await readEventUnchecked(event.id)).status).toBe("draft");
+    expect((await countsFor(event.id)).invitations).toBe(0);
+  });
+
+  it("lists it among the missing fields on the approval preview", async () => {
+    const event = await game();
+    const preview = await readApprovalPreview(event.id);
+    expect(preview.missing).toEqual(["Home or Away"]);
+  });
+
+  it("approves the same draft once Home or Away is set, keeping the name as it was", async () => {
+    const event = await game();
+    await updateEventDraft(actorPersonId, event.id, {
+      ...draft({ name: event.name, templateId: SEEDED_TEMPLATE_IDS.game }),
+      homeAway: "away",
+    });
+    const keys = await keysFor(event, "player", 1);
+
+    await approve(event.id, keys);
+
+    const after = await readEventUnchecked(event.id);
+    expect(after.status).toBe("approved");
+    expect(after.homeAway).toBe("away");
+    expect(after.name).toBe(`${NAME_MARKER} vs Brackenridge Bulls`);
+  });
+
+  it("asks nothing of an event on any other template", async () => {
+    const event = await newDraft();
+    const preview = await readApprovalPreview(event.id);
+    expect(preview.missing).toEqual([]);
   });
 });
 

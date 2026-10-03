@@ -1523,6 +1523,7 @@ export type Database = {
           description: string | null
           ends_at: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          home_away: Database["public"]["Enums"]["home_away"] | null
           id: string
           is_mandatory: boolean
           joining_url: string | null
@@ -1557,6 +1558,7 @@ export type Database = {
           description?: string | null
           ends_at?: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          home_away?: Database["public"]["Enums"]["home_away"] | null
           id?: string
           is_mandatory?: boolean
           joining_url?: string | null
@@ -1591,6 +1593,7 @@ export type Database = {
           description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          home_away?: Database["public"]["Enums"]["home_away"] | null
           id?: string
           is_mandatory?: boolean
           joining_url?: string | null
@@ -5742,6 +5745,7 @@ export type Database = {
         | "other"
       follow_up_status: "open" | "in_progress" | "resolved" | "cancelled"
       formalwear_item: "tie" | "bowtie" | "socks"
+      home_away: "home" | "away"
       invitation_capacity:
         | "player"
         | "coach"
@@ -6051,6 +6055,7 @@ export const Constants = {
       ],
       follow_up_status: ["open", "in_progress", "resolved", "cancelled"],
       formalwear_item: ["tie", "bowtie", "socks"],
+      home_away: ["home", "away"],
       invitation_capacity: ["player", "coach", "committee", "guest", "recruit"],
       invitation_status: [
         "pending",

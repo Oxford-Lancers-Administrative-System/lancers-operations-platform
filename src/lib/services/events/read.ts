@@ -7,6 +7,7 @@ import {
   UUID_PATTERN,
   type EventDeliveryMode,
   type EventStatus,
+  type HomeAway,
 } from "../event-input";
 import { readEventQuestionsIn, type EventQuestion } from "../event-questions";
 import { SHOWED_PRESENCES } from "../attendance-vocabulary";
@@ -136,6 +137,7 @@ interface EventRow {
   delivery_mode: EventDeliveryMode;
   venue: string | null;
   is_mandatory: boolean;
+  home_away: HomeAway | null;
   audience_count: string;
   audience_added_since_approval: string;
   invitation_count: string;
@@ -174,6 +176,7 @@ function toListEntry(row: EventRow): EventListEntry {
     deliveryMode: row.delivery_mode,
     venue: row.venue,
     isMandatory: row.is_mandatory,
+    homeAway: row.home_away,
     registerSaved: row.register_saved,
     audienceCount: Number(row.audience_count),
     invitationCount: Number(row.invitation_count),
@@ -202,6 +205,7 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
               e.status::text as status,
               e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
               e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
+              e.home_away::text as home_away,
               ${COUNT_COLUMNS}
          from public.events e
          ${TEMPLATE_JOIN}
@@ -306,6 +310,7 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
             e.status::text as status,
             e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
             e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
+              e.home_away::text as home_away,
             e.description, e.required_equipment, e.joining_url, e.origin::text as origin,
             e.term_id, term.name::text as term_name, term.academic_year as term_academic_year,
             e.week_number, e.decision_reason, e.season_id,

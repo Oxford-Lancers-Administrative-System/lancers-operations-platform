@@ -12,7 +12,12 @@ import {
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import type { RawEventDraft, TermCoordinate, TermWindow } from "@/lib/services/event-input";
+import {
+  isGameTemplate,
+  type RawEventDraft,
+  type TermCoordinate,
+  type TermWindow,
+} from "@/lib/services/event-input";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import type { EventFormState } from "./form-state";
 import VenueField from "./venue-field";
@@ -64,6 +69,8 @@ export function EventCoreFields({
   onWhereChange,
   venue,
   onVenueChange,
+  homeAway,
+  onHomeAwayChange,
 }: {
   state: EventFormState;
   value: (field: keyof RawEventDraft) => string;
@@ -86,6 +93,9 @@ export function EventCoreFields({
   onWhereChange: (next: string) => void;
   venue: string;
   onVenueChange: (next: string) => void;
+  /** LAN-475 — `"home"`, `"away"`, or `""` while unanswered. */
+  homeAway: string;
+  onHomeAwayChange: (next: string) => void;
 }) {
   return (
     <Section title="Event">
@@ -119,6 +129,23 @@ export function EventCoreFields({
             label: option.name,
           }))}
         />
+
+        {/* LAN-475: the current Game template only; a draft may be saved without it, approval may not. */}
+        {isGameTemplate(templateId) ? (
+          <ChoiceField
+            label="Home or Away"
+            name="homeAway"
+            value={homeAway}
+            onChange={onHomeAwayChange}
+            row
+            error={Boolean(issueFor(state, "homeAway"))}
+            helperText={issueFor(state, "homeAway")}
+            options={[
+              { value: "home", label: "Home" },
+              { value: "away", label: "Away" },
+            ]}
+          />
+        ) : null}
 
         {/* LAN-391 (Clint, 2026-09-16). A draft's type can be changed, and
             changing it re-applies the new type's defaults over the fields that

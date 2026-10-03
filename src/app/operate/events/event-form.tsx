@@ -110,6 +110,8 @@ export default function EventForm({
   const [attendance, setAttendance] = useState(
     () => opening("attendance", (defaults) => defaults.attendance) || "optional",
   );
+  // LAN-475: unanswered by default, never filled by a template; approval asks for it.
+  const [homeAway, setHomeAway] = useState(value("homeAway"));
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [
     ...(initialQuestions ?? []),
   ]);
@@ -233,6 +235,8 @@ export default function EventForm({
           onWhereChange={setWhere}
           venue={venue}
           onVenueChange={setVenue}
+          homeAway={homeAway}
+          onHomeAwayChange={setHomeAway}
         />
 
         <Section title="Participation">

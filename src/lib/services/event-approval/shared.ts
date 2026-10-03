@@ -7,6 +7,7 @@ import { personDisplayAliasSql } from "../sql-text";
 import { EXIT_STATUSES } from "../recruitment-vocabulary";
 import { joinWithAnd } from "../event-vocabulary";
 import type { EventQuestion } from "../event-questions";
+import { isGameTemplate } from "../event-input";
 import type { AudienceGroupSummary } from "../event-audience";
 
 /**
@@ -66,12 +67,19 @@ export interface ApprovalOutcome {
 
 export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
 
-// D16's completeness gate: date and start time are the only things that can be missing (D15, F-C1, Q-31).
-export function missingForApproval(event: EventDetail): string[] {
+/** LAN-475: the words the refusal names when a current-Game-template event has no Home/Away. */
+export const MISSING_HOME_AWAY = "Home or Away";
+
+// D16's completeness gate: date and start time (D15, F-C1, Q-31), and since LAN-475 Home or Away on
+// the current Game template — a draft may be saved without it, but approval is the final gate.
+export function missingForApproval(
+  event: Pick<EventDetail, "scheduledOn" | "startsAt" | "name" | "templateId" | "homeAway">,
+): string[] {
   const missing: string[] = [];
   if (event.scheduledOn === null) missing.push("date");
   if (event.startsAt === null) missing.push("start time");
   if (event.name.trim() === "") missing.push("name");
+  if (isGameTemplate(event.templateId) && event.homeAway === null) missing.push(MISSING_HOME_AWAY);
   return missing;
 }
 
