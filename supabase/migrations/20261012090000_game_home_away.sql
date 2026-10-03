@@ -28,7 +28,7 @@ begin;
 create type public.home_away as enum ('home', 'away');
 
 comment on type public.home_away is
-  'LAN-475. Whether a game is played at home or away; printed on the operator calendar as its own first line, above the event name.';
+  'LAN-475. Whether a game is played at home or away; printed on the operator calendar and the public calendar view as its own first line, above the event name.';
 
 alter table public.events
   add column home_away public.home_away;
@@ -42,6 +42,6 @@ alter table public.events
     home_away is null or template_id = '67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae'::uuid);
 
 comment on column public.events.home_away is
-  'LAN-475. Home or Away, for an event of the current seeded Game template only (events_home_away_is_game_template_only). Null on every other event and on a Game draft nobody has answered yet; approval of a Game-template event is refused while it is null. Shown only as the first line of an operator calendar tile; lists, the event page, the public calendar, the feed, RSVP pages, messages and reports keep the ordinary name.';
+  'LAN-475. Home or Away, for an event of the current seeded Game template only (events_home_away_is_game_template_only). Null on every other event and on a Game draft nobody has answered yet; approval of a Game-template event is refused while it is null. Shown only as the first line of a calendar tile, on the operator calendar and the public calendar view (/calendar/view, which withholds it on a draft); lists (operator and public), the event pages, the feed, RSVP pages, messages and reports keep the ordinary name.';
 
 commit;
