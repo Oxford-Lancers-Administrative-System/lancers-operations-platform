@@ -686,7 +686,9 @@ next sweep; after the start, nobody does. A cancelled event sends nothing, and
 neither does an event with no start time. A moved event moves the send: an email
 declared before the move waits for the new one-hour mark. Who receives it is read
 again at the send: a coach who changes Yes to No, or a seat holder whose seat
-has ended, after the email was declared is not sent it. Lights-out does not
+has ended, after the email was declared is not sent it. The email stays waiting
+rather than cancelled, and each sweep checks again until the start: a coach who
+goes back to Yes before the start gets it once on the next sweep. Lights-out does not
 hold it (Brian 2026-10-02): it goes at its one-hour mark at any hour, so an
 event starting at 06:30 gets its sheet at 05:30.
 

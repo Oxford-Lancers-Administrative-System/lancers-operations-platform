@@ -2760,8 +2760,9 @@ export async function dispatchAttendanceSheetJob(
       person_id: string;
       event_id: string;
       attempt_count: number;
+      last_error: string | null;
     }>(
-      `select id, person_id, event_id, attempt_count
+      `select id, person_id, event_id, attempt_count, last_error
          from public.notification_jobs
         where id = $1
           and job_type = 'other'
@@ -2819,24 +2820,32 @@ export async function dispatchAttendanceSheetJob(
 
     // R470-04: who receives it is read again, as the event is. A coach who has
     // changed Yes to No, or a seat holder whose seat has ended, since the job
-    // was declared is stood down rather than sent a deferred or retried copy.
+    // was declared is not sent a deferred or retried copy.
+    //
+    // R470-05: and the job is left as it was, unclaimed and still due, never
+    // cancelled. A cancelled job keeps its idempotency key, so the declaration's
+    // `on conflict do nothing` could never declare that person again: a coach
+    // back to Yes inside the last hour would get no sheet. Each sweep re-reads
+    // it (the keyset reads a row once per sweep) until the event starts, when
+    // the due predicate stops offering it. `last_error` carries the reason, so
+    // the withheld audit row is written once per stand-down, not every sweep.
     const recipients = await listAttendanceSheetRecipientsIn(tx, job.event_id);
     if (!recipients.includes(job.person_id)) {
-      await tx.query(
-        `update public.notification_jobs
-            set status = 'cancelled', cancelled_reason = $2, claimed_at = null, claimed_by = null,
-                updated_at = now()
-          where id = $1`,
-        [jobId, ATTENDANCE_SHEET_NOT_RECIPIENT_REASON],
-      );
-      await recordAudit(tx, {
-        actorLabel: DISPATCH_ACTOR_LABEL,
-        action: "delivery.attendance_sheet_withheld",
-        entityTable: "notification_jobs",
-        entityId: jobId,
-        toState: "cancelled",
-        reason: ATTENDANCE_SHEET_NOT_RECIPIENT_REASON,
-      });
+      if (job.last_error !== ATTENDANCE_SHEET_NOT_RECIPIENT_REASON) {
+        await tx.query(
+          `update public.notification_jobs
+              set last_error = $2, claimed_at = null, claimed_by = null, updated_at = now()
+            where id = $1`,
+          [jobId, ATTENDANCE_SHEET_NOT_RECIPIENT_REASON],
+        );
+        await recordAudit(tx, {
+          actorLabel: DISPATCH_ACTOR_LABEL,
+          action: "delivery.attendance_sheet_withheld",
+          entityTable: "notification_jobs",
+          entityId: jobId,
+          reason: ATTENDANCE_SHEET_NOT_RECIPIENT_REASON,
+        });
+      }
       return { kind: "no-send" };
     }
 

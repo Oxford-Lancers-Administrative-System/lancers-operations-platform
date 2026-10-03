@@ -437,7 +437,63 @@ describe("the send", () => {
 
     expect(outcome).toBe("skipped");
     expect(sent).toHaveLength(0);
-    expect((await sheetJobs(eventId)).find((row) => row.id === job.id)!.status).toBe("cancelled");
+    // R470-05: stood down, not cancelled — still pending and unclaimed.
+    expect((await sheetJobs(eventId)).find((row) => row.id === job.id)!.status).toBe("pending");
+  });
+
+  it("R470-05: sends once to a coach who goes No and then back to Yes", async () => {
+    const eventId = await event(30);
+    const coach = await person("Coach going", COACH_EMAIL);
+    await invite(eventId, coach, "coach", "yes");
+    await declare();
+    const job = (await sheetJobs(eventId)).find((row) => row.person_id === coach)!;
+    const answer = (response: "yes" | "no", seconds: number) =>
+      observer.query(
+        `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
+         select i.id, $3::public.rsvp_value, case when $3::text = 'no' then 'Cannot make it now' end,
+                'operator', now() + make_interval(secs => $4)
+           from public.invitations i where i.event_id = $1 and i.person_id = $2`,
+        [eventId, coach, response, seconds],
+      );
+    const mine = (sent: { body: Record<string, unknown> }[]) =>
+      sent.filter((entry) => JSON.stringify(entry.body.to).includes(COACH_EMAIL));
+    const withheldRows = async () =>
+      (
+        await observer.query(
+          `select 1 from public.audit_events
+            where entity_id = $1 and action = 'delivery.attendance_sheet_withheld'`,
+          [job.id],
+        )
+      ).rowCount;
+
+    await answer("no", 1);
+    const { sent, transport } = acceptingTransport();
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "skipped",
+    );
+    // A coach who stays No is re-checked each sweep and still sent nothing, and
+    // the stand-down is audited once, not on every sweep.
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "skipped",
+    );
+    expect(mine(sent)).toHaveLength(0);
+    expect(await withheldRows()).toBe(1);
+    const stoodDown = await observer.query<{ status: string; claimed_at: Date | null }>(
+      "select status::text as status, claimed_at from public.notification_jobs where id = $1",
+      [job.id],
+    );
+    expect(stoodDown.rows[0]).toEqual({ status: "pending", claimed_at: null });
+
+    await answer("yes", 2);
+    await declare(); // the declaration's own conflict rule: no second job
+    expect((await sheetJobs(eventId)).filter((row) => row.person_id === coach)).toHaveLength(1);
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "accepted",
+    );
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "skipped",
+    );
+    expect(mine(sent)).toHaveLength(1);
   });
 
   it("sends nothing for an event cancelled after the sheet was declared", async () => {
