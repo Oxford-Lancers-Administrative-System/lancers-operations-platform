@@ -31,6 +31,8 @@ import {
   listAttendanceSheetRecipientsIn,
   parseAttendanceSheetKey,
 } from "./attendance-sheet-email";
+import { MAX_ATTEMPTS } from "./delivery";
+import { DUE_JOB_PREDICATE } from "./messaging-queue";
 import { dispatchAttendanceSheetJob } from "./messaging-scheduler";
 import {
   clearRecipientSafetyState,
@@ -487,6 +489,79 @@ describe("the send", () => {
     await answer("yes", 2);
     await declare(); // the declaration's own conflict rule: no second job
     expect((await sheetJobs(eventId)).filter((row) => row.person_id === coach)).toHaveLength(1);
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "accepted",
+    );
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "skipped",
+    );
+    expect(mine(sent)).toHaveLength(1);
+  });
+
+  it("R470-07: moves a withheld job to a moved event's new mark, then sends once on Yes", async () => {
+    const eventId = await event(30);
+    const coach = await person("Coach going", COACH_EMAIL);
+    await invite(eventId, coach, "coach", "yes");
+    await declare();
+    const job = (await sheetJobs(eventId)).find((row) => row.person_id === coach)!;
+    const answer = (response: "yes" | "no", seconds: number) =>
+      observer.query(
+        `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
+         select i.id, $3::public.rsvp_value, case when $3::text = 'no' then 'Cannot make it now' end,
+                'operator', now() + make_interval(secs => $4)
+           from public.invitations i where i.event_id = $1 and i.person_id = $2`,
+        [eventId, coach, response, seconds],
+      );
+    const startIn = (minutes: number) =>
+      observer.query(
+        `update public.events
+            set scheduled_on = ((now() + make_interval(mins => $2)) at time zone 'Europe/London')::date,
+                starts_at = date_trunc('minute', (now() + make_interval(mins => $2)) at time zone 'Europe/London')::time
+          where id = $1`,
+        [eventId, minutes],
+      );
+    const isDue = async () =>
+      (
+        await observer.query(
+          `select 1 from public.notification_jobs where id = $2 and ${DUE_JOB_PREDICATE}`,
+          [MAX_ATTEMPTS, job.id],
+        )
+      ).rowCount;
+    const mine = (sent: { body: Record<string, unknown> }[]) =>
+      sent.filter((entry) => JSON.stringify(entry.body.to).includes(COACH_EMAIL));
+    const { sent, transport } = acceptingTransport();
+
+    // Withheld on No, so the job is left pending at its old due time.
+    await answer("no", 1);
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "skipped",
+    );
+
+    // Moved three hours later: the withheld job moves with it.
+    await startIn(180);
+    expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "skipped",
+    );
+    const sendsAt = await observer.query<{ sends_at: Date }>(
+      `select (e.scheduled_on + e.starts_at) at time zone 'Europe/London' - interval '1 hour' as sends_at
+         from public.events e where e.id = $1`,
+      [eventId],
+    );
+    const moved = (await sheetJobs(eventId)).find((row) => row.id === job.id)!;
+    expect(moved.status).toBe("pending");
+    expect(moved.scheduled_for.getTime()).toBe(sendsAt.rows[0].sends_at.getTime());
+    // Not due, so the sweep does not re-read it and the safety backlog (which
+    // counts exactly the due predicate) neither counts it nor ages it.
+    expect(await isDue()).toBe(0);
+    expect(mine(sent)).toHaveLength(0);
+
+    // Back to Yes, and the clock reaches the new mark (the event now 30 minutes out).
+    await answer("yes", 2);
+    await startIn(30);
+    await observer.query(
+      "update public.notification_jobs set scheduled_for = now() - interval '1 minute' where id = $1",
+      [job.id],
+    );
     expect(await dispatchAttendanceSheetJob(job.id, { source: CONFIGURED, transport })).toBe(
       "accepted",
     );

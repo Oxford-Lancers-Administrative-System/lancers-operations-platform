@@ -684,7 +684,9 @@ gets one per event, even if they qualify twice (a President who also coaches and
 said Yes). A coach who answers Yes inside the last hour gets their copy on the
 next sweep; after the start, nobody does. A cancelled event sends nothing, and
 neither does an event with no start time. A moved event moves the send: an email
-declared before the move waits for the new one-hour mark. Who receives it is read
+declared before the move waits for the new one-hour mark, including one already
+held back from a coach who said No, so it does not sit in the queue as waiting.
+Who receives it is read
 again at the send: a coach who changes Yes to No, or a seat holder whose seat
 has ended, after the email was declared is not sent it. The email stays waiting
 rather than cancelled, and each sweep checks again until the start: a coach who

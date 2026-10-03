@@ -2818,6 +2818,24 @@ export async function dispatchAttendanceSheetJob(
       return { kind: "no-send" };
     }
 
+    if (!detail.due_now) {
+      // Moved later since it was declared: wait for the new one-hour mark.
+      //
+      // R470-07: before the recipient re-check below, not after it. A job
+      // withheld for a coach on No keeps its old due time; checked second, the
+      // move never reached it, so it stayed due until the new start, re-read
+      // every sweep and counted in the safety backlog long enough to raise the
+      // queue warning. Moving it first parks it until the new mark, where the
+      // recipient check decides as it always did.
+      await tx.query(
+        `update public.notification_jobs
+            set scheduled_for = $2, updated_at = now()
+          where id = $1`,
+        [jobId, detail.sends_at],
+      );
+      return { kind: "no-send" };
+    }
+
     // R470-04: who receives it is read again, as the event is. A coach who has
     // changed Yes to No, or a seat holder whose seat has ended, since the job
     // was declared is not sent a deferred or retried copy.
@@ -2849,18 +2867,7 @@ export async function dispatchAttendanceSheetJob(
       return { kind: "no-send" };
     }
 
-    if (!detail.due_now) {
-      // Moved later since it was declared: wait for the new one-hour mark.
-      await tx.query(
-        `update public.notification_jobs
-            set scheduled_for = $2, updated_at = now()
-          where id = $1`,
-        [jobId, detail.sends_at],
-      );
-      return { kind: "no-send" };
-    }
-
-    const email = await tx.query<{ raw_value: string; normalised_value: string | null }>(
+    const email =await tx.query<{ raw_value: string; normalised_value: string | null }>(
       `select raw_value, normalised_value
          from public.contact_points
         where person_id = $1
