@@ -167,6 +167,7 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    homeAway: null,
     registerSaved: false,
     audienceAddedSinceApproval: 0,
     audienceCount: 37,

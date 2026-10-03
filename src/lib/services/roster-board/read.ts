@@ -1,6 +1,9 @@
 import "server-only";
 
+import { todayInClubZone } from "@/lib/club-time";
 import { withTransaction, type Tx } from "@/lib/db";
+import { EMPTY_ATTENDANCE_SCORE, type AttendanceScore } from "../attendance-score";
+import { readAttendanceScoresIn } from "../attendance-score-read";
 import {
   listCurrentSeasonRoster,
   type MembershipStatus,
@@ -102,6 +105,8 @@ export interface RosterBoardRow {
   availability: string | null;
   /** `public.bps_selections.is_selected`, defaulting to "No" — no row yet means never selected. */
   bps: BpsValue;
+  /** LAN-457: this season's Mandatory, BPS and All events tallies — `scoreAttendance`, the record's own rule. */
+  attendance: AttendanceScore;
   /** The operator-ticked onboarding items, keyed by code — LAN-217. Missing entry means not yet generated. */
   onboardingItems: Readonly<Record<string, { id: string; status: OnboardingItemStatus }>>;
 }
@@ -338,6 +343,12 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       [membershipIds],
     );
     const positionOptions = await readPositionOptionsIn(tx, roster.season.id);
+    // LAN-457: one season-wide read, scored once per season — never per row.
+    const attendanceByMembership = await readAttendanceScoresIn(
+      tx,
+      roster.season.id,
+      todayInClubZone(),
+    );
 
     const personById = new Map(people.rows.map((row) => [row.id, row]));
     const hasEmergencyContact = new Set(emergencyContacts.rows.map((row) => row.person_id));
@@ -515,6 +526,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,
         bps: bpsByMembership.get(entry.membershipId) ? "Yes" : "No",
+        attendance: attendanceByMembership.get(entry.membershipId) ?? EMPTY_ATTENDANCE_SCORE,
         onboardingItems: onboardingItemsByMembership.get(entry.membershipId) ?? {},
       };
     });

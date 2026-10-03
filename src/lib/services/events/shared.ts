@@ -1,5 +1,10 @@
 // Types, columns and helpers read.ts, public-tier.ts and write.ts share. LAN-300 split of events.ts.
-import { type EventDeliveryMode, type EventStatus, toMinutePrecision } from "../event-input";
+import {
+  type EventDeliveryMode,
+  type EventStatus,
+  type HomeAway,
+  toMinutePrecision,
+} from "../event-input";
 
 export interface EventListEntry {
   id: string; // one row of the event list — UX-30
@@ -15,6 +20,7 @@ export interface EventListEntry {
   deliveryMode: EventDeliveryMode;
   venue: string | null; // address in person, destination online (D21)
   isMandatory: boolean;
+  homeAway: HomeAway | null; // LAN-475: current Game template only; the calendar tile's first line
   registerSaved: boolean; // anything recorded yet (D72); backs isRegisterAvailable
   audienceCount: number; // rows in event_audience_members; zero on every draft
   invitationCount: number; // rows in invitations; structurally zero below approved (P1)

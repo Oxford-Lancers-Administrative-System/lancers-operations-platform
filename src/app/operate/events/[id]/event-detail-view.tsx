@@ -38,6 +38,7 @@ import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
 import { ResponseProgress } from "../../../participation/response-progress";
 import { AudienceList } from "./audience-list";
+import { ResponseNames } from "./response-names";
 import { QuestionList } from "./question-list";
 import {
   APPROVED_HEADLINE,
@@ -256,6 +257,8 @@ export function EventDetailView({
             nothing at all before approval, when there is no invitation to
             count. */}
         {participation ? <ResponseProgress people={participation.people} /> : null}
+        {/* LAN-458: every invitee's name under their answer, operator page only. */}
+        {participation ? <ResponseNames people={participation.people} /> : null}
 
         {mayApprove && changeWentOutSilently && lastAmendment ? (
           <RenotifyPanel

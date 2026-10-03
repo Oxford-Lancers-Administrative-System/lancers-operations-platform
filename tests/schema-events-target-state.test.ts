@@ -24,6 +24,7 @@ import {
   type Baseline,
   type Client,
 } from "./helpers/domain-fixture";
+import { TEMPLATE_COLOUR_KEYS } from "@/lib/services/event-template-input";
 
 let client: Client;
 let base: Baseline;
@@ -138,6 +139,31 @@ describe("event-type templates — D40, D41, D42, D47", () => {
       await expectAccepted(
         client,
         `update public.event_templates set colour_key = 'indigo' where event_type = 'practice'`,
+      );
+    });
+
+    // LAN-474: both constraints restate the palette's keys exactly, so regular
+    // Blue (`royal_blue`) — and every other swatch — persists on a template and
+    // on a roster group, and nothing outside the palette does.
+    it("accepts exactly the palette's keys on templates and roster groups — LAN-474", async () => {
+      expect(TEMPLATE_COLOUR_KEYS).toContain("royal_blue");
+      for (const key of TEMPLATE_COLOUR_KEYS) {
+        await expectAccepted(
+          client,
+          "update public.event_templates set colour_key = $1 where event_type = 'practice'",
+          [key],
+        );
+        await expectAccepted(
+          client,
+          "update public.roster_group_colours set colour_key = $1 where group_key = 'person'",
+          [key],
+        );
+      }
+      await expectRejected(
+        client,
+        "update public.roster_group_colours set colour_key = $1 where group_key = 'person'",
+        ["navy"],
+        "roster_group_colours_colour_key_known",
       );
     });
 

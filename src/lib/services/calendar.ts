@@ -1,4 +1,4 @@
-import type { TermWindow } from "./event-input";
+import type { HomeAway, TermWindow } from "./event-input";
 
 // The Gregorian month projection, and the week arithmetic ./oxford-year stands on — LAN-114,
 // narrowed by LAN-153. Pure, a rearrangement of one event list (REQ-three-arrangements); nothing
@@ -14,6 +14,9 @@ export interface CalendarEvent {
   startsAt: string | null;
   endsAt: string | null;
   venue: string | null;
+  // LAN-475: the tile's own first line, above the name. Both calendar views carry it; the public
+  // season read withholds it on a draft (LAN-463), so a public draft tile has none.
+  homeAway?: HomeAway | null;
 }
 
 // status used to be here and is deliberately gone (LAN-153; see relocations.md).

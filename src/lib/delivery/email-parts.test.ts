@@ -41,8 +41,8 @@ vi.mock("server-only", () => ({}));
 
 import type { EmailConfig } from "./config";
 import { buildEmailBody } from "./email";
-import type { MessageKind, OutboundMessage } from "./provider";
-import { MESSAGE_KINDS } from "./templates";
+import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "./provider";
+import { EMAIL_ONLY_KINDS, MESSAGE_KINDS } from "./templates";
 
 const FIXTURES = path.join(import.meta.dirname, "__fixtures__/email");
 const UPDATING = process.env.UPDATE_EMAIL_FIXTURES === "1";
@@ -95,6 +95,7 @@ export const FIXTURE_MESSAGE: OutboundMessage = {
   queueUrl: "https://app.oxfordlancers.example/operate/delivery",
   formUrl: "https://app.oxfordlancers.example/signup/form-token",
   stopUrl: "https://app.oxfordlancers.example/stop/stop-token",
+  attendanceUrl: "https://app.oxfordlancers.example/operate/events/event-id/attendance",
 };
 
 /** The four kinds `stopLine()` renders for today. LAN-372. */
@@ -105,7 +106,10 @@ const KINDS_WITH_A_STOP_LINE: readonly MessageKind[] = [
   "recruit_interest_reminder",
 ];
 
-export function renderedParts(kind: MessageKind): { text: string; html: string } {
+export function renderedParts(kind: MessageKind | EmailOnlyMessageKind): {
+  text: string;
+  html: string;
+} {
   const body = buildEmailBody(FIXTURE_CONFIG, { ...FIXTURE_MESSAGE, kind }) as {
     text: string;
     html: string;
@@ -113,7 +117,11 @@ export function renderedParts(kind: MessageKind): { text: string; html: string }
   return { text: body.text, html: body.html };
 }
 
-function fixture(kind: MessageKind, part: "text" | "html", rendered: string): string {
+function fixture(
+  kind: MessageKind | EmailOnlyMessageKind,
+  part: "text" | "html",
+  rendered: string,
+): string {
   const file = path.join(FIXTURES, `${kind}.${part === "text" ? "txt" : "html"}`);
   if (UPDATING && part === "html") {
     mkdirSync(FIXTURES, { recursive: true });
@@ -209,3 +217,20 @@ function escaped(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+/**
+ * LAN-465. The email-only kinds have no WhatsApp template and so no place in
+ * `MESSAGE_KINDS`, but their email is held to the same committed fixtures.
+ */
+describe("the email-only kinds", () => {
+  it.each(EMAIL_ONLY_KINDS)("renders %s's plain text exactly as committed", (kind) => {
+    expect(renderedParts(kind).text).toBe(fixture(kind, "text", ""));
+  });
+
+  it.each(EMAIL_ONLY_KINDS)("renders %s into the committed shell", (kind) => {
+    const { html } = renderedParts(kind);
+    expect(html).toBe(fixture(kind, "html", html));
+    expect(html).toContain('alt="Oxford Lancers crest"');
+    expect(html).not.toContain("Stop messages");
+  });
+});

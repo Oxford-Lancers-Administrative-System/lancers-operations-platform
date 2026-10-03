@@ -7,13 +7,18 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
-import type { MessageKind } from "@/lib/delivery/provider";
+import { EMAIL_ONLY_KINDS, TEMPLATE_NAMES } from "@/lib/delivery/templates";
+import { ATTENDANCE_SHEET_KEY_PREFIX } from "../attendance-sheet-email";
+import { RECRUIT_EVENT_REMINDER_KEY_PREFIX } from "../recruit-event-reminder";
 import { backoffFrom } from "../delivery";
 import {
   JOB_TYPE_MESSAGE_KINDS,
   LIGHTS_OUT_EXEMPT,
   LIGHTS_OUT_EXEMPT_JOB_TYPES,
+  LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES,
+  OTHER_JOB_KEY_PREFIX_KINDS,
+  type LightsOutMessageKind,
+  isJobLightsOutExempt,
   isJobTypeLightsOutExempt,
   isLightsOut,
   lastLightsOutReleaseAt,
@@ -124,11 +129,11 @@ describe("lastLightsOutReleaseAt — where the queue-age warning starts counting
   });
 });
 
-describe("exactly three message kinds go at any hour", () => {
-  it("names every kind, and exempts only the three an operator sent", () => {
-    const every = Object.keys(TEMPLATE_NAMES).sort();
+describe("exactly four message kinds go at any hour", () => {
+  it("names every kind, and exempts the three an operator sent and the attendance sheet", () => {
+    const every = [...Object.keys(TEMPLATE_NAMES), ...EMAIL_ONLY_KINDS].sort();
     expect(Object.keys(LIGHTS_OUT_EXEMPT).sort()).toEqual(every);
-    expect(every).toEqual(
+    expect(Object.keys(TEMPLATE_NAMES).sort()).toEqual(
       [
         "cancellation",
         "change_notice",
@@ -141,21 +146,29 @@ describe("exactly three message kinds go at any hour", () => {
         "question_change",
         "recruit_details_reminder",
         "recruit_event_followup",
+        "recruit_event_reminder",
         "recruit_interest_ask",
         "recruit_interest_reminder",
         "recruit_welcome",
         "reminder",
       ].sort(),
     );
-    const exempt = (Object.keys(LIGHTS_OUT_EXEMPT) as MessageKind[]).filter(
+    const exempt = (Object.keys(LIGHTS_OUT_EXEMPT) as LightsOutMessageKind[]).filter(
       (kind) => LIGHTS_OUT_EXEMPT[kind],
     );
-    expect(exempt.sort()).toEqual(["cancellation", "change_notice", "question_change"]);
+    expect(exempt.sort()).toEqual([
+      "attendance_sheet",
+      "cancellation",
+      "change_notice",
+      "question_change",
+    ]);
   });
 
   it("maps every kind to a job type, and exempts only the three notice job types", () => {
     const mapped = new Set(Object.values(JOB_TYPE_MESSAGE_KINDS).flat());
-    expect([...mapped].sort()).toEqual(Object.keys(TEMPLATE_NAMES).sort());
+    expect([...mapped].sort()).toEqual(
+      [...Object.keys(TEMPLATE_NAMES), ...EMAIL_ONLY_KINDS].sort(),
+    );
     expect([...LIGHTS_OUT_EXEMPT_JOB_TYPES].sort()).toEqual([
       "cancellation_notice",
       "question_change_notice",
@@ -164,5 +177,23 @@ describe("exactly three message kinds go at any hour", () => {
     expect(isJobTypeLightsOutExempt("reminder")).toBe(false);
     expect(isJobTypeLightsOutExempt("other")).toBe(false);
     expect(isJobTypeLightsOutExempt("a_type_nobody_has_added_yet")).toBe(false);
+  });
+
+  it("exempts an 'other' job by its key prefix only for the attendance sheet (LAN-465)", () => {
+    expect(OTHER_JOB_KEY_PREFIX_KINDS).toEqual({
+      [ATTENDANCE_SHEET_KEY_PREFIX]: "attendance_sheet",
+      [RECRUIT_EVENT_REMINDER_KEY_PREFIX]: "recruit_event_reminder",
+    });
+    expect(LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES).toEqual([ATTENDANCE_SHEET_KEY_PREFIX]);
+    expect(isJobLightsOutExempt("other", "attendance-sheet:e1:p1")).toBe(true);
+    expect(isJobLightsOutExempt("cancellation_notice", "cancellation:e1:p1")).toBe(true);
+    expect(isJobLightsOutExempt("other", "onboarding-chase:m1:1")).toBe(false);
+    expect(isJobLightsOutExempt("other", "operator-details:p1")).toBe(false);
+    // LAN-464: the recruit reminder is named by its prefix and still waits for 07:00.
+    expect(LIGHTS_OUT_EXEMPT.recruit_event_reminder).toBe(false);
+    expect(isJobLightsOutExempt("other", "recruit-event-reminder:e1:i1")).toBe(false);
+    expect(isJobLightsOutExempt("other", null)).toBe(false);
+    // The prefix is honoured only on the job type that routes by it.
+    expect(isJobLightsOutExempt("reminder", "attendance-sheet:e1:p1")).toBe(false);
   });
 });

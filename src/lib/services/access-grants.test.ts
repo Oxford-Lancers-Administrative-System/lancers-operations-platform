@@ -409,7 +409,7 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
 });
 
 describe("templates — a new template's lines, and a deleted one's", () => {
-  it("seeds twenty lines: manage for the fixed seats, none for every other", async () => {
+  it("seeds one line per seat: manage for the fixed seats, none for every other", async () => {
     const created = await createEventTemplate(
       actorPersonId,
       templateInput(`${NAME_MARKER} Film review`),
@@ -422,7 +422,7 @@ describe("templates — a new template's lines, and a deleted one's", () => {
         where g.template_id = $1::uuid order by r.code`,
       [created.id],
     );
-    expect(lines.rows).toHaveLength(20);
+    expect(lines.rows).toHaveLength(21);
     const managers = lines.rows.filter((row) => row.level === "manage").map((row) => row.code);
     expect(managers.sort()).toEqual(["general_manager", "it_officer", "president"]);
     expect(
@@ -490,6 +490,15 @@ describe("setRosterGroupColours — one audit row, a line per changed group", ()
     );
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].context.changes).toHaveLength(2);
+  });
+
+  it("saves regular Blue on a group, apart from Oxford Blue — LAN-474", async () => {
+    const result = await setRosterGroupColours(administrator(), { coaching: "royal_blue" });
+    expect(result.changes).toEqual([{ group: "coaching", from: "indigo", to: "royal_blue" }]);
+
+    const colours = await readRosterGroupColours();
+    expect(colours.coaching).toBe("royal_blue");
+    expect(colours.person).toBe("blue");
   });
 
   it("refuses an unknown colour or group, and a seat without role_management", async () => {

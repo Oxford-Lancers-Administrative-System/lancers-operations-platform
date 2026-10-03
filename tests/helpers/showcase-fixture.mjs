@@ -30,6 +30,7 @@ const ROLE_CODES = [
   "linebackers_coach",
   "defensive_backs_coach",
   "special_teams_coach",
+  "running_backs_coach",
 ];
 
 export function testExisting() {

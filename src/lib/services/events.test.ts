@@ -38,7 +38,7 @@ import {
 import { groupSelectionKeys } from "./audience-selection";
 import { saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
-import { JOINING_URL_MESSAGE } from "./event-input";
+import { GAME_TEMPLATE_ID, JOINING_URL_MESSAGE } from "./event-input";
 import { readCurrentSeason } from "./seasons";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -1678,8 +1678,12 @@ describe("the public tier reads a narrower event", () => {
       "deliveryMode",
       "endsAt",
       "eventType",
+      // LAN-475. The Game tile's HOME or AWAY line; null on a draft.
+      "homeAway",
       "id",
       "isCancelled",
+      // LAN-463. One bit, like isCancelled: a draft's detail is withheld.
+      "isDraft",
       "isMandatory",
       "name",
       "scheduledOn",
@@ -1722,6 +1726,10 @@ describe("the public tier reads a narrower event", () => {
 
     expect(publicCancelled?.isCancelled).toBe(true);
     expect(publicDraft?.isCancelled).toBe(false);
+    // LAN-463: and a draft as a draft, with its venue withheld.
+    expect(publicDraft?.isDraft).toBe(true);
+    expect(publicDraft?.venue).toBeNull();
+    expect(publicCancelled?.isDraft).toBe(false);
   });
 
   it("narrows by type, and leaves the season's total alone", async () => {
@@ -1772,6 +1780,7 @@ describe("the public tier reads a narrower event", () => {
       "eventType",
       "id",
       "isCancelled",
+      "isDraft", // LAN-463
       "isMandatory",
       // LAN-284. The public tier gained exactly one key, and this exact-key-set
       // assertion is what proves nothing else came with it.
@@ -1881,5 +1890,177 @@ describe("the public tier reads a narrower event", () => {
   it("refuses an event id that is not an identifier at all", async () => {
     const error = await refusalFrom(() => readPublicEvent("not-a-uuid"));
     expect(error.kind).toBe("not_found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-475 — Home or Away, on the current Game template only
+// ---------------------------------------------------------------------------
+
+describe("LAN-475 — Home or Away is stored on a Game-template event", () => {
+  const PRACTICE = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+  const game = (overrides: Partial<EventDraftInput> = {}) =>
+    draft({
+      name: `${NAME_MARKER} vs Netherfield Nomads`,
+      templateId: GAME_TEMPLATE_ID,
+      ...overrides,
+    });
+
+  async function storedHomeAway(eventId: string): Promise<string | null> {
+    const result = await observer.query<{ home_away: string | null }>(
+      "select home_away::text as home_away from public.events where id = $1",
+      [eventId],
+    );
+    return result.rows[0].home_away;
+  }
+
+  it("saves a Game draft with neither — approval, not the draft, is the gate", async () => {
+    const event = await createEventDraft(actorPersonId, game());
+
+    expect(event.status).toBe("draft");
+    expect(event.homeAway).toBeNull();
+    expect(await storedHomeAway(event.id)).toBeNull();
+  });
+
+  it("stores Home on create, and the read, the list and the database agree", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
+
+    expect(event.homeAway).toBe("home");
+    expect(await storedHomeAway(event.id)).toBe("home");
+    const listed = (await listCurrentSeasonEvents()).events.find((entry) => entry.id === event.id);
+    expect(listed?.homeAway).toBe("home");
+    // The name is the name; nothing is prefixed onto it.
+    expect(listed?.name).toBe(`${NAME_MARKER} vs Netherfield Nomads`);
+  });
+
+  it("changes it on a draft edit, and records the change in the audit", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
+
+    const edited = await updateEventDraft(actorPersonId, event.id, game({ homeAway: "away" }));
+
+    expect(edited.homeAway).toBe("away");
+    expect(await storedHomeAway(event.id)).toBe("away");
+    const audit = await observer.query<{ context: Record<string, unknown> }>(
+      `select context from public.audit_events
+        where entity_table = 'events' and entity_id = $1 and action = 'event.draft_updated'`,
+      [event.id],
+    );
+    expect(audit.rows[0].context).toMatchObject({ homeAway: "away", previousHomeAway: "home" });
+  });
+
+  it("keeps it when an edit says nothing about it, as a CSV import does", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "away" }));
+
+    await updateEventDraft(actorPersonId, event.id, game({ venue: "Away" }));
+
+    expect(await storedHomeAway(event.id)).toBe("away");
+  });
+
+  it("clears it when the editor posts it unanswered", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "away" }));
+
+    await updateEventDraft(actorPersonId, event.id, game({ homeAway: null }));
+
+    expect(await storedHomeAway(event.id)).toBeNull();
+  });
+
+  it("clears it when the draft moves off the Game template", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
+
+    const moved = await updateEventDraft(actorPersonId, event.id, game({ templateId: PRACTICE }));
+
+    expect(moved.homeAway).toBeNull();
+    expect(await storedHomeAway(event.id)).toBeNull();
+  });
+
+  it("never stores it on another template, even when a caller sends one", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ homeAway: "home" }));
+
+    expect(event.homeAway).toBeNull();
+    expect(await storedHomeAway(event.id)).toBeNull();
+  });
+
+  it("is refused by the schema on another template", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+
+    await expect(
+      observer.query("update public.events set home_away = 'home' where id = $1", [event.id]),
+    ).rejects.toThrow(/events_home_away_is_game_template_only/);
+  });
+
+  it("is not carried by the public event page, which keeps the name alone", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
+
+    const publicEvent = await readPublicEvent(event.id);
+    expect(publicEvent.name).toBe(`${NAME_MARKER} vs Netherfield Nomads`);
+    expect(publicEvent).not.toHaveProperty("homeAway");
+  });
+
+  // LAN-475 follow-up: both calendar views show the line, so the public season read carries it —
+  // withheld on a draft in SQL (LAN-463), like the venue.
+  it("is carried by the public season read once approved, and withheld on a draft", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
+
+    const asDraft = (await listPublicSeasonEvents()).events.find((entry) => entry.id === event.id);
+    expect(asDraft?.isDraft).toBe(true);
+    expect(asDraft?.homeAway).toBeNull();
+
+    await observer.query(
+      `update public.events
+          set status = 'approved', approved_at = now(), approved_by_person_id = $2,
+              audience_confirmed_at = now(), audience_confirmed_by_person_id = $2
+        where id = $1`,
+      [event.id, actorPersonId],
+    );
+
+    const approved = (await listPublicSeasonEvents()).events.find((entry) => entry.id === event.id);
+    expect(approved?.homeAway).toBe("home");
+    expect(approved?.name).toBe(`${NAME_MARKER} vs Netherfield Nomads`);
+    // The event page still keeps the name alone.
+    expect(await readPublicEvent(event.id)).not.toHaveProperty("homeAway");
+  });
+});
+
+describe("LAN-475 — the form's Home or Away rule, without a database", () => {
+  const base = {
+    name: "vs Netherfield Nomads",
+    templateId: GAME_TEMPLATE_ID,
+    attendance: "mandatory",
+  };
+
+  it("reads Home and Away on the Game template", () => {
+    for (const side of ["home", "away"] as const) {
+      const result = validateEventDraft({ ...base, homeAway: side });
+      expect(result.ok && result.value.homeAway).toBe(side);
+    }
+  });
+
+  it("reads an empty answer as unanswered, not as an issue", () => {
+    const result = validateEventDraft({ ...base, homeAway: "" });
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.homeAway).toBeNull();
+  });
+
+  it("says nothing about it when the form did not carry it", () => {
+    const result = validateEventDraft(base);
+    expect(result.ok).toBe(true);
+    expect(result.ok && "homeAway" in result.value).toBe(false);
+  });
+
+  it("refuses a value that is neither", () => {
+    const result = validateEventDraft({ ...base, homeAway: "neutral" });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.issues).toEqual([
+      { field: "homeAway", message: "Choose Home or Away." },
+    ]);
+  });
+
+  it("drops it on any other template", () => {
+    const result = validateEventDraft({
+      ...base,
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+      homeAway: "home",
+    });
+    expect(result.ok && result.value.homeAway).toBeNull();
   });
 });

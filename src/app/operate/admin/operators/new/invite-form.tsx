@@ -86,6 +86,9 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
 
   const chosen = search.candidates?.find((candidate) => candidate.personId === personId) ?? null;
   const step = roleCode === "" ? (search.candidates ? 1 : 0) : 2;
+  // LAN-459: a phone number or an email. An existing person may have either on
+  // record already; the service decides which channel, email whenever it can.
+  const reachable = email.trim() !== "" || phone.trim() !== "" || chosen !== null;
 
   return (
     <Stack spacing={3}>
@@ -121,7 +124,6 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete={NO_AUTOFILL}
-            required
             helperText="The invitation goes here, and this becomes their sign-in address."
           />
           {/*
@@ -132,7 +134,7 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
           */}
           <PhoneField
             name="phoneControl"
-            label="Phone (optional)"
+            label="Phone"
             onValueChange={setPhone}
             onMismatchChange={setPhoneUnconfirmed}
             error={Boolean(phoneFormatError)}
@@ -256,7 +258,7 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
                   disabled={
                     sending ||
                     roleCode === "" ||
-                    email.trim() === "" ||
+                    !reachable ||
                     Boolean(phoneFormatError) ||
                     phoneUnconfirmed
                   }
@@ -269,8 +271,8 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
               note={
                 phoneFormatError || phoneUnconfirmed
                   ? "Correct the phone number to send."
-                  : roleCode === "" || email.trim() === ""
-                    ? "Choose a role and enter an email address to send."
+                  : roleCode === "" || !reachable
+                    ? "Choose a role and enter an email or a phone number to send."
                     : undefined
               }
             />

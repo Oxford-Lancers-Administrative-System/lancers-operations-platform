@@ -14,13 +14,14 @@ import {
   resolveMergeSurvivor,
 } from "@/lib/services/people-directory";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
+import { showsStudentInformation } from "@/lib/services/person-student-information";
 import { readRecruitConsentForPerson } from "@/lib/services/recruitment-prospect";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { readErasureState, type ErasureState } from "@/lib/services/person-erasure";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../../gate";
 import { labelFor, STATUS_LABELS } from "../presentation";
-import { IdentitySection, ContactSection } from "./identity-contact-sections";
+import { PersonalInformationSection, StudentInformationSection } from "./identity-contact-sections";
 import { MessagingSection } from "./messaging-section";
 import { RestrictedSection } from "./academic-restricted-sections";
 import StatusSection from "./status-section";
@@ -59,9 +60,9 @@ export default async function PersonRecordPage({
 }: PageProps<"/operate/people/[personId]">) {
   const { personId } = await params;
   // LAN-432: the person record follows the roster's grants (Brian,
-  // 2026-09-25). Who they are, Restricted, Where they stand, Messaging and the
-  // history read as Person; How to reach them as Contact & emergency; Their
-  // seasons as Membership. A `none` section is a locked head, and nothing of
+  // 2026-09-25). The names and student facts, Restricted, Where they stand,
+  // Messaging and the history read as Person; the mobile, the emails and the
+  // emergency contact as Contact & emergency; Their seasons as Membership. A `none` section is a locked head, and nothing of
   // it leaves this server.
   const gate = await gateShellPage(`/operate/people/${personId}`, ROSTER_REACH);
   if ("screen" in gate) return gate.screen;
@@ -91,6 +92,8 @@ export default async function PersonRecordPage({
   const erasure: ErasureState | null = roleCodesPermit(gate.operator.roleCodes, "person_erasure")
     ? await readErasureState(personId)
     : null;
+
+  const studentShows = showsStudentInformation(record);
 
   const visible = redactPersonRecord(
     record as unknown as Record<string, unknown>,
@@ -210,21 +213,29 @@ export default async function PersonRecordPage({
       ) : null}
 
       {/* LAN-307: every section takes the redacted record, and the recruit
-          record renders these same components from the same shape.
-          LAN-365 correction: "Who they are" (IdentitySection, which now also
-          carries the four academic facts and the two identifiers) is
-          rendered after "How to reach them", per Brian's ordering. */}
-      {contactOpen ? (
-        <ContactSection record={visible} currentSeasonLabel={currentSeason?.label ?? null} />
+          record renders the same rows from the same shape.
+          LAN-462 (Brian, 2026-10-02): Personal information, then Student
+          information. Personal information's name rows are Person's and its
+          contact rows Contact & emergency's, so it locks only for a seat that
+          holds neither. Student information shows only for somebody who is or
+          was a student (`showsStudentInformation`, read from the full record);
+          its rows follow the same two categories. */}
+      {personOpen || contactOpen ? (
+        <PersonalInformationSection
+          record={visible}
+          currentSeasonLabel={currentSeason?.label ?? null}
+        />
       ) : (
-        <Section variant="banded" band="person" title="How to reach them" locked />
+        <Section variant="banded" band="person" title="Personal information" locked />
       )}
 
-      {personOpen ? (
-        <IdentitySection record={visible} />
-      ) : (
-        <Section variant="banded" band="person" title="Who they are" locked />
-      )}
+      {studentShows ? (
+        personOpen || contactOpen ? (
+          <StudentInformationSection record={visible} />
+        ) : (
+          <Section variant="banded" band="person" title="Student information" locked />
+        )
+      ) : null}
 
       {recruitConsent ? (
         <MessagingSection

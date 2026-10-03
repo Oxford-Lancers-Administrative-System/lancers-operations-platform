@@ -43,28 +43,16 @@ function currentContact(
   return preferred ?? null;
 }
 
-/**
- * "Who they are" — name, Known as, aliases, the academic facts, and the two
- * personal identifiers.
- *
- * LAN-365, Brian 2026-09-16: "no academic section." The student number and
- * the BAFA registration number moved here first, from a restricted
- * "Academic" section, because they are facts about the person rather than
- * about their degree; the correction round folded college, matriculation
- * year, expected graduation and degree field in beside them for the
- * identical reason, rendered after the contact details (`ContactSection`,
- * rendered before this one on both the record and its edit form) and before
- * the two identifiers. BAFA last, after everything else, because the club
- * fills it in rather than the player — a student never knows it.
- *
- * Every one of these six rows is rendered only when the redaction left the
- * field present, which is the `academic` category they have all always
- * shared: moving where a fact is drawn must never change who may read it
- * (`REQ-authority`).
+/*
+ * The rows the sections below are built from. LAN-462 split the person record
+ * into Personal information and Student information while the recruit record
+ * keeps its two sections, so both are composed from these same rows.
  */
-export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
+
+/** Name, middle name, last name, Known as and the aliases. */
+function NameRows({ record }: { record: VisiblePersonRecord }) {
   return (
-    <Section variant="banded" band="person" title="Who they are">
+    <>
       <Fact label="First name" note={record.givenNameSource ?? undefined}>
         {record.givenName ? <>{record.givenName}</> : <NotRecorded />}
       </Fact>
@@ -99,9 +87,69 @@ export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
           </Stack>
         )}
       </Fact>
-      {/* LAN-365 correction: college, matriculation year, expected
-          graduation and degree field, folded in from the deleted "Academic"
-          section — after the contact details, before the two identifiers. */}
+    </>
+  );
+}
+
+/** Mobile, the season's WhatsApp line and the personal email. */
+function PersonalContactRows({
+  record,
+  currentSeasonLabel,
+}: {
+  record: VisiblePersonRecord;
+  currentSeasonLabel: string | null;
+}) {
+  const mobile = currentContact(record, "phone", null);
+  const personalEmail = currentContact(record, "email", "personal");
+  return (
+    <>
+      <Fact label="Mobile phone" note={mobile?.source ?? undefined}>
+        {mobile ? <>{mobile.rawValue}</> : <NotRecorded />}
+      </Fact>
+      <Fact label={`On WhatsApp${currentSeasonLabel ? ` · ${currentSeasonLabel}` : ""}`}>
+        <NotRecorded />
+      </Fact>
+      <Fact label="Personal email" note={personalEmail?.source ?? undefined}>
+        {personalEmail ? <>{personalEmail.rawValue}</> : <NotRecorded />}
+      </Fact>
+    </>
+  );
+}
+
+function CollegeEmailRow({ record }: { record: VisiblePersonRecord }) {
+  const collegeEmail = currentContact(record, "email", "college");
+  return (
+    <Fact label="College email" note={collegeEmail?.source ?? undefined}>
+      {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
+    </Fact>
+  );
+}
+
+/**
+ * LAN-257: `contact_points.scope` null means unclassified — the roster's
+ * "Email" field leaves it so. LAN-462 stopped the two operator doors writing
+ * one; a row from before that shows here until it is classified.
+ */
+function UnclassifiedEmailRow({ record }: { record: VisiblePersonRecord }) {
+  const unclassifiedEmail = currentContact(record, "email", null);
+  return unclassifiedEmail ? (
+    <Fact label="Email · not classified" note={unclassifiedEmail.source ?? undefined}>
+      {unclassifiedEmail.rawValue}
+    </Fact>
+  ) : null;
+}
+
+/**
+ * College, matriculation year, expected graduation, degree field, student
+ * number and BAFA registration number. Every row is rendered only when the
+ * redaction left the field present — the `academic` category they have always
+ * shared: moving where a fact is drawn must never change who may read it
+ * (`REQ-authority`). BAFA last, because the club fills it in rather than the
+ * player.
+ */
+function StudentFactRows({ record }: { record: VisiblePersonRecord }) {
+  return (
+    <>
       {record.college !== undefined ? (
         <Fact label="College" note={record.collegeSource ?? undefined}>
           {record.college != null ? <>{record.college}</> : <NotRecorded />}
@@ -143,13 +191,74 @@ export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
           )}
         </Fact>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * "Personal information" — the person record's first section since LAN-462
+ * (Brian, 2026-10-02): name, Known as and aliases, then mobile and personal
+ * email. Date of birth, under-18 and the emergency contact stay in Restricted.
+ *
+ * The name rows are Person's and the contact rows Contact & emergency's
+ * (LAN-432): each half is drawn only when the redaction left it, the way the
+ * emergency contact row behaves inside Restricted. The page locks the section
+ * only for a seat that holds neither.
+ */
+export function PersonalInformationSection({
+  record,
+  currentSeasonLabel,
+}: {
+  record: VisiblePersonRecord;
+  currentSeasonLabel: string | null;
+}) {
+  return (
+    <Section variant="banded" band="person" title="Personal information">
+      {record.givenName !== undefined ? <NameRows record={record} /> : null}
+      {record.contacts !== undefined ? (
+        <>
+          <PersonalContactRows record={record} currentSeasonLabel={currentSeasonLabel} />
+          <UnclassifiedEmailRow record={record} />
+        </>
+      ) : null}
     </Section>
   );
 }
 
 /**
- * "How to reach them" — only when `redactPersonRecord` leaves `contacts`
- * visible to this operator's capability grant.
+ * "Student information" — LAN-462. College email, college, matriculation
+ * year, expected graduation, degree field, student number and the BAFA
+ * registration number. The page draws it only when `showsStudentInformation`
+ * holds for the person; the college email row only where contacts are
+ * visible, the academic rows only where the academic facts are.
+ */
+export function StudentInformationSection({ record }: { record: VisiblePersonRecord }) {
+  return (
+    <Section variant="banded" band="person" title="Student information">
+      {record.contacts !== undefined ? <CollegeEmailRow record={record} /> : null}
+      <StudentFactRows record={record} />
+    </Section>
+  );
+}
+
+/**
+ * "Who they are" — the recruit record's section (LAN-307 shares it): name,
+ * Known as, aliases, then the academic facts and the two identifiers
+ * (LAN-365). The person record draws the same rows as Personal information
+ * and Student information instead (LAN-462); the recruit record is unchanged.
+ */
+export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
+  return (
+    <Section variant="banded" band="person" title="Who they are">
+      <NameRows record={record} />
+      <StudentFactRows record={record} />
+    </Section>
+  );
+}
+
+/**
+ * "How to reach them" — the recruit record's contact section, only when
+ * `redactPersonRecord` leaves `contacts` visible to this operator's grant.
  */
 export function ContactSection({
   record,
@@ -158,31 +267,11 @@ export function ContactSection({
   record: VisiblePersonRecord;
   currentSeasonLabel: string | null;
 }) {
-  const mobile = currentContact(record, "phone", null);
-  const personalEmail = currentContact(record, "email", "personal");
-  const collegeEmail = currentContact(record, "email", "college");
-  const unclassifiedEmail = currentContact(record, "email", null);
-
   return (
     <Section variant="banded" band="person" title="How to reach them">
-      <Fact label="Mobile phone" note={mobile?.source ?? undefined}>
-        {mobile ? <>{mobile.rawValue}</> : <NotRecorded />}
-      </Fact>
-      <Fact label={`On WhatsApp${currentSeasonLabel ? ` · ${currentSeasonLabel}` : ""}`}>
-        <NotRecorded />
-      </Fact>
-      <Fact label="Personal email" note={personalEmail?.source ?? undefined}>
-        {personalEmail ? <>{personalEmail.rawValue}</> : <NotRecorded />}
-      </Fact>
-      <Fact label="College email" note={collegeEmail?.source ?? undefined}>
-        {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
-      </Fact>
-      {/* LAN-257: `contact_points.scope` null means unclassified — the roster's "Email" field leaves it so. */}
-      {unclassifiedEmail ? (
-        <Fact label="Email · not classified" note={unclassifiedEmail.source ?? undefined}>
-          {unclassifiedEmail.rawValue}
-        </Fact>
-      ) : null}
+      <PersonalContactRows record={record} currentSeasonLabel={currentSeasonLabel} />
+      <CollegeEmailRow record={record} />
+      <UnclassifiedEmailRow record={record} />
     </Section>
   );
 }

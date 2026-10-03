@@ -69,7 +69,8 @@ export const ADMINISTRATION_EVENTS: Readonly<
     roleRelated: false,
     reasonRequired: false,
     selfActionForbidden: false,
-    selfAuthorityAllowed: false,
+    // LAN-459: the phone-only person's own details save opens their account.
+    selfAuthorityAllowed: true,
     instantOrder: 0,
     label: "Operator invited",
   }),
@@ -102,7 +103,8 @@ export const ADMINISTRATION_EVENTS: Readonly<
     roleRelated: false,
     reasonRequired: false,
     selfActionForbidden: false,
-    selfAuthorityAllowed: false,
+    // LAN-459: the phone-only person's own details save opens their account.
+    selfAuthorityAllowed: true,
     instantOrder: 0,
     label: "Invitation delivery failed",
   }),

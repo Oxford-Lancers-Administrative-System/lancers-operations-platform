@@ -156,6 +156,7 @@ function scheduleRow(eventType: string, change: MessagingScheduleChange): Messag
     ...change,
     recruitInvitationLeadDays: change.recruitInvitationLeadDays ?? null,
     recruitFollowUpCadenceHours: change.recruitFollowUpCadenceHours ?? null,
+    recruitEventReminderHours: change.recruitEventReminderHours ?? null,
     updatedAt: new Date("2026-08-01T00:00:00Z"),
   };
 }

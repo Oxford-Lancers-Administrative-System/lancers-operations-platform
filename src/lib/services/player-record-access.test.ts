@@ -58,6 +58,11 @@ const DATA = {
   jerseyHolders: { blue: { "7": "Someone" }, white: {} },
   otherSeasons: [],
   attendance: [{ id: "e1" }],
+  attendanceScore: {
+    mandatory: { attended: 1, counted: 1 },
+    bps: { attended: 0, counted: 0 },
+    all: { attended: 1, counted: 2 },
+  },
   person: { displayName: "Alaric Brindlewood" },
   send: { onboarding: true },
 } as unknown as PlayerRecordData;
@@ -76,6 +81,8 @@ describe("redactPlayerRecord", () => {
       "jerseyHolders",
       "person",
       "attendance",
+      // LAN-457: the score travels with the rows, or not at all.
+      "attendanceScore",
     ]) {
       expect(key in visible, key).toBe(false);
     }
@@ -87,6 +94,7 @@ describe("redactPlayerRecord", () => {
   it("sends the attendance rows to a seat holding Attendance at view", () => {
     const visible = redactPlayerRecord(DATA, seat({ person: "view", attendance: "view" }));
     expect(visible.attendance).toHaveLength(1);
+    expect(visible.attendanceScore?.all).toEqual({ attended: 1, counted: 2 });
     expect(visible.access?.attendance).toBe("view");
   });
 

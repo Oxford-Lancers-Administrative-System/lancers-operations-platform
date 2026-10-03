@@ -487,7 +487,12 @@ export interface IssuedPersonToken {
  * `REQ-two-questionnaires`'s one-open-request-ever rule, which is not this
  * module's rule.
  */
-export type PersonTokenPurpose = "onboarding_details" | "recruit_signup" | "messaging_stop";
+export type PersonTokenPurpose =
+  | "onboarding_details"
+  | "recruit_signup"
+  | "messaging_stop"
+  /** LAN-459. The operator details form, sent by WhatsApp to an operator the club has only a phone number for. */
+  | "operator_details";
 
 /**
  * Mints one durable, season-scoped credential for one person and one page.

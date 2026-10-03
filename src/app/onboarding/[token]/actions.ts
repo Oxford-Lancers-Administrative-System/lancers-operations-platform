@@ -23,6 +23,12 @@ import {
   type QuestionnaireStep,
 } from "@/lib/services/player-questionnaire";
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
+import { invitationCallbackUrl } from "@/lib/auth/invitation";
+import { completeOperatorDetailsFromLink } from "@/lib/services/operator-details";
+import {
+  readOperatorDetailsForm,
+  type OperatorDetailsFormState,
+} from "@/lib/services/operator-details/fields";
 import { REFUSED_ERROR_PARAM } from "./presentation";
 import {
   mapServiceErrors,
@@ -380,4 +386,44 @@ export async function submitTrustStep(form: FormData): Promise<void> {
   }
 
   redirect(literalNextStepUrl(token, current));
+}
+
+// LAN-459 — the operator details form, on the same route
+
+/** The absolute address the sign-in invitation's link comes back to, from this request. */
+async function invitationCallback(): Promise<string> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const proto = requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim() || "http";
+  return (
+    invitationCallbackUrl({
+      appBaseUrl: process.env.APP_BASE_URL,
+      requestOrigin: host ? `${proto}://${host}` : null,
+    }) ?? ""
+  );
+}
+
+/**
+ * The phone-only operator's save, from the WhatsApp link (`operator_details`).
+ * Bound to the token by the page. The service re-resolves the token and acts
+ * only on the person it names; saved, the link is revoked and the account and
+ * invitation follow with no operator step.
+ */
+export async function saveOperatorDetailsFromLink(
+  token: string,
+  _previous: OperatorDetailsFormState,
+  form: FormData,
+): Promise<OperatorDetailsFormState> {
+  const startedAt = startUniformClock();
+  const values = readOperatorDetailsForm(form);
+  if (await throttled(token)) await refuse(detailsUrl(token), startedAt);
+
+  const result = await completeOperatorDetailsFromLink({
+    token,
+    values,
+    callbackUrl: await invitationCallback(),
+  });
+  if (result.kind === "unknown") return refuse(detailsUrl(token), startedAt);
+  if (result.kind === "invalid") return { values, errors: result.errors };
+  return { values, errors: {}, saved: true, invitationEmail: result.invitationEmail };
 }

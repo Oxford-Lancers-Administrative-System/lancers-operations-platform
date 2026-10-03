@@ -2,6 +2,7 @@ import { assertAdministrationTarget } from "@/lib/auth/administration-authority"
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
+import { standDownOperatorDetailsIfSeatlessIn } from "../operator-details/facts";
 import { currentDateIn, readAdministrationSubject } from "../operator-invitations";
 import {
   administrationAuthority,
@@ -78,6 +79,9 @@ export async function endRoleAssignment(
       assignment.id,
       effectiveTo,
     ]);
+    // R470-01: a phone-only holder whose last seat this was gets no details
+    // request and keeps no live details link, from now.
+    await standDownOperatorDetailsIfSeatlessIn(tx, assignment.personId, effectiveTo);
 
     const operatingYear = await operatingYearForAssignment(tx, assignment);
     await recordAdministrationEvent(tx, {

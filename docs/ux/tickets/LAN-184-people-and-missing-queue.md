@@ -49,7 +49,11 @@ and are not duplicated here.
   widen to everyone outside it; both empty states.
 - `/operate/people/[personId]`: the durable record in the approved section
   order (who they are, how to reach them, academic, restricted, where they
-  stand, their seasons, what changed); `not recorded` stated explicitly on
+  stand, their seasons, what changed — since LAN-462, Brian 2026-10-02:
+  Personal information, Student information, restricted, where they stand,
+  their seasons, what changed, with Student information shown only for
+  somebody who has ever been a player or a recruit or has a student fact
+  recorded); `not recorded` stated explicitly on
   every absent field; a contact value or alias shows who supplied it; no
   verification mark, no confidence class, no contested-value state; roles and
   seasons render read-only with routes to where they are changed; the merged-

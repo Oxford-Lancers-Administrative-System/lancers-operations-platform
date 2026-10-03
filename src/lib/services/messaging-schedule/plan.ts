@@ -25,6 +25,13 @@ export interface RecruitMessagingLadder {
   readonly configuredInvitationAt: Date;
   readonly dispatchesImmediately: boolean;
   readonly followUpAt: Date | null;
+  /**
+   * LAN-464. When recruits whose answer is Yes get their one reminder: the
+   * event start less {@link MessagingSchedule.recruitEventReminderHours}.
+   * `null` when the reminder is off, or its moment is already behind `asOf`
+   * (a late approval or a reschedule into the window sends none).
+   */
+  readonly reminderAt: Date | null;
 }
 
 export interface MessagingPlan {
@@ -177,6 +184,9 @@ export async function resolveMessagingPlanIn(
     const candidateFollowUpAt = new Date(
       recruitInvitationAt.getTime() + schedule.recruitFollowUpCadenceHours * HOUR_MS,
     );
+    const reminderHours = schedule.recruitEventReminderHours ?? 0;
+    const candidateReminderAt =
+      reminderHours > 0 ? new Date(row.event_starts_at.getTime() - reminderHours * HOUR_MS) : null;
     // `<=`, not `<`: a rung exactly on the deadline still fits.
     recruitLadder = {
       invitationAt: recruitInvitationAt,
@@ -184,6 +194,10 @@ export async function resolveMessagingPlanIn(
       dispatchesImmediately: recruitDispatchesImmediately,
       followUpAt:
         candidateFollowUpAt.getTime() <= responseDeadlineAt.getTime() ? candidateFollowUpAt : null,
+      reminderAt:
+        candidateReminderAt !== null && candidateReminderAt.getTime() > now.getTime()
+          ? candidateReminderAt
+          : null,
     };
   }
 

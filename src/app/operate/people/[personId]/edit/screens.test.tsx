@@ -176,13 +176,75 @@ describe("a four-role operator", () => {
     const { container } = render(element);
 
     expect(screen.getByRole("heading", { name: "Correct this record" })).toBeTruthy();
-    expect(screen.getByText("Who they are")).toBeTruthy();
-    expect(screen.getByText("How to reach them")).toBeTruthy();
-    // LAN-365 correction: no separate "Academic" section any more — its four
-    // fields folded into "Who they are".
+    // LAN-462: the form mirrors the record's Personal information and Student
+    // information; no "Who they are", "How to reach them" or "Academic".
+    expect(screen.getByText("Personal information")).toBeTruthy();
+    expect(screen.getByText("Student information")).toBeTruthy();
+    expect(screen.queryByText("Who they are")).toBeNull();
+    expect(screen.queryByText("How to reach them")).toBeNull();
     expect(screen.queryByText("Academic")).toBeNull();
     expect(screen.getByText("Restricted")).toBeTruthy();
     expect(container.querySelector('input[name="givenName"]')).toHaveValue("Hollis");
+  });
+
+  /** LAN-462 — which field sits in which section, and when Student information is open. */
+  describe("the Student information section", () => {
+    function fieldNamesIn(section: Element): string[] {
+      return [...section.querySelectorAll("input[name]")]
+        .map((input) => input.getAttribute("name") ?? "")
+        .filter((name) => !name.endsWith("Reason"));
+    }
+
+    it("holds the college email, the academic facts and both identifiers, open for a player", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      vi.mocked(readPersonRecord).mockResolvedValue(populatedRecord());
+
+      const { container } = render(await EditPersonPage(pageProps()));
+
+      const student = screen.getByTestId("section-student-information");
+      expect(student.tagName).toBe("DETAILS");
+      expect(student).toHaveAttribute("open");
+      expect(fieldNamesIn(student)).toEqual([
+        "collegeEmail",
+        "college",
+        "matriculationYear",
+        "expectedGraduationYear",
+        "degreeField",
+        "studentNumber",
+        "bafaRegistrationNumber",
+      ]);
+      // Personal information holds the names and the two personal contacts.
+      for (const name of ["givenName", "middleName", "familyName", "personalEmail"]) {
+        const input = container.querySelector(`input[name="${name}"]`);
+        expect(input, name).not.toBeNull();
+        expect(student.contains(input), name).toBe(false);
+      }
+    });
+
+    it("is present but closed for a coach who has never played, so a BAFA number can still be entered", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        status: null,
+        college: null,
+        matriculationYear: null,
+        expectedGraduationYear: null,
+        degreeField: null,
+      } as never);
+
+      render(await EditPersonPage(pageProps()));
+
+      const student = screen.getByTestId("section-student-information");
+      expect(student).not.toHaveAttribute("open");
+      const bafa = student.querySelector('input[name="bafaRegistrationNumber"]');
+      expect(bafa).not.toBeNull();
+      expect(bafa).not.toBeRequired();
+    });
   });
 
   // B1, LAN-185 correction round 2 (Brian's walk): a populated record used to

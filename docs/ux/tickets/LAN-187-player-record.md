@@ -213,15 +213,23 @@ build follows for behaviour, restyled rather than copied wholesale.
 three. Deliberately not red, orange or green: the band carries a percentage,
 and a traffic-light hue would read as a verdict on the number.
 
-**Rows** — every event this membership had an invitation **sent** for
-(`public.invitations.status <> 'pending'`), this season only. An audience
-member with no invitation is not a row. The table's own default (W1, below)
-narrows what is _shown_, never what is read: every sent invitation is still
-one row, one filter selection away.
+**Rows** — every event this membership had an invitation **messaged** for
+(`public.invitations.message_withheld_reason is null`, LAN-457; it was
+`status <> 'pending'`, which hid every invitation the player never answered),
+this season only. An audience member with no invitation is not a row. The
+table's own default (W1, below) narrows what is _shown_, never what is read:
+every messaged invitation is still one row, one filter selection away.
 
 **Columns, all sortable by clicking the header** — Event · Date · Mandatory ·
 RSVP · Attendance · **Event status** (W1). Default sort is date, most recent
 first.
+
+**Superseded by LAN-457 (Brian, 2026-10-02):** the score is now three figures —
+Mandatory, BPS and All events, each `attended/counted · percentage` — computed
+over the whole season by `scoreAttendance` (`src/lib/services/attendance-score.ts`),
+the same function and read as the roster board's Attendance group. Excused and
+never-messaged invitations are left out of both numbers, and the score no
+longer follows the filters. The paragraphs below record the earlier rule.
 
 **One score** — mandatory events only, attended ÷ mandatory events carrying a
 recorded attendance, shown with the raw counts. `present` and `late` count as

@@ -273,6 +273,34 @@
     "replaces": "recruit_event_followup_v1"
   },
   {
+    "name": "recruit_event_reminder_v1",
+    "kind": "recruit_event_reminder",
+    "category": "UTILITY",
+    "language": "en",
+    "environment": "Production",
+    "validityPeriodHours": 12,
+    "body": "Hello {{1}}, a reminder that {{2}} is on {{3}}.\n\nVenue: {{4}}.\n\nSee you there.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "venue"
+      }
+    ],
+    "buttons": []
+  },
+  {
     "name": "recruit_welcome_v2",
     "kind": "recruit_welcome",
     "category": "UTILITY",

@@ -54,8 +54,9 @@ import { mergeGrantRows, NO_GRANTS } from "./grants";
 const COACHES = ["head_coach", "offence_coach", "defence_coach"];
 
 /**
- * The ten fixed coaching seats, which since LAN-129 all hold the narrow
+ * The fixed coaching seats, which since LAN-129 all hold the narrow
  * attendance pair — `REQ-coach-operator-onboarding`, Brian, 18 August 2026.
+ * Eleven since LAN-460 added the Running Backs Coach.
  *
  * Written out here rather than imported from the module under test, for the
  * reason the whole file is literal: a grant that is asserted against a list the
@@ -64,6 +65,7 @@ const COACHES = ["head_coach", "offence_coach", "defence_coach"];
 const FIXED_COACHES = [
   ...COACHES,
   "quarterbacks_coach",
+  "running_backs_coach",
   "offensive_line_coach",
   "wide_receivers_coach",
   "defensive_line_coach",
@@ -72,7 +74,7 @@ const FIXED_COACHES = [
   "special_teams_coach",
 ];
 
-/** The seven the catalogue added, which held nothing until LAN-129. */
+/** The eight added after the original three (seven by LAN-128, one by LAN-460). */
 const COACHES_ADDED_BY_THE_CATALOGUE = FIXED_COACHES.filter((code) => !COACHES.includes(code));
 
 /**
@@ -117,6 +119,7 @@ const CATALOGUE = [
   "offence_coach",
   "defence_coach",
   "quarterbacks_coach",
+  "running_backs_coach",
   "offensive_line_coach",
   "wide_receivers_coach",
   "defensive_line_coach",
@@ -163,6 +166,7 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "offence_coach",
     "defence_coach",
     "quarterbacks_coach",
+    "running_backs_coach",
     "offensive_line_coach",
     "wide_receivers_coach",
     "defensive_line_coach",
@@ -182,6 +186,7 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "offence_coach",
     "defence_coach",
     "quarterbacks_coach",
+    "running_backs_coach",
     "offensive_line_coach",
     "wide_receivers_coach",
     "defensive_line_coach",
@@ -199,6 +204,7 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "offence_coach",
     "defence_coach",
     "quarterbacks_coach",
+    "running_backs_coach",
     "offensive_line_coach",
     "wide_receivers_coach",
     "defensive_line_coach",
@@ -216,6 +222,7 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "offence_coach",
     "defence_coach",
     "quarterbacks_coach",
+    "running_backs_coach",
     "offensive_line_coach",
     "wide_receivers_coach",
     "defensive_line_coach",
@@ -838,9 +845,9 @@ describe("row 6 — a requirement sentence names the action's need, never the ac
   it("uses the club's names for the two coordinator seats", () => {
     expect(capabilityRequirement("attendance_recorder")).toBe(
       "This action requires one of these roles: Head Coach, Offensive Coordinator, " +
-        "Defensive Coordinator, Quarterbacks Coach, Offensive Line Coach, Wide Receivers " +
-        "Coach, Defensive Line Coach, Linebackers Coach, Defensive Backs Coach, Special " +
-        "Teams Coach or IT Officer.",
+        "Defensive Coordinator, Quarterbacks Coach, Running Backs Coach, Offensive Line " +
+        "Coach, Wide Receivers Coach, Defensive Line Coach, Linebackers Coach, Defensive " +
+        "Backs Coach, Special Teams Coach or IT Officer.",
     );
   });
 
@@ -1201,7 +1208,7 @@ describe("LAN-129 — the leadership tiers are data in the catalogue's file", ()
   });
 });
 
-describe("LAN-129 — the ten fixed coaching seats", () => {
+describe("LAN-129 — the fixed coaching seats (eleven since LAN-460)", () => {
   it("is the catalogue's Coaching Staff group, exactly", () => {
     expect([...FIXED_COACHING_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
   });
@@ -1219,10 +1226,10 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
     // two literal lists.
     expect([...COACH_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
     expect([...FIXED_COACHING_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
-    expect(COACH_ROLE_CODES).toHaveLength(10);
+    expect(COACH_ROLE_CODES).toHaveLength(11);
   });
 
-  it("invites the seven seats the catalogue added, which were uninvitable before", () => {
+  it("invites the seats added after the original three, which were uninvitable before", () => {
     // The whole content of Brian's answer, seat by seat. Before it, a
     // Quarterbacks Coach could take a register at a session they were never
     // invited to.
@@ -1284,7 +1291,7 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
     expect(isNarrowAttendanceRecorder([...FIXED_COACHING_ROLE_CODES], NO_GRANTS)).toBe(true);
   });
 
-  it("does not narrow one of the seven who also holds an officer seat", () => {
+  it("does not narrow one of the added coaches who also holds an officer seat", () => {
     // The rule LAN-110 wrote for the original three, checked against the seven:
     // § 3 describes what a coach receives, and is not a rule for stripping
     // authority a recorded decision granted to somebody who also coaches.
@@ -1295,7 +1302,7 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
 
   it("refuses a mutation at runtime", () => {
     expect(() => (FIXED_COACHING_ROLE_CODES as string[]).push("assistant_coach")).toThrow();
-    expect(FIXED_COACHING_ROLE_CODES).toHaveLength(10);
+    expect(FIXED_COACHING_ROLE_CODES).toHaveLength(11);
   });
 });
 

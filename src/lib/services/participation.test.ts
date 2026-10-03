@@ -36,6 +36,7 @@ import {
 } from "./participation";
 import { issueClubLinkIn, deriveClubLinkToken } from "./club-link";
 import { summariseQuestion, type OperatorParticipation } from "./participation-view";
+import { responseProgressByCapacity } from "./event-response-progress";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN157ParticipationSuite";
@@ -663,6 +664,74 @@ describe("the participation table", () => {
     const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
     expect(view.people).toHaveLength(5);
     expect(view.headline.invited).toBe(5);
+  });
+
+  // LAN-466: the General Manager and the IT Officer are tallied as Coaches.
+  it("flags an IT Officer seated on the event's date so the response blocks count them as coaches", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+
+    // The seed seats every committee member who is also on the roster, and a
+    // rostered person is invited as a player. So two seeded people the
+    // catalogue does not offer at all are seated here: one as IT Officer, one
+    // as Kit Manager. Each seat runs for the event's own day only,
+    // [scheduledOn, +1 day), so it is not effective today, no other suite's
+    // reading of current seats can see it, and the read is proved to be as at
+    // the event.
+    const before = new Set((await catalogueFor(event)).map((one) => one.personId));
+    const [seatedId, otherId] = [...seededPeople].filter((id) => !before.has(id));
+    expect(otherId).toBeDefined();
+    const stage = (personId: string, code: string) =>
+      observer.query<{ id: string }>(
+        `insert into public.role_assignments
+           (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+            committee_year_id, effective_from, effective_to, note)
+         select $1, r.id, r.scope, r.is_constitutional_office, r.is_single_holder_seat,
+                (select y.id from public.committee_years y
+                  where y.starts_on <= $3::date and (y.ends_on is null or y.ends_on > $3::date)),
+                $3::date, $3::date + 1, '${NAME_MARKER}'
+           from public.roles r where r.code = $2
+         returning id`,
+        [personId, code, event.scheduledOn],
+      );
+    const staged = [
+      (await stage(seatedId, "it_officer")).rows[0].id,
+      (await stage(otherId, "kit_manager")).rows[0].id,
+    ];
+    try {
+      const candidates = await catalogueFor(event);
+      const committee = (personId: string) =>
+        candidates.find((one) => one.personId === personId && one.capacity === "committee")!;
+      const player = candidates.find((one) => one.capacity === "player")!;
+      await saveEventAudience(actorPersonId, event.id, [
+        committee(seatedId).key,
+        committee(otherId).key,
+        player.key,
+      ]);
+      await approveEvent(actorPersonId, event.id);
+
+      const [operator, club] = await withTransaction(async (tx) => [
+        await buildOperatorParticipationIn(tx, event.id),
+        await buildClubLinkParticipationIn(tx, event.id),
+      ]);
+
+      const flags = operator.people.map((one) => [one.capacity, one.countsAsCoach]);
+      expect(flags).toHaveLength(3);
+      expect(flags.filter(([, flag]) => flag)).toEqual([["committee", true]]);
+      // Both tiers render the same blocks, so both carry the flag.
+      expect(club.people.map((one) => one.countsAsCoach)).toEqual(
+        operator.people.map((one) => one.countsAsCoach),
+      );
+
+      const blocks = responseProgressByCapacity(operator.people);
+      expect(blocks.map((block) => [block.capacity, block.invited])).toEqual([
+        ["player", 2],
+        ["coach", 1],
+      ]);
+    } finally {
+      await observer.query("delete from public.role_assignments where id = any($1::uuid[])", [
+        staged,
+      ]);
+    }
   });
 });
 

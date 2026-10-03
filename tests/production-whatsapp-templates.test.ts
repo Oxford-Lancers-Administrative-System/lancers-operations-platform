@@ -32,7 +32,7 @@ interface SubmissionRecord {
   readonly body: string;
   readonly samples: readonly { readonly slot: string; readonly meaning: string }[];
   readonly buttons: readonly { readonly label: string; readonly url: string }[];
-  readonly replaces: string;
+  readonly replaces?: string;
 }
 
 const PRODUCTION_HOST = "https://app.oxfordlancers.com";
@@ -95,8 +95,13 @@ describe("the checked-in production submission records", () => {
   }
 
   it("names a distinct Marketing original for each row, all of them retired", () => {
-    const replaced = records.map((record) => record.replaces);
-    expect(new Set(replaced).size).toBe(records.length);
+    // A `_v1` born Utility (LAN-367's question change, LAN-464's recruit
+    // reminder) has no Marketing original, so it names none.
+    const replacing = records.filter((record) => record.replaces !== undefined);
+    const replaced = replacing.map((record) => record.replaces);
+    expect(new Set(replaced).size).toBe(replacing.length);
+    for (const record of records.filter((r) => r.replaces === undefined))
+      expect(record.name.endsWith("_v1"), record.name).toBe(true);
     // A `_v2` name that still matched its own predecessor would mean the club
     // never moved off the Marketing template at all.
     for (const record of records) expect(record.name).not.toBe(record.replaces);

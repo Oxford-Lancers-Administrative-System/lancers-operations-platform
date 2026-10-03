@@ -28,7 +28,10 @@
  * LAN-433 adds lights-out through {@link lightsOutAdmitsSql}, which every reader
  * appends with its own parameter. Its one import is the pure lights-out module.
  */
-import { LIGHTS_OUT_EXEMPT_JOB_TYPES } from "./messaging-schedule/lights-out";
+import {
+  LIGHTS_OUT_EXEMPT_JOB_TYPES,
+  LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES,
+} from "./messaging-schedule/lights-out";
 
 export const DUE_JOB_PREDICATE = `held_at is null
           -- LAN-394. Two cheap exclusions, before the limit rather than after
@@ -89,6 +92,17 @@ export const DUE_JOB_PREDICATE = `held_at is null
             or (job_type = 'other' and idempotency_key like 'onboarding-chase:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-nudge:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
+            -- LAN-465. The attendance-sheet email, an hour before an approved
+            -- event. It carries its event, so it is deliberately NOT in the
+            -- exemption list below: a cancelled or started event's sheet is
+            -- never due.
+            or (job_type = 'other' and idempotency_key like 'attendance-sheet:%')
+            -- LAN-459. The operator details request, one WhatsApp message to an
+            -- operator the club has only a phone number for.
+            or (job_type = 'other' and idempotency_key like 'operator-details:%')
+            -- LAN-464. The recruit event reminder. It carries its event, so it
+            -- takes the approved-and-future check below like the sheet does.
+            or (job_type = 'other' and idempotency_key like 'recruit-event-reminder:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
@@ -160,6 +174,8 @@ export const DUE_JOB_PREDICATE = `held_at is null
             or (job_type = 'other' and idempotency_key like 'onboarding-chase:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-nudge:%')
             or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
+            -- LAN-459. The operator details request carries no event either.
+            or (job_type = 'other' and idempotency_key like 'operator-details:%')
             or exists (
               select 1
                 from public.events e
@@ -178,14 +194,28 @@ export const DUE_JOB_PREDICATE = `held_at is null
 const EXEMPT_JOB_TYPES_SQL = LIGHTS_OUT_EXEMPT_JOB_TYPES.map((type) => `'${type}'`).join(", ");
 
 /**
+ * Whether a row is exempt from lights-out, as SQL: an exempt job type, or an
+ * `other` row whose key prefix names an exempt kind (LAN-465, the attendance
+ * sheet). The prefixes are constants in `lights-out.ts`, never input; `_` and
+ * `%` are escaped all the same so a prefix only ever matches itself.
+ */
+const EXEMPT_JOB_SQL = [
+  `job_type::text in (${EXEMPT_JOB_TYPES_SQL})`,
+  ...LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES.map(
+    (prefix) =>
+      `(job_type = 'other' and idempotency_key like '${prefix.replace(/[\\_%]/g, "\\$&")}%')`,
+  ),
+].join(" or ");
+
+/**
  * LAN-433. Lights-out's share of "due", for every reader of
- * {@link DUE_JOB_PREDICATE}: while the window is on, only the three exempt
- * notices are due. `param` is the caller's own boolean placeholder, bound to
- * `isLightsOut(lightsOutNow())` — decided in the application, not by the
- * database's clock, so a test can pin the hour.
+ * {@link DUE_JOB_PREDICATE}: while the window is on, only the exempt notices
+ * and the attendance sheet email are due. `param` is the caller's own boolean
+ * placeholder, bound to `isLightsOut(lightsOutNow())` — decided in the
+ * application, not by the database's clock, so a test can pin the hour.
  */
 export function lightsOutAdmitsSql(param: string): string {
-  return `(not ${param}::boolean or job_type::text in (${EXEMPT_JOB_TYPES_SQL}))`;
+  return `(not ${param}::boolean or ${EXEMPT_JOB_SQL})`;
 }
 
 /**
@@ -196,6 +226,6 @@ export function lightsOutAdmitsSql(param: string): string {
  */
 export function sendableSinceSql(param: string): string {
   const due = "coalesce(next_attempt_at, scheduled_for, created_at)";
-  return `case when job_type::text in (${EXEMPT_JOB_TYPES_SQL}) then ${due}
+  return `case when ${EXEMPT_JOB_SQL} then ${due}
                else greatest(${due}, ${param}::timestamptz) end`;
 }

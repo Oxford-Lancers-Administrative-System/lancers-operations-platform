@@ -14,6 +14,7 @@ export interface FrozenRecruitLadder {
   readonly invitationAt: Date;
   readonly dispatchesImmediately: boolean;
   readonly followUpAt: Date | null;
+  readonly reminderAt: Date | null; // LAN-464
 }
 
 export interface FrozenMessagingPlan {
@@ -52,8 +53,10 @@ export async function freezeMessagingPlanIn(
         dispatches_immediately, late_approval,
         whatsapp_reminders_scheduled, email_reminders_scheduled, frozen_by_person_id,
         recruit_invitation_lead_days, recruit_follow_up_cadence_hours,
-        recruit_invitation_at, recruit_dispatches_immediately, recruit_follow_up_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        recruit_invitation_at, recruit_dispatches_immediately, recruit_follow_up_at,
+        recruit_event_reminder_hours, recruit_event_reminder_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+             $21, $22)
      on conflict (event_id) do update
         set rsvp_by_days = excluded.rsvp_by_days,
             invitation_lead_days = excluded.invitation_lead_days,
@@ -72,7 +75,9 @@ export async function freezeMessagingPlanIn(
             recruit_follow_up_cadence_hours = excluded.recruit_follow_up_cadence_hours,
             recruit_invitation_at = excluded.recruit_invitation_at,
             recruit_dispatches_immediately = excluded.recruit_dispatches_immediately,
-            recruit_follow_up_at = excluded.recruit_follow_up_at`,
+            recruit_follow_up_at = excluded.recruit_follow_up_at,
+            recruit_event_reminder_hours = excluded.recruit_event_reminder_hours,
+            recruit_event_reminder_at = excluded.recruit_event_reminder_at`,
     [
       eventId,
       plan.schedule.rsvpByDays,
@@ -94,6 +99,8 @@ export async function freezeMessagingPlanIn(
       plan.recruitLadder?.invitationAt ?? null,
       plan.recruitLadder?.dispatchesImmediately ?? null,
       plan.recruitLadder?.followUpAt ?? null,
+      plan.recruitLadder ? (plan.schedule.recruitEventReminderHours ?? 0) : null,
+      plan.recruitLadder?.reminderAt ?? null,
     ],
   );
 }
@@ -123,6 +130,8 @@ async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagin
     recruit_invitation_at: Date | null;
     recruit_dispatches_immediately: boolean | null;
     recruit_follow_up_at: Date | null;
+    recruit_event_reminder_hours: number | null;
+    recruit_event_reminder_at: Date | null;
   }>(
     // Frozen numbers are the plan's own copies; the template's name is joined live and
     // deliberately — a rename is retroactive by decision (LAN-265).
@@ -133,7 +142,8 @@ async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagin
             p.dispatches_immediately, p.late_approval,
             p.whatsapp_reminders_scheduled, p.email_reminders_scheduled, p.frozen_at,
             p.recruit_invitation_lead_days, p.recruit_follow_up_cadence_hours,
-            p.recruit_invitation_at, p.recruit_dispatches_immediately, p.recruit_follow_up_at
+            p.recruit_invitation_at, p.recruit_dispatches_immediately, p.recruit_follow_up_at,
+            p.recruit_event_reminder_hours, p.recruit_event_reminder_at
        from public.event_messaging_plans p
        join public.events e on e.id = p.event_id
        join public.event_templates t on t.id = e.template_id
@@ -158,6 +168,7 @@ async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagin
       escalationHours: row.escalation_hours,
       recruitInvitationLeadDays: row.recruit_invitation_lead_days,
       recruitFollowUpCadenceHours: row.recruit_follow_up_cadence_hours,
+      recruitEventReminderHours: row.recruit_event_reminder_hours,
       updatedAt: row.frozen_at,
     },
     responseDeadlineAt: row.response_deadline_at,
@@ -174,6 +185,7 @@ async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagin
             invitationAt: row.recruit_invitation_at,
             dispatchesImmediately: row.recruit_dispatches_immediately ?? false,
             followUpAt: row.recruit_follow_up_at,
+            reminderAt: row.recruit_event_reminder_at,
           }
         : null,
   };

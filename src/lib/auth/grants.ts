@@ -62,9 +62,9 @@
  * - `special_teams` — Special teams.
  * - `warmup` — Warmup.
  * - `kit` — Kit.
- * - `attendance` — Attendance: the player record's Attendance section, and
- *   nothing else (LAN-423 round 6). At most `view`. No board columns; event
- *   attendance recording keeps its own capabilities.
+ * - `attendance` — Attendance: the player record's Attendance section and,
+ *   since LAN-457, the board's Attendance group (LAN-423 round 6). At most
+ *   `view`. Event attendance recording keeps its own capabilities.
  */
 export const ROSTER_CATEGORIES = Object.freeze([
   "person",
@@ -83,7 +83,7 @@ export const ROSTER_CATEGORIES = Object.freeze([
 
 export type RosterCategory = (typeof ROSTER_CATEGORIES)[number];
 
-/** The roster categories that are not a board group: no colour, no board columns. */
+/** The roster categories without a club colour. Attendance keeps its code colour, on the record and on the board (LAN-457). */
 type NonGroupCategory = "contact_emergency" | "attendance";
 
 /**

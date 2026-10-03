@@ -24,6 +24,11 @@ vi.mock("@/lib/services/player-answer-tokens", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/player-answer-tokens")>();
   return { ...actual, resolvePersonTokenIn: vi.fn() };
 });
+// LAN-459: the operator details form behind an `operator_details` link.
+vi.mock("@/lib/services/operator-details", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/operator-details")>();
+  return { ...actual, readOperatorDetailsViewIn: vi.fn() };
+});
 vi.mock("@/lib/services/player-questionnaire", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/player-questionnaire")>();
   return { ...actual, readQuestionnaireViewIn: vi.fn() };
@@ -37,6 +42,7 @@ import {
   UNIFORM_TERMINAL_RESPONSE_MS,
 } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { readOperatorDetailsViewIn } from "@/lib/services/operator-details";
 import {
   readQuestionnaireViewIn,
   STEP_ORDER,
@@ -248,6 +254,67 @@ describe("acceptance 1 — resolving the token", () => {
     givenValid();
     const { container } = await renderPage();
     expect(container.textContent).toContain(DETAILS_HEADING);
+  });
+});
+
+describe("LAN-459 — an operator_details link opens the operator details form", () => {
+  function givenOperatorLink() {
+    vi.mocked(resolvePersonTokenIn).mockImplementation(async (_tx, _token, purpose) =>
+      purpose === "operator_details"
+        ? { state: "valid", resolved: { personId: PERSON_ID, seasonId: SEASON_ID } }
+        : { state: "unknown", resolved: null },
+    );
+    // R470-01/02: the link is live only while the person has no account and
+    // holds a seat; `resolveOperatorDetailsLinkIn` asks both.
+    vi.mocked(withTransaction).mockImplementation(async (work: (tx: never) => unknown) =>
+      work({
+        query: vi.fn(async (sql: string) => ({
+          rows: sql.includes("role_assignments") ? [{ "?column?": 1 }] : [],
+        })),
+      } as never),
+    );
+    vi.mocked(readOperatorDetailsViewIn).mockResolvedValue({
+      personId: PERSON_ID,
+      missing: ["personal_email"],
+      fields: [
+        "givenName",
+        "middleName",
+        "familyName",
+        "knownAs",
+        "mobile",
+        "personalEmail",
+        "dateOfBirth",
+      ],
+      values: {
+        givenName: "Ansel",
+        middleName: "",
+        familyName: "Wexcombe",
+        knownAs: "",
+        mobile: "+447700900123",
+        personalEmail: "",
+        dateOfBirth: "",
+      },
+    });
+  }
+
+  it("renders the operator form, prefilled, and none of the questionnaire", async () => {
+    givenOperatorLink();
+    const { container, getByTestId, getByRole, queryByRole } = await renderPage();
+
+    expect(getByTestId("operator-details-form")).toBeInTheDocument();
+    expect((container.querySelector('input[name="givenName"]') as HTMLInputElement).value).toBe(
+      "Ansel",
+    );
+    expect(container.textContent).not.toContain(DETAILS_HEADING);
+    expect(getByRole("button", { name: "Save" })).toBeVisible();
+    expect(queryByRole("button", { name: /not now/i })).toBeNull();
+  });
+
+  it("asks the onboarding purpose first, so a player's link never reaches the operator form", async () => {
+    givenValid();
+    const { queryByTestId } = await renderPage();
+    expect(queryByTestId("operator-details-form")).toBeNull();
+    expect(readOperatorDetailsViewIn).not.toHaveBeenCalled();
   });
 });
 

@@ -494,6 +494,17 @@ describe("colour is a template's own fact, not a guess from its class (Brian, 20
     expect(listed.find((template) => template.id === created.id)?.colourKey).toBe("indigo");
   });
 
+  it("stores regular Blue as its own colour, apart from Oxford Blue — LAN-474", async () => {
+    const created = await createEventTemplate(
+      actorPersonId,
+      templateInput({ name: `${NAME_MARKER} Blue Session`, colourKey: "royal_blue" }),
+      [],
+    );
+    expect(created.colourKey).toBe("royal_blue");
+    expect((await readEventTemplate(created.id)).colourKey).toBe("royal_blue");
+    expect((await readEventTemplate(TEMPLATE.practice)).colourKey).toBe("blue");
+  });
+
   it("does not colour a new template by its class — two templates that both get `practice` may differ", async () => {
     const first = await createEventTemplate(
       actorPersonId,

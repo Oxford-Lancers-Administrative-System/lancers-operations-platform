@@ -33,7 +33,7 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../../login/actions", () => ({ signOut: vi.fn() }));
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { ADMINISTRATION_GUIDE, GUIDE_SUBTITLE, GUIDE_TITLE } from "./content";
+import { ADMINISTRATION_GUIDE, COMPLIANCE_SECTION, GUIDE_SUBTITLE, GUIDE_TITLE } from "./content";
 import GuideFaq from "./guide-faq";
 import AdministrationGuidePage from "./page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
@@ -168,5 +168,39 @@ describe("the FAQ", () => {
       expect(disclosure.querySelector(`#${entry.id}-answer`)).not.toBeNull();
       expect(disclosure.querySelector("summary")).toHaveTextContent(entry.question);
     }
+  });
+});
+
+// LAN-467: one section, at the foot of the page, the same disclosure as every entry above it.
+describe("Compliance and user protections", () => {
+  it("is the last section on the page, collapsed, with every statement in the markup", async () => {
+    resolve.mockResolvedValue({ state: "active", operator: operator(["general_manager"]) });
+
+    const { container } = await renderPage();
+
+    const sections = [...container.querySelectorAll("details")];
+    expect(sections.at(-1)).toBe(screen.getByTestId("section-compliance"));
+    expect(sections).toHaveLength(ADMINISTRATION_GUIDE.length + 1);
+
+    const section = screen.getByTestId("section-compliance");
+    expect(section).not.toHaveAttribute("open");
+    expect(
+      screen.getByRole("heading", { level: 2, name: COMPLIANCE_SECTION.question }),
+    ).toBeVisible();
+    expect(section.querySelector("summary")).toHaveTextContent("Compliance and user protections");
+    for (const label of ["Personal data", "Messages", "People's time", "Access and security"]) {
+      expect(section.textContent).toContain(label);
+    }
+    expect(section.textContent).toContain("between 22:00 and 07:00 UK time");
+    expect(section.textContent).toContain("row-level security");
+  });
+
+  it("is not shown to a seat the guide refuses", async () => {
+    resolve.mockResolvedValue({ state: "active", operator: operator(["head_coach"]) });
+
+    const { container } = await renderPage();
+
+    expect(screen.queryByTestId("section-compliance")).toBeNull();
+    expect(container.textContent).not.toContain("row-level security");
   });
 });

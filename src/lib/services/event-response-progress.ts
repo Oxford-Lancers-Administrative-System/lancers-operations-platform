@@ -25,6 +25,7 @@
  * `participation-view.ts`, which both the operator page and the public Event
  * info link page already read.
  */
+import { COACH_COUNTED_COMMITTEE_ROLE_CODES } from "@/lib/auth/capabilities";
 
 /** The four capacities an invitation can carry, as `public.invitation_capacity` spells them. */
 type ResponseCapacity = "recruit" | "coach" | "player" | "committee";
@@ -63,12 +64,25 @@ const RESPONSE_CAPACITY_LABELS: Readonly<Record<DisplayCapacity, string>> = Obje
 });
 
 /**
+ * The committee seats whose holder is tallied as a coach — LAN-466 (Stu's
+ * call, 2 October 2026; confirmed by Brian the same day). The codes live in
+ * the capability map, the one module that may name a seat.
+ */
+export const COACH_COUNTED_SEAT_CODES: readonly string[] = COACH_COUNTED_COMMITTEE_ROLE_CODES;
+
+/**
  * LAN-440 (Brian, 2026-09-26): a committee-only invitee is tallied as a
  * player. Display only — the stored capacity, the audience builder, the
  * invitation and Distribution all still say committee.
+ *
+ * LAN-466 amends it: a committee-only invitee who holds the General Manager or
+ * IT Officer seat on the event's date is tallied as a coach, whatever other
+ * seat they also hold. Still display only. Someone invited as a player never
+ * reaches this fold — their capacity is already `player`.
  */
-function displayCapacityOf(capacity: ResponseCapacity): DisplayCapacity {
-  return capacity === "committee" ? "player" : capacity;
+function displayCapacityOf(capacity: ResponseCapacity, row: ResponseProgressRow): DisplayCapacity {
+  if (capacity !== "committee") return capacity;
+  return row.countsAsCoach === true ? "coach" : "player";
 }
 
 /**
@@ -102,6 +116,8 @@ export interface ResponseProgressRow {
   readonly answer: "yes" | "no" | null;
   /** Every capacity this person was invited under, where a caller knows more than one. */
   readonly capacities?: readonly string[];
+  /** LAN-466: holds a seat in `COACH_COUNTED_SEAT_CODES` on the event's date. */
+  readonly countsAsCoach?: boolean;
 }
 
 function isResponseCapacity(value: string): value is ResponseCapacity {
@@ -139,7 +155,7 @@ export function responseProgressByCapacity(
   for (const row of rows) {
     const counted = countingCapacityOf(row);
     if (counted === null) continue;
-    const capacity = displayCapacityOf(counted);
+    const capacity = displayCapacityOf(counted, row);
     const held = tally.get(capacity) ?? { invited: 0, yes: 0, no: 0 };
     held.invited += 1;
     if (row.answer === "yes") held.yes += 1;

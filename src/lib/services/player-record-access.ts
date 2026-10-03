@@ -32,7 +32,7 @@ import type { PlayerRecordData } from "./player-record";
  * | the twenty-four special-teams cells                                    | Special teams|
  * | the warmup small group                                                 | Warmup       |
  * | the eleven kit items and formalwear                                    | Kit          |
- * | attendance (the record's section; not the event surface)               | Attendance   |
+ * | attendance and its score (the record's section; not the event surface) | Attendance   |
  *
  * The name always travels: it stays at the top of a record whatever the seat
  * holds. `closed` travels too — a departed or archived membership takes no
@@ -75,7 +75,9 @@ export type VisiblePlayerRecord = Pick<
   PlayerRecordData,
   "membershipId" | "personId" | "seasonId" | "seasonLabel"
 > &
-  Partial<Pick<PlayerRecordData, MembershipKeys | OnboardingKeys | "attendance">> & {
+  Partial<
+    Pick<PlayerRecordData, MembershipKeys | OnboardingKeys | "attendance" | "attendanceScore">
+  > & {
     season: Partial<SeasonFacts>;
     positionOptions: PlayerRecordData["positionOptions"];
     /** The name at the top of the record. */
@@ -165,7 +167,10 @@ export function redactPlayerRecord(
   }
 
   // LAN-423 round 6: the attendance rows travel only to a seat that may view them.
-  if (open("attendance")) visible.attendance = data.attendance;
+  if (open("attendance")) {
+    visible.attendance = data.attendance;
+    visible.attendanceScore = data.attendanceScore;
+  }
 
   if (open("onboarding")) {
     visible.onboardingItems = data.onboardingItems;

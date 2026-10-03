@@ -38,6 +38,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  attendanceSheetUrl,
   eventQuestionsUrl,
   onboardingUrl,
   playerAnswerUrl,
@@ -47,8 +48,8 @@ import {
   signupUrl,
   stopMessagesUrl,
 } from "@/lib/delivery/config";
-import type { MessageKind, OutboundMessage } from "@/lib/delivery/provider";
-import { MESSAGE_KINDS, MESSAGE_TEMPLATES } from "@/lib/delivery/templates";
+import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "@/lib/delivery/provider";
+import { EMAIL_ONLY_KINDS, MESSAGE_KINDS, templateFor } from "@/lib/delivery/templates";
 
 const REPO = path.resolve(import.meta.dirname, "..");
 const APP = path.join(REPO, "src", "app");
@@ -86,21 +87,23 @@ const MESSAGE: OutboundMessage = {
   queueUrl: `${BASE}/operate/admin/follow-ups`,
   // LAN-367: which question changed, named by the re-ask.
   questionSummary: "Do you need a lift to this one?",
+  // LAN-465: the attendance sheet, behind the operator login.
+  attendanceUrl: attendanceSheetUrl(BASE, "11111111-1111-4111-8111-111111111111"),
 };
 
 /** The other three `formUrl` destinations, by the kinds that carry them. */
-const FORM_URL_BY_KIND: Partial<Record<MessageKind, string>> = {
+const FORM_URL_BY_KIND: Partial<Record<MessageKind | EmailOnlyMessageKind, string>> = {
   recruit_welcome: signupUrl(BASE, TOKEN),
   recruit_details_reminder: signupUrl(BASE, TOKEN),
   recruit_interest_ask: recruitBackgroundUrl(BASE, TOKEN),
   recruit_interest_reminder: recruitBackgroundUrl(BASE, TOKEN),
 };
 
-const QUEUE_URL_BY_KIND: Partial<Record<MessageKind, string>> = {
+const QUEUE_URL_BY_KIND: Partial<Record<MessageKind | EmailOnlyMessageKind, string>> = {
   onboarding_chase_escalation: `${BASE}/operate/people/missing`,
 };
 
-function messageFor(kind: MessageKind): OutboundMessage {
+function messageFor(kind: MessageKind | EmailOnlyMessageKind): OutboundMessage {
   return {
     ...MESSAGE,
     kind,
@@ -110,9 +113,9 @@ function messageFor(kind: MessageKind): OutboundMessage {
 }
 
 /** Every absolute URL on this deployment that a rendered message carries. */
-function urlsIn(kind: MessageKind): string[] {
-  const template = MESSAGE_TEMPLATES[kind];
+function urlsIn(kind: MessageKind | EmailOnlyMessageKind): string[] {
   const message = messageFor(kind);
+  const template = templateFor(message);
   const text = [
     ...template.parameters(message),
     template.subject(message),
@@ -189,13 +192,30 @@ describe("every path a message mints", () => {
     }
   });
 
+  it.each(EMAIL_ONLY_KINDS)("%s links only at routes the application serves", (kind) => {
+    const urls = urlsIn(kind);
+    expect(urls.length, `${kind} carries no link`).toBeGreaterThan(0);
+    for (const url of urls) {
+      const { pathname } = new URL(url);
+      expect(serves(pathname), `${kind} links at ${pathname}, which no route serves`).toBe(true);
+    }
+  });
+
+  it("sends the attendance sheet to the event's attendance page (LAN-465)", () => {
+    expect(urlsIn("attendance_sheet").map((url) => new URL(url).pathname)).toEqual([
+      "/operate/events/11111111-1111-4111-8111-111111111111/attendance",
+    ]);
+  });
+
   it("leaves no kind unchecked, and no kind with nothing to check but the escalations", () => {
     // A template that carries no link at all is a template a reader can do
     // nothing with. The two escalations and the cancellation are the deliberate
     // exceptions: the cancellation offers no control because there is nothing
-    // left to answer, and the escalations carry the operator queue only.
+    // left to answer, and the escalations carry the operator queue only. The
+    // recruit event reminder (LAN-464) goes to a recruit who has already said
+    // Yes: it states what, when and where, and there is nothing to answer.
     const withoutLinks = MESSAGE_KINDS.filter((kind) => urlsIn(kind).length === 0);
-    expect(withoutLinks).toEqual(["cancellation"]);
+    expect(withoutLinks).toEqual(["cancellation", "recruit_event_reminder"]);
   });
 
   it("sends each message to its own approved base — the LAN-343 table, verbatim", () => {

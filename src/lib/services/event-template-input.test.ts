@@ -12,9 +12,12 @@ import {
   MAX_TEMPLATE_DURATION_MINUTES,
   MIN_TEMPLATE_DURATION_MINUTES,
   TEMPLATE_COLOUR_KEYS,
+  TEMPLATE_COLOUR_PALETTE,
+  templateColourFor,
   validateEventTemplate,
   type RawEventTemplate,
 } from "./event-template-input";
+import { CLUB } from "@/theme-tokens";
 
 function template(overrides: Partial<RawEventTemplate> = {}): RawEventTemplate {
   return {
@@ -101,6 +104,72 @@ describe("colour is chosen from a fixed palette, and required (Brian, 2026-09-10
       if (outcome.ok) throw new Error("expected a refusal");
       expect(outcome.issues.map((issue) => issue.field)).toContain("colourKey");
     }
+  });
+});
+
+/** Hue in degrees and HSL saturation, 0–1, of a `#rrggbb` value. */
+function hueAndSaturation(hex: string): { hue: number; saturation: number } {
+  const [red, green, blue] = [1, 3, 5].map(
+    (offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255,
+  );
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === red) hue = ((green - blue) / delta) % 6;
+    else if (max === green) hue = (blue - red) / delta + 2;
+    else hue = (red - green) / delta + 4;
+    hue = (hue * 60 + 360) % 360;
+  }
+  return { hue, saturation };
+}
+
+function hueDistance(a: number, b: number): number {
+  const apart = Math.abs(a - b) % 360;
+  return apart > 180 ? 360 - apart : apart;
+}
+
+describe("Oxford Blue renders blue, not gray — LAN-473", () => {
+  it("pins the canonical Oxford Blue swatch every event and roster surface reads", () => {
+    const oxford = templateColourFor("blue");
+    expect(oxford.label).toBe("Oxford Blue");
+    expect(oxford.accent).toBe(CLUB.oxfordBlue);
+    expect(oxford.tint).toBe("#d9e5f5");
+    expect(TEMPLATE_COLOUR_PALETTE[0]).toBe(oxford);
+  });
+
+  it("gives every saturated accent a tint that reads as its own hue", () => {
+    // A calendar tile is almost all tint, with a 3px accent edge: a tint washed
+    // to gray makes the event look gray whatever its accent. LAN-429's
+    // `#e6e9ee` was 19% saturated, beside Slate's 15%.
+    for (const swatch of TEMPLATE_COLOUR_PALETTE) {
+      const accent = hueAndSaturation(swatch.accent);
+      if (accent.saturation < 0.5) continue; // Slate and Brown are muted on purpose
+      const tint = hueAndSaturation(swatch.tint);
+      expect(tint.saturation, `${swatch.key} tint is gray`).toBeGreaterThanOrEqual(0.3);
+      expect(hueDistance(tint.hue, accent.hue), `${swatch.key} tint hue`).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it("offers regular Blue as its own swatch beside Oxford Blue — LAN-474", () => {
+    const blue = templateColourFor("royal_blue");
+    expect(blue.key).toBe("royal_blue");
+    expect(blue.label).toBe("Blue");
+    expect(blue.accent).toBe("#1565c0");
+    expect(blue.tint).toBe("#e8f1fb");
+    expect(TEMPLATE_COLOUR_PALETTE.map((swatch) => swatch.label)).toEqual(
+      expect.arrayContaining(["Oxford Blue", "Blue"]),
+    );
+    expect(templateColourFor("blue").label).toBe("Oxford Blue");
+  });
+
+  it("keeps Oxford Blue's tint apart from Slate's", () => {
+    const oxford = hueAndSaturation(templateColourFor("blue").tint);
+    const slate = hueAndSaturation(templateColourFor("slate").tint);
+    expect(oxford.saturation - slate.saturation).toBeGreaterThanOrEqual(0.3);
   });
 });
 

@@ -384,6 +384,17 @@ function SeatAccountCase({ candidate }: { candidate: CandidateChoice }) {
   }
 
   const recorded = usableRecordedEmail(candidate.email);
+  // LAN-459: no email but a mobile — seated with no account, and sent the
+  // WhatsApp details request; an email typed here still invites by email.
+  if (!recorded && candidate.phone) {
+    return (
+      <Stack spacing={2} data-testid="seat-account-case" data-case="details-request">
+        <Fact label="Operator account" value="Created when they send their details" />
+        <Fact label="Details request by WhatsApp to" value={candidate.phone} />
+        <Field name="loginEmail" type="email" label="Login email (optional)" />
+      </Stack>
+    );
+  }
   return (
     <Stack
       spacing={2}

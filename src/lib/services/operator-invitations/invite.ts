@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import type { AdministrationSubject } from "@/lib/auth/administration-authority";
 import { looksLikeEmailAddress } from "@/lib/auth/recovery";
-import { ConstraintViolated, withTransaction } from "@/lib/db";
+import type { ResolvedOperator } from "@/lib/auth/operator";
+import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
+import type { AdministrationOperatingYear } from "../administration-events";
 import { recordAdministrationEvent } from "../administration-audit";
 import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { findCurrentSeasonIn } from "../seasons";
@@ -122,54 +124,15 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
         },
       });
 
-      const roleAssignmentIds: string[] = [];
-      for (const entry of preflight.roles) {
-        const cycle = await resolveCycleFor(tx, entry.role.scope, preflight.operatingYear);
-        const assignmentId = await insertRoleAssignmentIn(tx, {
-          personId,
-          entry,
-          cycle,
-          appointedByPersonId: requireOperator(params.operator).personId,
-        });
-
-        await recordAdministrationEvent(tx, {
-          action: "administration.role.assigned",
-          actorPersonId: requireOperator(params.operator).personId,
-          authority: administrationAuthority(params.operator),
-          target: { personId, operatorAccountId },
-          role: { id: entry.role.id, code: entry.role.code, assignmentId },
-          operatingYear: cycle.operatingYear,
-          toState: entry.scheduled ? "scheduled" : "effective",
-          reason: entry.reason,
-          backdated: entry.backdated,
-          correlationId,
-        });
-
-        roleAssignmentIds.push(assignmentId);
-      }
-
-      // LAN-392, Brian's decision 9: a coaching or committee seat is a derived
-      // audience group, so seating somebody adds them to every approved future
-      // event that chose that group, and a seat that ends takes back an unsent
-      // rule-add. The season is the club's current one: a club-scoped committee
-      // seat has no season of its own, and the rule only ever acts on events in
-      // the season the club is operating.
-      // The season is read defensively and the rule skipped where the club has
-      // none in an operating status. `readCurrentSeasonIn` refuses with "no
-      // current season", and a committee seat is a club-scoped year rather than a
-      // season's — so seating an officer during a gap between seasons must not
-      // fail because of a rule about event audiences. The rule's own invariant is
-      // that it never aborts the write that triggered it; that holds for the
-      // season lookup too.
-      const currentSeason = await findCurrentSeasonIn(tx);
-      if (currentSeason !== null) {
-        await applyAudienceGroupRuleIn(tx, {
-          personId,
-          seasonId: currentSeason.id,
-          trigger: "operator_invited",
-          actorPersonId: requireOperator(params.operator).personId,
-        });
-      }
+      const roleAssignmentIds = await writeInitialRolesIn(tx, {
+        operator: params.operator,
+        personId,
+        operatorAccountId,
+        roles: preflight.roles,
+        operatingYear: preflight.operatingYear,
+        correlationId,
+        trigger: "operator_invited",
+      });
 
       return { personId, operatorAccountId, personCreated, roleAssignmentIds };
     });
@@ -204,4 +167,74 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
     delivered: delivery.ok,
     deliveryFailureReason: delivery.ok ? null : delivery.reason,
   };
+}
+
+/**
+ * Every initial role's assignment and `administration.role.assigned` event,
+ * then the audience rule — the part of an invitation LAN-459's phone-only
+ * invitation shares (`operator-details/invite-by-phone.ts`), where there is
+ * no account yet and `operatorAccountId` is `null`.
+ */
+export async function writeInitialRolesIn(
+  tx: Tx,
+  input: {
+    readonly operator: ResolvedOperator | null;
+    readonly personId: string;
+    readonly operatorAccountId: string | null;
+    readonly roles: readonly ResolvedRole[];
+    readonly operatingYear: AdministrationOperatingYear;
+    readonly correlationId: string;
+    readonly trigger: "operator_invited";
+  },
+): Promise<string[]> {
+  const roleAssignmentIds: string[] = [];
+  for (const entry of input.roles) {
+    const cycle = await resolveCycleFor(tx, entry.role.scope, input.operatingYear);
+    const assignmentId = await insertRoleAssignmentIn(tx, {
+      personId: input.personId,
+      entry,
+      cycle,
+      appointedByPersonId: requireOperator(input.operator).personId,
+    });
+
+    await recordAdministrationEvent(tx, {
+      action: "administration.role.assigned",
+      actorPersonId: requireOperator(input.operator).personId,
+      authority: administrationAuthority(input.operator),
+      target: { personId: input.personId, operatorAccountId: input.operatorAccountId },
+      role: { id: entry.role.id, code: entry.role.code, assignmentId },
+      operatingYear: cycle.operatingYear,
+      toState: entry.scheduled ? "scheduled" : "effective",
+      reason: entry.reason,
+      backdated: entry.backdated,
+      correlationId: input.correlationId,
+    });
+
+    roleAssignmentIds.push(assignmentId);
+  }
+
+  // LAN-392, Brian's decision 9: a coaching or committee seat is a derived
+  // audience group, so seating somebody adds them to every approved future
+  // event that chose that group, and a seat that ends takes back an unsent
+  // rule-add. The season is the club's current one: a club-scoped committee
+  // seat has no season of its own, and the rule only ever acts on events in
+  // the season the club is operating.
+  // The season is read defensively and the rule skipped where the club has
+  // none in an operating status. `readCurrentSeasonIn` refuses with "no
+  // current season", and a committee seat is a club-scoped year rather than a
+  // season's — so seating an officer during a gap between seasons must not
+  // fail because of a rule about event audiences. The rule's own invariant is
+  // that it never aborts the write that triggered it; that holds for the
+  // season lookup too.
+  const currentSeason = await findCurrentSeasonIn(tx);
+  if (currentSeason !== null) {
+    await applyAudienceGroupRuleIn(tx, {
+      personId: input.personId,
+      seasonId: currentSeason.id,
+      trigger: input.trigger,
+      actorPersonId: requireOperator(input.operator).personId,
+    });
+  }
+
+  return roleAssignmentIds;
 }

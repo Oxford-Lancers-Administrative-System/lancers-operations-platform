@@ -21,11 +21,13 @@ import {
 } from "../event-questions";
 import {
   deriveTermCoordinate,
+  isGameTemplate,
   OPERATOR_CREATED_ORIGIN,
   trimmed,
   UUID_PATTERN,
   type EventDraftInput,
   type EventStatus,
+  type HomeAway,
   type TermWindow,
 } from "../event-input";
 import {
@@ -62,10 +64,10 @@ export async function createEventDraft(
       `insert into public.events
          (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
           ends_at, delivery_mode, venue, description, required_equipment, joining_url,
-          term_id, week_number, is_mandatory, owner_person_id)
+          term_id, week_number, is_mandatory, owner_person_id, home_away)
        values ($1, $2, $3::uuid, $4::public.event_type, $5::public.event_origin, 'draft',
                $6, $7::time, $8::time, $9::public.event_delivery_mode, $10, $11, $12, $13,
-               $14, $15, $16, $17)
+               $14, $15, $16, $17, $18::public.home_away)
        returning id`,
       [
         season.id,
@@ -85,6 +87,7 @@ export async function createEventDraft(
         term.weekNumber,
         input.isMandatory,
         actorPersonId,
+        homeAwayFor(input.templateId, input.homeAway, null),
       ],
     );
 
@@ -114,6 +117,7 @@ export async function createEventDraft(
         eventType: inherited.eventType,
         deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
+        homeAway: homeAwayFor(input.templateId, input.homeAway, null),
         origin: OPERATOR_CREATED_ORIGIN,
         weekNumber: term.weekNumber,
         questionCount: (questions ?? inherited.questions).length,
@@ -207,6 +211,8 @@ export async function updateEventDraft(
     // caller, so the row can never claim a class its template does not have.
     const inherited = await readTemplateInheritanceIn(tx, input.templateId);
     const typeChanged = before.templateId !== input.templateId;
+    // LAN-475: kept when the caller says nothing about it, cleared off the Game template.
+    const homeAway = homeAwayFor(input.templateId, input.homeAway, before.homeAway);
     const classChanged = before.eventType !== inherited.eventType;
 
     // LAN-392, and the reason this runs *before* the update rather than beside
@@ -242,6 +248,7 @@ export async function updateEventDraft(
               description = $8, required_equipment = $9, joining_url = $10,
               term_id = $11, week_number = $12, is_mandatory = $13,
               template_id = $14::uuid, event_type = $15::public.event_type,
+              home_away = $16::public.home_away,
               updated_at = now()
         where id = $1 and status = 'draft'
        returning id`,
@@ -261,6 +268,7 @@ export async function updateEventDraft(
         input.isMandatory,
         input.templateId,
         inherited.eventType,
+        homeAway,
       ],
     );
 
@@ -296,6 +304,7 @@ export async function updateEventDraft(
         deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
         weekNumber: term.weekNumber,
+        ...(homeAway === before.homeAway ? {} : { homeAway, previousHomeAway: before.homeAway }),
         ...(questions === undefined ? {} : { questionCount: questions.length }),
         ...(typeChanged
           ? {
@@ -516,6 +525,20 @@ const STATE_NAMES: Readonly<Record<EventStatus, string>> = Object.freeze({
 
 function describeState(status: EventStatus): string {
   return `This event is ${STATE_NAMES[status] ?? status}.`;
+}
+
+/**
+ * LAN-475. What `events.home_away` holds after a save: null off the current Game template
+ * (`events_home_away_is_game_template_only`), the stored value when the caller said nothing about
+ * it, otherwise what it said. Unset is legal on a draft; approval is the gate.
+ */
+function homeAwayFor(
+  templateId: string,
+  submitted: HomeAway | null | undefined,
+  stored: HomeAway | null,
+): HomeAway | null {
+  if (!isGameTemplate(templateId)) return null;
+  return submitted === undefined ? stored : submitted;
 }
 
 // Read inside the caller's transaction so a create and its derived coordinate see one consistent calendar.

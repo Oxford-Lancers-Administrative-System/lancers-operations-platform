@@ -22,9 +22,25 @@ import {
   submitRemoveAlias,
   submitSetDisplayAlias,
 } from "./actions";
-import { INITIAL_ALIAS_STATE, INITIAL_EDIT_STATE, type AliasState } from "./edit-state";
+import {
+  INITIAL_ALIAS_STATE,
+  INITIAL_EDIT_STATE,
+  type AliasState,
+  type EditState,
+} from "./edit-state";
 
 const MIN_TOUCH_TARGET = 44;
+
+/** LAN-462 — the fields of the Student information section. */
+const STUDENT_FIELDS = [
+  "collegeEmail",
+  "college",
+  "matriculationYear",
+  "expectedGraduationYear",
+  "degreeField",
+  "studentNumber",
+  "bafaRegistrationNumber",
+] as const satisfies readonly (keyof EditState["errors"])[];
 
 /**
  * What the form reads — LAN-432. The page fills it only from the categories
@@ -73,21 +89,26 @@ export default function EditPersonForm({
   seasonLabel,
   mayEditPerson = true,
   mayEditContact = true,
+  showsStudentInformation = true,
 }: {
   personId: string;
   record: EditablePersonRecord;
   expectedVersion: string | null;
   seasonLabel: string;
-  /** LAN-432 — Person at `edit`: Who they are and the date of birth. */
+  /** LAN-432 — Person at `edit`: the names, the student facts and the date of birth. */
   mayEditPerson?: boolean;
-  /** LAN-432 — Contact & emergency at `edit`: How to reach them and the emergency contact. */
+  /** LAN-432 — Contact & emergency at `edit`: the mobile, both emails and the emergency contact. */
   mayEditContact?: boolean;
+  /** LAN-462 — does the record show Student information? Open on arrival when it does. */
+  showsStudentInformation?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(submitPersonEdit, INITIAL_EDIT_STATE);
   const mobile = currentContact(record, "phone", null);
   const personalEmail = currentContact(record, "email", "personal");
   const collegeEmail = currentContact(record, "email", "college");
   const ec = record.emergencyContact;
+  // A refused student field opens the section, so the error is never behind a closed disclosure.
+  const studentFieldRefused = STUDENT_FIELDS.some((field) => Boolean(state.errors[field]));
 
   return (
     <Box
@@ -140,34 +161,86 @@ export default function EditPersonForm({
           </Notice>
         ) : null}
 
-        {mayEditContact ? (
-          <Section title="How to reach them">
+        {/* LAN-462 (Brian, 2026-10-02): the form mirrors the record —
+            Personal information, then Student information, then Restricted.
+            The names are Person's and the mobile and personal email Contact &
+            emergency's (LAN-432), each drawn only for a seat that may edit it. */}
+        {mayEditPerson || mayEditContact ? (
+          <Section title="Personal information">
             <Stack spacing={2}>
-              <CorrectableField
-                name="mobile"
-                reasonName="mobileReason"
-                label="Mobile phone"
-                phone
-                original={mobile?.rawValue ?? ""}
-                error={state.errors.mobile}
-                renderExtra={(value, changed) =>
-                  changed ? (
-                    <MobilePreview
-                      value={value}
-                      original={mobile?.rawValue ?? ""}
-                      seasonLabel={seasonLabel}
-                    />
-                  ) : null
-                }
-              />
-              <CorrectableField
-                name="personalEmail"
-                reasonName="personalEmailReason"
-                label="Personal email"
-                original={personalEmail?.rawValue ?? ""}
-                error={state.errors.personalEmail}
-              />
-              {/* LAN-268: same rule as the recruitment doors and player questionnaire — refused before write, no override. */}
+              {mayEditPerson ? (
+                <>
+                  <CorrectableField
+                    name="givenName"
+                    reasonName="givenNameReason"
+                    label="First name"
+                    required
+                    original={record.givenName}
+                    error={state.errors.givenName}
+                  />
+                  {/* LAN-366: optional, beside the given and family name. */}
+                  <CorrectableField
+                    name="middleName"
+                    reasonName="middleNameReason"
+                    label="Middle name"
+                    original={record.middleName ?? ""}
+                    error={state.errors.middleName}
+                  />
+                  <CorrectableField
+                    name="familyName"
+                    reasonName="familyNameReason"
+                    label="Last name"
+                    original={record.familyName ?? ""}
+                    error={state.errors.familyName}
+                  />
+                  <AliasesEditor personId={personId} record={record} />
+                </>
+              ) : null}
+              {mayEditContact ? (
+                <>
+                  <CorrectableField
+                    name="mobile"
+                    reasonName="mobileReason"
+                    label="Mobile phone"
+                    phone
+                    original={mobile?.rawValue ?? ""}
+                    error={state.errors.mobile}
+                    renderExtra={(value, changed) =>
+                      changed ? (
+                        <MobilePreview
+                          value={value}
+                          original={mobile?.rawValue ?? ""}
+                          seasonLabel={seasonLabel}
+                        />
+                      ) : null
+                    }
+                  />
+                  <CorrectableField
+                    name="personalEmail"
+                    reasonName="personalEmailReason"
+                    label="Personal email"
+                    original={personalEmail?.rawValue ?? ""}
+                    error={state.errors.personalEmail}
+                  />
+                </>
+              ) : null}
+            </Stack>
+          </Section>
+        ) : null}
+
+        {/* LAN-462: present for every person, so a non-playing coach's BAFA
+            number can be recorded; collapsed unless the record shows the
+            section (`showsStudentInformation`). The fields inside a closed
+            disclosure still post with the form. */}
+        <Section
+          title="Student information"
+          collapsible
+          defaultOpen={showsStudentInformation || studentFieldRefused}
+          testId="student-information"
+        >
+          <Stack spacing={2}>
+            {/* LAN-268: same rule as the recruitment doors and player questionnaire — refused before write, no override. */}
+            {mayEditContact ? (
               <CorrectableField
                 name="collegeEmail"
                 reasonName="collegeEmailReason"
@@ -176,91 +249,60 @@ export default function EditPersonForm({
                 error={state.errors.collegeEmail}
                 unchangedHelperText="Their university address — it ends in ox.ac.uk or .edu."
               />
-            </Stack>
-          </Section>
-        ) : null}
-
-        {/* LAN-365 correction, Brian 2026-09-16: "no academic section" — the
-            four academic fields fold in here too, after the contact details
-            above and before the two identifiers below, keeping the same
-            `academic` field category and capability gating as everything
-            else in this section. */}
-        {mayEditPerson ? (
-          <Section title="Who they are">
-            <Stack spacing={2}>
-              <CorrectableField
-                name="givenName"
-                reasonName="givenNameReason"
-                label="First name"
-                required
-                original={record.givenName}
-                error={state.errors.givenName}
-              />
-              {/* LAN-366: optional, beside the given and family name. */}
-              <CorrectableField
-                name="middleName"
-                reasonName="middleNameReason"
-                label="Middle name"
-                original={record.middleName ?? ""}
-                error={state.errors.middleName}
-              />
-              <CorrectableField
-                name="familyName"
-                reasonName="familyNameReason"
-                label="Last name"
-                original={record.familyName ?? ""}
-                error={state.errors.familyName}
-              />
-              <AliasesEditor personId={personId} record={record} />
-              <CorrectableField
-                name="college"
-                reasonName="collegeReason"
-                label="College"
-                original={record.college ?? ""}
-              />
-              <CorrectableField
-                name="matriculationYear"
-                reasonName="matriculationYearReason"
-                label="Matriculation year"
-                original={record.matriculationYear !== null ? String(record.matriculationYear) : ""}
-              />
-              <CorrectableField
-                name="expectedGraduationYear"
-                reasonName="expectedGraduationYearReason"
-                label="Expected graduation"
-                original={
-                  record.expectedGraduationYear !== null
-                    ? String(record.expectedGraduationYear)
-                    : ""
-                }
-              />
-              <CorrectableField
-                name="degreeField"
-                reasonName="degreeFieldReason"
-                label="Degree field"
-                original={record.degreeField ?? ""}
-              />
-              {/* LAN-365: both identifiers moved here from Academic. They are
-                facts about the person. BAFA is last because the club fills it
-                in — a student never knows their own registration number, so
-                it is never asked for in onboarding. */}
-              <CorrectableField
-                name="studentNumber"
-                reasonName="studentNumberReason"
-                label="Student number"
-                original={record.studentNumber ?? ""}
-                unchangedHelperText="Printed beside their name on the officials' roster form."
-              />
-              <CorrectableField
-                name="bafaRegistrationNumber"
-                reasonName="bafaRegistrationNumberReason"
-                label="BAFA registration number"
-                original={record.bafaRegistrationNumber ?? ""}
-                unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
-              />
-            </Stack>
-          </Section>
-        ) : null}
+            ) : null}
+            {mayEditPerson ? (
+              <>
+                <CorrectableField
+                  name="college"
+                  reasonName="collegeReason"
+                  label="College"
+                  original={record.college ?? ""}
+                />
+                <CorrectableField
+                  name="matriculationYear"
+                  reasonName="matriculationYearReason"
+                  label="Matriculation year"
+                  original={
+                    record.matriculationYear !== null ? String(record.matriculationYear) : ""
+                  }
+                />
+                <CorrectableField
+                  name="expectedGraduationYear"
+                  reasonName="expectedGraduationYearReason"
+                  label="Expected graduation"
+                  original={
+                    record.expectedGraduationYear !== null
+                      ? String(record.expectedGraduationYear)
+                      : ""
+                  }
+                />
+                <CorrectableField
+                  name="degreeField"
+                  reasonName="degreeFieldReason"
+                  label="Degree field"
+                  original={record.degreeField ?? ""}
+                />
+                {/* LAN-365: BAFA is last because the club fills it in — a
+                    student never knows their own registration number, so it is
+                    never asked for in onboarding. Never required. */}
+                <CorrectableField
+                  name="studentNumber"
+                  reasonName="studentNumberReason"
+                  label="Student number"
+                  original={record.studentNumber ?? ""}
+                  unchangedHelperText="Printed beside their name on the officials' roster form."
+                />
+                <CorrectableField
+                  name="bafaRegistrationNumber"
+                  reasonName="bafaRegistrationNumberReason"
+                  label="BAFA registration number"
+                  original={record.bafaRegistrationNumber ?? ""}
+                  unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
+                />
+              </>
+            ) : null}
+          </Stack>
+        </Section>
 
         <Section title="Restricted">
           <Stack spacing={2}>

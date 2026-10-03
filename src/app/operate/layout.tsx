@@ -6,6 +6,7 @@ import {
   type RosterGroupColourKeys,
 } from "@/components/band-colours";
 import { isServiceError } from "@/lib/db";
+import { readOperatorDetailsDue } from "@/lib/services/operator-details";
 import { readRosterGroupColours } from "@/lib/services/roster-group-colours";
 import OperatorAccountState from "./account-state";
 
@@ -32,6 +33,12 @@ export default async function OperateLayout({ children }: LayoutProps<"/operate"
 
   if (access.state !== "active") {
     return <OperatorAccountState state={access.state} />;
+  }
+
+  // LAN-459: after first sign-in, the details form comes before the app until
+  // the operator's required personal facts are complete. No "Not now".
+  if (await readOperatorDetailsDue(access.operator.personId)) {
+    redirect("/me/details");
   }
 
   return (

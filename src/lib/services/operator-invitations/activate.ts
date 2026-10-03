@@ -1,11 +1,14 @@
 import { withTransaction } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
+import { requestOperatorDetailsOnActivationIn } from "../operator-details/facts";
 import type { OperatorAccountState } from "../operator-account-state";
 import { ACCOUNT_COLUMNS, toAccount, type AccountRow } from "./account-read";
 import { resolveCommitteeYearForActivation } from "./cycles";
 
 // Activation — {@link activateOperatorAccount} is the account holder's own act, idempotent,
 // and does not reactivate a deactivated account. `DEC-email-authentication`.
+// LAN-459: the first activation is also when the details form becomes due for an operator whose
+// personal facts are incomplete (`operator-details/facts.ts`); the next sign-in shows it.
 
 export interface ActivateOperatorResult {
   readonly operatorAccountId: string;
@@ -59,6 +62,8 @@ export async function activateOperatorAccount(
         toState: after.state,
       });
     }
+
+    await requestOperatorDetailsOnActivationIn(tx, account.personId);
 
     return {
       operatorAccountId: after.id,

@@ -15,6 +15,7 @@ const SCHEDULE: MessagingSchedule = {
   escalationHours: 12,
   recruitInvitationLeadDays: null,
   recruitFollowUpCadenceHours: null,
+  recruitEventReminderHours: null,
   updatedAt: new Date("2026-08-25T00:00:00Z"),
 };
 

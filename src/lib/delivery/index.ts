@@ -121,6 +121,7 @@ export function resolveDeliveryProvider(
 
 export {
   rsvpUrl,
+  attendanceSheetUrl,
   playerAnswerUrl,
   playerEventsUrl,
   onboardingUrl,

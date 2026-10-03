@@ -98,10 +98,20 @@ change wholesale on their next fetch; that is the intended behaviour
 (`src/lib/services/calendar-feed.ts`'s own header records the trade-off).
 
 **Content** — exactly `W1`'s public tier, nothing stricter and nothing
-extra, per Q-11/Q-12: drafts included (unapproved draft detail is
-world-readable, Brian's explicit acceptance), a cancelled event stays and is
+extra, per Q-11/Q-12: drafts included, a cancelled event stays and is
 marked cancelled, a deleted draft disappears, an amendment updates the
 existing entry.
+
+**Drafts carry title and time only — LAN-463 (Stu and Brian, 2 October
+2026).** This replaces the earlier acceptance that unapproved draft detail is
+world-readable. A draft's entry carries its name and its date and time; no
+`LOCATION` (not even "Online"), no `URL`, and in place of the description the
+one line "Details to be confirmed. They may change."; it is marked
+`STATUS:TENTATIVE`. The public tier reads a draft's venue, description,
+required equipment and joining link as null, so the public list and event page
+withhold the same detail. Approval updates the same entry — the `UID` never
+changes, and approval writes `updated_at`, so `SEQUENCE` rises — and the entry
+fills in with everything below and `STATUS:CONFIRMED`.
 
 | In the feed                   | Not in the feed                                     |
 | ----------------------------- | --------------------------------------------------- |

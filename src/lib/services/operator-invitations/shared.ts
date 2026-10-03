@@ -14,6 +14,11 @@ import {
   type Tx,
 } from "@/lib/db";
 import { operatorAccountState } from "../operator-account-state";
+import {
+  DETAILS_LINK_ACCOUNT_OPENED_REASON,
+  revokeOperatorDetailsLinksIn,
+} from "../operator-details/facts";
+import { recordClassifiedEmailIn, recordLoginEmailIfNoneIn } from "../person-email-classification";
 import { validatePhoneNumber } from "../person-validation";
 import { readOperatorAccountIn, type OperatorAccountRecord } from "./account-read";
 import { currentDateIn } from "./cycles";
@@ -297,13 +302,21 @@ export async function requireInvitablePerson(tx: Tx, personId: string): Promise<
   return personId;
 }
 
+/** `email` is `null` for LAN-459's phone-only invitation, which records no address. */
 export async function createOrLinkPerson(
   tx: Tx,
   subject: InvitationSubject,
-  email: string,
+  email: string | null,
 ): Promise<{ personId: string; personCreated: boolean }> {
   if (subject.kind === "existing") {
-    return { personId: await requireInvitablePerson(tx, subject.personId), personCreated: false };
+    const personId = await requireInvitablePerson(tx, subject.personId);
+    // LAN-462: an existing person's contact points are otherwise untouched
+    // (`REQ-invite-existing-person`); one with no email at all gets the login
+    // address, classified, exactly as seating a person does.
+    if (email !== null) {
+      await recordLoginEmailIfNoneIn(tx, { personId, address: email, source: INVITATION_SOURCE });
+    }
+    return { personId, personCreated: false };
   }
 
   const givenName = blankToNull(subject.givenName);
@@ -331,10 +344,12 @@ export async function createOrLinkPerson(
     );
   }
 
-  // An existing Person's contact points are deliberately untouched — out of scope (`REQ-invite-existing-person`).
-  await insertContactPoint(tx, personId, "email", email);
+  // LAN-462: classified — college for an Oxford address, personal otherwise.
+  if (email !== null) {
+    await recordClassifiedEmailIn(tx, { personId, address: email, source: INVITATION_SOURCE });
+  }
   const phone = requireInvitationPhone(subject.phone);
-  if (phone !== null) await insertContactPoint(tx, personId, "phone", phone);
+  if (phone !== null) await insertPhoneContactPoint(tx, personId, phone);
 
   return { personId, personCreated: true };
 }
@@ -347,7 +362,7 @@ export async function createOrLinkPerson(
  * posts is what lands in `contact_points.raw_value`, exactly as it does from
  * `person-create.ts`. Blank stays blank: the field is optional.
  */
-function requireInvitationPhone(raw: string | null | undefined): string | null {
+export function requireInvitationPhone(raw: string | null | undefined): string | null {
   const phone = blankToNull(raw);
   if (phone === null) return null;
 
@@ -358,16 +373,14 @@ function requireInvitationPhone(raw: string | null | undefined): string | null {
   return phone;
 }
 
-async function insertContactPoint(
-  tx: Tx,
-  personId: string,
-  kind: "email" | "phone",
-  rawValue: string,
-): Promise<void> {
+/** The provenance an invitation's contact points carry on the person record. */
+const INVITATION_SOURCE = "operator invitation";
+
+async function insertPhoneContactPoint(tx: Tx, personId: string, rawValue: string): Promise<void> {
   await tx.query(
     `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
-     values ($1, $2::public.contact_point_kind, $3, true, 'operator invitation')`,
-    [personId, kind, rawValue],
+     values ($1, 'phone', $2, true, $3)`,
+    [personId, rawValue, INVITATION_SOURCE],
   );
 }
 
@@ -381,6 +394,9 @@ export async function insertOperatorAccount(
      returning id`,
     [input.authUserId, input.personId, input.email],
   );
+  // R470-02: the details link exists to open this account. Once one is open,
+  // by whatever path, a link still in the person's WhatsApp is dead.
+  await revokeOperatorDetailsLinksIn(tx, input.personId, DETAILS_LINK_ACCOUNT_OPENED_REASON);
   return inserted.rows[0].id;
 }
 

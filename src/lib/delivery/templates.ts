@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { EnvironmentSource, OutboundConfig } from "./config";
-import type { MessageKind, OutboundMessage } from "./provider";
+import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "./provider";
 
 /**
  * The declared template registry. LAN-169.
@@ -108,6 +108,8 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   cancellation: "lancers_event_cancellation_v2",
   escalation: "lancers_nonresponse_escalation_v2",
   recruit_event_followup: "recruit_event_followup_v2",
+  // LAN-464. Submitted 2 October 2026 and read back from the account.
+  recruit_event_reminder: "recruit_event_reminder_v1",
   recruit_welcome: "recruit_welcome_v2",
   recruit_details_reminder: "recruit_details_reminder_v2",
   recruit_interest_ask: "recruit_interest_ask_v2",
@@ -187,7 +189,7 @@ export const VENUE_FALLBACK = "to be confirmed";
 
 /** One kind's declaration: what WhatsApp sends, and what the email says. */
 export interface MessageTemplate {
-  readonly kind: MessageKind;
+  readonly kind: MessageKind | EmailOnlyMessageKind;
   /**
    * The ordered body parameters, by name. The order is the contract with the
    * approved template and the sink asserts on it.
@@ -605,6 +607,28 @@ const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
 };
 
 /**
+ * LAN-464. `Hello {{1}}, a reminder that {{2}} is on {{3}}.` / `Venue: {{4}}.`
+ * / `See you there.` — before a recruitment event, to a recruit whose answer
+ * is Yes. The follow-up's four slots, formatted the same way; no buttons.
+ */
+const RECRUIT_EVENT_REMINDER: MessageTemplate = {
+  kind: "recruit_event_reminder",
+  parameterNames: ["inviteeName", "eventName", "whenLabel", "venue"],
+  parameters: (message) => [
+    required(message.inviteeName, "name"),
+    required(message.eventName, "event name"),
+    required(message.whenLabel, "date and time"),
+    venueSlot(message),
+  ],
+  subject: (message) => `Reminder: ${message.eventName}`,
+  body: (message) => [
+    `Hello ${message.inviteeName}, a reminder that ${message.eventName} is on ${message.whenLabel}.`,
+    `Venue: ${venueSlot(message)}.`,
+    "See you there.",
+  ],
+};
+
+/**
  * The six person-following bodies share one parameter shape: the reader's name,
  * the fixed subject naming their own record, and the day it was opened. That is
  * rule 2 of the classifier — `for {thing} on {date}` — satisfied by a message
@@ -794,6 +818,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   cancellation: CANCELLATION,
   escalation: ESCALATION,
   recruit_event_followup: RECRUIT_EVENT_FOLLOWUP,
+  recruit_event_reminder: RECRUIT_EVENT_REMINDER,
   recruit_welcome: RECRUIT_WELCOME,
   recruit_details_reminder: RECRUIT_DETAILS_REMINDER,
   recruit_interest_ask: RECRUIT_INTEREST_ASK,
@@ -813,6 +838,7 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "cancellation",
   "escalation",
   "recruit_event_followup",
+  "recruit_event_reminder",
   "recruit_welcome",
   "recruit_details_reminder",
   "recruit_interest_ask",
@@ -831,7 +857,48 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
  * one they cannot. Same reasoning `templateShape` records in `config.ts`.
  */
 export function templateFor(message: OutboundMessage): MessageTemplate {
-  return MESSAGE_TEMPLATES[message.kind ?? "invitation"];
+  const kind = message.kind ?? "invitation";
+  return isEmailOnlyKind(kind) ? EMAIL_ONLY_TEMPLATES[kind] : MESSAGE_TEMPLATES[kind];
+}
+
+// ---------------------------------------------------------------------------
+// Email only — LAN-465
+// ---------------------------------------------------------------------------
+
+/**
+ * `Here is the attendance sheet for {event} on {when}.` and the link — sent an
+ * hour before an approved event starts to the General Manager, the President
+ * and every coach who answered Yes (LAN-465, Brian 2026-10-02).
+ *
+ * Email only, so no WhatsApp template and no Meta approval: `parameterNames`
+ * is empty because nothing is ever sent positionally. To an operator about an
+ * event, so no player's name or contact detail: the sheet itself is behind the
+ * operator login, as the escalations' queue is.
+ */
+const ATTENDANCE_SHEET: MessageTemplate = {
+  kind: "attendance_sheet",
+  parameterNames: [],
+  parameters: () => [],
+  subject: (message) => `Attendance sheet: ${required(message.eventName, "event name")}`,
+  body: (message) => [
+    `Hello ${required(message.inviteeName, "name")}, here is the attendance sheet for ` +
+      `${required(message.eventName, "event name")} on ${required(message.whenLabel, "date and time")}.`,
+    `Venue: ${venueSlot(message)}.`,
+    required(message.attendanceUrl, "link to the attendance sheet"),
+  ],
+};
+
+export const EMAIL_ONLY_TEMPLATES: Readonly<Record<EmailOnlyMessageKind, MessageTemplate>> =
+  Object.freeze({ attendance_sheet: ATTENDANCE_SHEET });
+
+export const EMAIL_ONLY_KINDS: readonly EmailOnlyMessageKind[] = Object.freeze([
+  "attendance_sheet",
+] as const);
+
+export function isEmailOnlyKind(
+  kind: MessageKind | EmailOnlyMessageKind,
+): kind is EmailOnlyMessageKind {
+  return (EMAIL_ONLY_KINDS as readonly string[]).includes(kind);
 }
 
 /**
