@@ -58,12 +58,12 @@ import {
   listPublicSeasonEvents,
   readEvent,
   readPublicEvent,
+  type PublicCalendarEntry,
   type PublicEventDetail,
-  type PublicEventListEntry,
 } from "@/lib/services/events";
 import { listEventTemplateOptions } from "@/lib/services/event-templates";
 import { listTermWindows } from "@/lib/services/seasons";
-import type { TermWindow } from "@/lib/services/event-input";
+import { GAME_TEMPLATE_ID, type TermWindow } from "@/lib/services/event-input";
 import PublicCalendarPage from "./page";
 import PublicCalendarViewPage from "./view/page";
 import PublicEventPage from "./[id]/page";
@@ -112,7 +112,7 @@ const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
 let nextId = 0;
 
-function entry(overrides: Partial<PublicEventListEntry> = {}): PublicEventListEntry {
+function entry(overrides: Partial<PublicCalendarEntry> = {}): PublicCalendarEntry {
   nextId += 1;
   return {
     id: `33333333-3333-4333-8333-${`${nextId}`.padStart(12, "0")}`,
@@ -129,6 +129,7 @@ function entry(overrides: Partial<PublicEventListEntry> = {}): PublicEventListEn
     isMandatory: false,
     isCancelled: false,
     isDraft: false,
+    homeAway: null,
     ...overrides,
   };
 }
@@ -143,7 +144,7 @@ function detail(overrides: Partial<PublicEventDetail> = {}): PublicEventDetail {
   };
 }
 
-function givenEvents(events: PublicEventListEntry[], totalInSeason = events.length) {
+function givenEvents(events: PublicCalendarEntry[], totalInSeason = events.length) {
   vi.mocked(listPublicSeasonEvents).mockResolvedValue({
     season: {
       id: "44444444-4444-4444-8444-444444444444",
@@ -767,5 +768,90 @@ describe("the public event page", () => {
 
     expect(readPublicEvent).toHaveBeenCalledWith(EVENT_ID);
     expect(readEvent).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-475 — HOME or AWAY on the public calendar view, as on the operator's
+// ---------------------------------------------------------------------------
+
+describe("LAN-475 — the public calendar view prints a game's HOME or AWAY line", () => {
+  /** Every tile inside `scope`, as [first line, second line …]. */
+  function linesOf(scope: Element): string[][] {
+    return within(scope as HTMLElement)
+      .getAllByTestId("calendar-entry")
+      .map((tile) => [...tile.children].map((line) => flatten(line.textContent)));
+  }
+
+  const game = (overrides: Partial<PublicCalendarEntry> = {}) =>
+    entry({
+      name: "Oxford Lancers vs Netherfield Nomads",
+      templateId: GAME_TEMPLATE_ID,
+      templateName: "Game",
+      templateColour: "red",
+      eventType: "game",
+      homeAway: "home",
+      scheduledOn: "2026-10-18",
+      startsAt: "14:00",
+      ...overrides,
+    });
+
+  // A draft game: the public read withholds Home/Away in SQL (LAN-463), so it arrives as null.
+  const draftGame = () =>
+    game({
+      name: "Oxford Lancers vs Brackenridge Bulls",
+      homeAway: null,
+      isDraft: true,
+      venue: null,
+      scheduledOn: "2026-10-11",
+    });
+  const practice = () =>
+    entry({ name: "Wednesday practice", scheduledOn: "2026-10-14", startsAt: "20:00" });
+
+  it("prints HOME above an approved game on the month grid and the 375px agenda", async () => {
+    givenEvents([game(), draftGame(), practice()]);
+    const { container } = render(await PublicCalendarViewPage(viewProps()));
+
+    for (const scope of ["gregorian-grid", "gregorian-agenda"]) {
+      const lines = linesOf(within(container).getByTestId(scope));
+      expect(
+        lines.map((tile) => tile[0]),
+        scope,
+      ).toEqual(["14:00 Oxford Lancers vs Brackenridge Bulls", "20:00 Wednesday practice", "HOME"]);
+      const approved = lines.find((tile) => tile[0] === "HOME");
+      expect(approved?.[1]).toBe("14:00 Oxford Lancers vs Netherfield Nomads");
+    }
+  });
+
+  it("prints it on the Oxford View's week rows and its 375px cards, and nothing on the others", async () => {
+    givenEvents([game(), draftGame(), practice()]);
+    const { container } = render(await PublicCalendarViewPage(viewProps({ mode: "oxford" })));
+
+    const day = (date: string) =>
+      container.querySelector(`[data-testid="year-day"][data-day="${date}"]`) as Element;
+    expect(linesOf(day("2026-10-18"))[0].slice(0, 2)).toEqual([
+      "HOME",
+      "14:00 Oxford Lancers vs Netherfield Nomads",
+    ]);
+    expect(linesOf(day("2026-10-11"))[0][0]).toBe("14:00 Oxford Lancers vs Brackenridge Bulls");
+    expect(linesOf(day("2026-10-14"))[0][0]).toBe("20:00 Wednesday practice");
+
+    const phone = linesOf(within(container).getByTestId("year-column-stack"));
+    expect(phone.map((tile) => tile[0])).toEqual([
+      "14:00 Oxford Lancers vs Brackenridge Bulls",
+      "20:00 Wednesday practice",
+      "HOME",
+    ]);
+  });
+
+  it("prints AWAY as AWAY, and leaves the public list with the name alone", async () => {
+    givenEvents([game({ homeAway: "away" })]);
+    const view = render(await PublicCalendarViewPage(viewProps()));
+    const tiles = linesOf(within(view.container).getByTestId("gregorian-grid"));
+    expect(tiles[0].slice(0, 2)).toEqual(["AWAY", "14:00 Oxford Lancers vs Netherfield Nomads"]);
+    view.unmount();
+
+    const list = render(await PublicCalendarPage(listProps()));
+    expect(flatten(list.container.textContent)).not.toMatch(/\bAWAY\b/);
   });
 });

@@ -14,8 +14,8 @@ export interface CalendarEvent {
   startsAt: string | null;
   endsAt: string | null;
   venue: string | null;
-  // LAN-475: the tile's own first line, above the name. Operator tier only — the public tier does
-  // not read it, so a public tile has none.
+  // LAN-475: the tile's own first line, above the name. Both calendar views carry it; the public
+  // season read withholds it on a draft (LAN-463), so a public draft tile has none.
   homeAway?: HomeAway | null;
 }
 

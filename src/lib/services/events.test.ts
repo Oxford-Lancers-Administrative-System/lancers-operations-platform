@@ -1678,6 +1678,8 @@ describe("the public tier reads a narrower event", () => {
       "deliveryMode",
       "endsAt",
       "eventType",
+      // LAN-475. The Game tile's HOME or AWAY line; null on a draft.
+      "homeAway",
       "id",
       "isCancelled",
       // LAN-463. One bit, like isCancelled: a draft's detail is withheld.
@@ -1986,12 +1988,36 @@ describe("LAN-475 — Home or Away is stored on a Game-template event", () => {
     ).rejects.toThrow(/events_home_away_is_game_template_only/);
   });
 
-  it("is not carried by the public tier, which keeps the name alone", async () => {
+  it("is not carried by the public event page, which keeps the name alone", async () => {
     const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
 
     const publicEvent = await readPublicEvent(event.id);
     expect(publicEvent.name).toBe(`${NAME_MARKER} vs Netherfield Nomads`);
     expect(publicEvent).not.toHaveProperty("homeAway");
+  });
+
+  // LAN-475 follow-up: both calendar views show the line, so the public season read carries it —
+  // withheld on a draft in SQL (LAN-463), like the venue.
+  it("is carried by the public season read once approved, and withheld on a draft", async () => {
+    const event = await createEventDraft(actorPersonId, game({ homeAway: "home" }));
+
+    const asDraft = (await listPublicSeasonEvents()).events.find((entry) => entry.id === event.id);
+    expect(asDraft?.isDraft).toBe(true);
+    expect(asDraft?.homeAway).toBeNull();
+
+    await observer.query(
+      `update public.events
+          set status = 'approved', approved_at = now(), approved_by_person_id = $2,
+              audience_confirmed_at = now(), audience_confirmed_by_person_id = $2
+        where id = $1`,
+      [event.id, actorPersonId],
+    );
+
+    const approved = (await listPublicSeasonEvents()).events.find((entry) => entry.id === event.id);
+    expect(approved?.homeAway).toBe("home");
+    expect(approved?.name).toBe(`${NAME_MARKER} vs Netherfield Nomads`);
+    // The event page still keeps the name alone.
+    expect(await readPublicEvent(event.id)).not.toHaveProperty("homeAway");
   });
 });
 

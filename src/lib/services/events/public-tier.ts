@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NotFound, withTransaction } from "@/lib/db";
-import { optional, UUID_PATTERN, type EventDeliveryMode } from "../event-input";
+import { optional, UUID_PATTERN, type EventDeliveryMode, type HomeAway } from "../event-input";
 import { readCurrentSeasonIn, type Season } from "../seasons";
 import { safeUri } from "../safe-uri";
 import { escapeLikePattern } from "../sql-text";
@@ -39,6 +39,15 @@ export interface PublicEventListEntry {
   isDraft: boolean;
 }
 
+/**
+ * LAN-475: one row of the season read the public list and calendar view share — the list entry plus
+ * the Game tile's Home/Away line. Only `listPublicSeasonEvents` reads it; the detail page and the
+ * feed extend `PublicEventListEntry` and never carry it. Null on a draft, like the venue.
+ */
+export interface PublicCalendarEntry extends PublicEventListEntry {
+  homeAway: HomeAway | null;
+}
+
 export interface PublicEventDetail extends PublicEventListEntry {
   description: string | null; // D18
   requiredEquipment: string | null; // D17
@@ -47,7 +56,7 @@ export interface PublicEventDetail extends PublicEventListEntry {
 
 export interface PublicEventList {
   season: Season;
-  events: PublicEventListEntry[];
+  events: PublicCalendarEntry[];
   totalInSeason: number; // events in the season before any filter — tells the two empty states apart
 }
 
@@ -74,6 +83,9 @@ export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, ${TEMPLATE_COLUMNS},
 /** LAN-463: description and required equipment, withheld on a draft like the columns above. */
 const PUBLIC_DETAIL_COLUMNS = `${unlessDraft("e.description")} as description,
             ${unlessDraft("e.required_equipment")} as required_equipment`;
+
+/** LAN-475: the season read's one extra column, withheld on a draft (LAN-463). Not in the feed or detail. */
+const PUBLIC_CALENDAR_COLUMNS = `${unlessDraft("e.home_away::text")} as home_away`;
 
 interface PublicEventRow {
   id: string;
@@ -150,8 +162,8 @@ export async function listPublicSeasonEvents(
     const search = escapeLikePattern(optional(filters.search));
     const templateId = optional(filters.templateId);
 
-    const result = await tx.query<PublicEventRow>(
-      `select ${PUBLIC_EVENT_COLUMNS}
+    const result = await tx.query<PublicEventRow & { home_away: HomeAway | null }>(
+      `select ${PUBLIC_EVENT_COLUMNS}, ${PUBLIC_CALENDAR_COLUMNS}
          from public.events e
          ${TEMPLATE_JOIN}
         where e.season_id = $1
@@ -169,7 +181,7 @@ export async function listPublicSeasonEvents(
 
     return {
       season,
-      events: result.rows.map(toPublicEntry),
+      events: result.rows.map((row) => ({ ...toPublicEntry(row), homeAway: row.home_away })),
       totalInSeason: Number(total.rows[0].count),
     };
   });

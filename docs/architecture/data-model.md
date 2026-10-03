@@ -1456,9 +1456,12 @@ approved games from before the column (the local seed's unconfirmed BUCS
 fixtures among them) legitimately carry none. `updateEventDraft` writes null
 whenever a draft leaves the Game template, keeps the stored value when a caller
 says nothing about it (a CSV import), and the approved-event amendment path
-never writes it. Only the operator tier reads it (`EventListEntry.homeAway`);
-`PUBLIC_EVENT_COLUMNS` does not, so the public calendar, its event page and the
-ICS feed keep the name alone. No opponent, venue-side or heading field exists.
+never writes it. The operator tier reads it (`EventListEntry.homeAway`), and
+so does the public season read (`listPublicSeasonEvents`, as
+`PublicCalendarEntry.homeAway`) for the public calendar view's tiles, withheld
+as null on a draft like the venue (LAN-463). `PUBLIC_EVENT_COLUMNS` does not
+carry it, so the public event page and the ICS feed never read it, and the
+public list does not render it. No opponent, venue-side or heading field exists.
 
 `recruitment_prospects` is no longer among them. LAN-110's walk-on form writes
 one at `identified` for the event's season — somebody who turned up and is not

@@ -1277,9 +1277,10 @@ template the migration seeded — a template the club creates later does not get
 it. A draft saves without it; **Choose audience and approve** on a Game draft
 without it shows "This event has no Home or Away yet. Add it and approve when
 you are ready." and **Approve event** refuses with the same sentence. Moving a
-draft off the Game template clears it. The name is never changed: the list, the
-event page, the public calendar, the subscription feed, RSVP pages, messages and
-reports all show the name alone. An approved game's side is not changeable on
+draft off the Game template clears it. The public calendar view prints the same
+line on an approved game (section 12b). The name is never changed: the list, the
+event page, the public list and event page, the subscription feed, RSVP pages,
+messages and reports all show the name alone. An approved game's side is not changeable on
 **Change event**.
 
 Nothing in either arrangement creates an audience, an invitation, an RSVP or a
@@ -1314,8 +1315,11 @@ change." in place of the description, and `STATUS:TENTATIVE`. Approving it
 fills in the same entry with everything on the subscriber's next refresh: the
 same `UID`, a later `SEQUENCE`, `STATUS:CONFIRMED`.
 
-`/calendar/view` gives the same two calendar arrangements, without the HOME or
-AWAY line: the public tier does not read it (LAN-475). Nothing on any of these
+`/calendar/view` gives the same two calendar arrangements with the same tiles: an
+approved Game event prints `HOME` or `AWAY` on its own line above its name, as
+on the operator calendar (LAN-475). A draft game prints no such line here, since
+a draft is its name and when only. The public list, the public event page and
+the subscription feed show the name alone. Nothing on any of these
 pages asks you to sign in, and reading them creates no record of any kind.
 
 ---
