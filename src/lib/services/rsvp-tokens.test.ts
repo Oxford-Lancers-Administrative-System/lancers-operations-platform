@@ -16,9 +16,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// The page's own opening action (LAN-476) reads the request's headers for its throttle key.
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 import type { Client } from "pg";
 
+import { noteRsvpLinkOpened } from "@/app/rsvp/[token]/actions";
+import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import {
   hashToken,
@@ -419,6 +423,71 @@ describe("resolving", () => {
     );
     expect(row.rows[0].use_count).toBe(2);
     expect(row.rows[0].last_used_at).not.toBeNull();
+  });
+
+  it("counts an opening through the page's own action — LAN-476", async () => {
+    // What `LinkOpenedBeacon` on `/rsvp/[token]` fires once a browser has run
+    // the page. Production showed 0 of 249 counted; this pins the route's half.
+    resetRsvpRateLimit();
+    const { invitationId } = await fixture(48);
+    const issued = await withTransaction((tx) => issueTokenIn(tx, invitationId));
+
+    await noteRsvpLinkOpened(issued.token);
+
+    const row = await observer.query<{ use_count: number; last_used_at: Date | null }>(
+      "select use_count, last_used_at from public.rsvp_access_tokens where id = $1",
+      [issued.tokenId],
+    );
+    expect(row.rows[0].use_count).toBe(1);
+    expect(row.rows[0].last_used_at).not.toBeNull();
+  });
+
+  it("counts nothing through the page's action for a token nobody was issued", async () => {
+    resetRsvpRateLimit();
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where use_count > 0",
+    );
+    await noteRsvpLinkOpened(mintToken());
+    await noteRsvpLinkOpened("not a token");
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where use_count > 0",
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
+  });
+
+  it("counts nothing for an expired, revoked or superseded link — LAN-476", async () => {
+    // Each of these shows the holder the uniform dead-link page, so opening one
+    // is not a use of the invitation.
+    const expired = await fixture(48);
+    const expiredToken = await withTransaction((tx) => issueTokenIn(tx, expired.invitationId));
+    await observer.query(
+      `update public.rsvp_access_tokens
+          set issued_at = now() - interval '2 days', expires_at = now() - interval '1 second'
+        where id = $1`,
+      [expiredToken.tokenId],
+    );
+    expect((await resolveRsvpToken(expiredToken.token)).state).toBe("expired");
+
+    const revoked = await fixture(48);
+    const revokedToken = await withTransaction((tx) => issueTokenIn(tx, revoked.invitationId));
+    await withTransaction((tx) => revokeTokensIn(tx, revoked.invitationId, "Withdrawn"));
+
+    const superseded = await fixture(48);
+    const first = await withTransaction((tx) => issueTokenIn(tx, superseded.invitationId));
+    const second = await withTransaction((tx) => issueTokenIn(tx, superseded.invitationId));
+
+    for (const dead of [expiredToken, revokedToken, first]) {
+      expect(await recordRsvpTokenUse(dead.token)).toBe(false);
+      const row = await observer.query<{ use_count: number; last_used_at: Date | null }>(
+        "select use_count, last_used_at from public.rsvp_access_tokens where id = $1",
+        [dead.tokenId],
+      );
+      expect(row.rows[0].use_count).toBe(0);
+      expect(row.rows[0].last_used_at).toBeNull();
+    }
+
+    // The live successor still counts.
+    expect(await recordRsvpTokenUse(second.token)).toBe(true);
   });
 
   it("counts nothing for a token nobody was issued", async () => {

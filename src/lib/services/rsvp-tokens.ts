@@ -357,6 +357,11 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
  * the digest is the key, and one statement settles it. A token matching nothing
  * updates nothing, which is the same silence a miss has always produced.
  *
+ * Only a live token counts (LAN-476): a revoked, superseded or expired link
+ * shows the holder the uniform dead-link page, so an opening of it is not a use
+ * of the invitation. The predicate mirrors `resolveRsvpTokenIn`'s three dead
+ * states and changes none of them.
+ *
  * ## Failure is silence
  *
  * Returns whether the stamp landed and never throws. A player must not be shown
@@ -371,7 +376,10 @@ export async function recordRsvpTokenUse(token: string): Promise<boolean> {
       const stamped = await tx.query(
         `update public.rsvp_access_tokens
             set use_count = use_count + 1, last_used_at = now()
-          where token_hash = $1`,
+          where token_hash = $1
+            and revoked_at is null
+            and superseded_at is null
+            and expires_at > now()`,
         [hashToken(token)],
       );
       return (stamped.rowCount ?? 0) > 0;
