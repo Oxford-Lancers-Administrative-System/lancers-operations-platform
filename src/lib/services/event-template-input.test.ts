@@ -154,6 +154,18 @@ describe("Oxford Blue renders blue, not gray — LAN-473", () => {
     }
   });
 
+  it("offers regular Blue as its own swatch beside Oxford Blue — LAN-474", () => {
+    const blue = templateColourFor("royal_blue");
+    expect(blue.key).toBe("royal_blue");
+    expect(blue.label).toBe("Blue");
+    expect(blue.accent).toBe("#1565c0");
+    expect(blue.tint).toBe("#e8f1fb");
+    expect(TEMPLATE_COLOUR_PALETTE.map((swatch) => swatch.label)).toEqual(
+      expect.arrayContaining(["Oxford Blue", "Blue"]),
+    );
+    expect(templateColourFor("blue").label).toBe("Oxford Blue");
+  });
+
   it("keeps Oxford Blue's tint apart from Slate's", () => {
     const oxford = hueAndSaturation(templateColourFor("blue").tint);
     const slate = hueAndSaturation(templateColourFor("slate").tint);

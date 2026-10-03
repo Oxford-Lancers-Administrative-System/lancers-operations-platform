@@ -648,6 +648,10 @@ describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
     expect(swatches.map((node) => node.getAttribute("data-colour"))).toEqual(
       TEMPLATE_COLOUR_PALETTE.map((colour) => colour.key),
     );
+    // LAN-474: regular Blue and Oxford Blue are two swatches, not one.
+    expect(swatches.map((node) => node.getAttribute("data-colour"))).toEqual(
+      expect.arrayContaining(["blue", "royal_blue"]),
+    );
   });
 
   it("shows the template's stored colour pressed, and posts it", () => {

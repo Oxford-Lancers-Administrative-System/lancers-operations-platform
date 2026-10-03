@@ -46,18 +46,29 @@ const CHARCOAL = "#211D1C";
 
 // LAN-429 (W2, Brian's round 4, 2026-09-25): key `blue` is Oxford Blue, the brand navy — the key
 // is kept, so every template on it (Practice) re-tones without a migration — and Lancer Gold is
-// added. Thirteen swatches; every other one unchanged.
+// added. Thirteen swatches then; every other one unchanged.
 //
 // LAN-473: Oxford Blue's tint is a light blue of the navy's own hue. LAN-429 gave it `#e6e9ee`, a
 // 10% wash of the navy at 19% saturation (Slate's `#eceff1` is 15%), and a calendar tile is almost
 // all tint, so an Oxford Blue event read as gray. A saturated accent's tint must read as its own
 // hue; event-template-input.test.ts holds every swatch to that.
+//
+// LAN-474 (QA, 2 October 2026): regular Blue returns beside Oxford Blue as its own entry, under a
+// new key, `royal_blue`, with the values `blue` carried before LAN-429. Oxford Blue keeps key
+// `blue`, so no stored colour changes. Fourteen swatches.
 export const TEMPLATE_COLOUR_PALETTE: readonly TemplateColourSwatch[] = Object.freeze([
   Object.freeze({
     key: "blue",
     label: "Oxford Blue",
     accent: "#002147",
     tint: "#d9e5f5",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "royal_blue",
+    label: "Blue",
+    accent: "#1565c0",
+    tint: "#e8f1fb",
     bandText: WHITE,
   }),
   Object.freeze({

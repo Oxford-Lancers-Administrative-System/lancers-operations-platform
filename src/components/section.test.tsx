@@ -58,4 +58,24 @@ describe("Section", () => {
     expect(getComputedStyle(head("section-kit")).color).toBe("rgb(255, 255, 255)");
     expect(getComputedStyle(head("section-history")).backgroundColor).not.toBe("rgb(198, 40, 40)");
   });
+
+  it("draws regular Blue and Oxford Blue as two different band heads — LAN-474", () => {
+    render(
+      <BandColoursProvider
+        groupColours={{ ...DEFAULT_ROSTER_GROUP_COLOURS, person: "blue", coaching: "royal_blue" }}
+      >
+        <Section title="Person" variant="banded" band="person" testId="person">
+          body
+        </Section>
+        <Section title="Coaching" variant="banded" band="coaching" testId="coaching">
+          body
+        </Section>
+      </BandColoursProvider>,
+    );
+    const head = (id: string) =>
+      screen.getByTestId(id).querySelector("h2")!.parentElement as HTMLElement;
+    expect(getComputedStyle(head("section-coaching")).backgroundColor).toBe("rgb(21, 101, 192)");
+    expect(getComputedStyle(head("section-coaching")).color).toBe("rgb(255, 255, 255)");
+    expect(getComputedStyle(head("section-person")).backgroundColor).toBe("rgb(0, 33, 71)");
+  });
 });

@@ -665,6 +665,26 @@ describe("what a calendar tile states", () => {
     ]);
   });
 
+  it("paints a regular Blue template's tile apart from Oxford Blue, on both calendars — LAN-474", async () => {
+    givenEvents([
+      listEntry({ name: "Team Practice", scheduledOn: "2026-10-14" }),
+      listEntry({ name: "Blue Session", templateColour: "royal_blue", scheduledOn: "2026-10-15" }),
+    ]);
+
+    const modes: Record<string, string>[] = [{}, { mode: "oxford" }];
+    for (const mode of modes) {
+      const { container, unmount } = render(await EventCalendarPage(calendarProps(mode)));
+      const tile = (id: string) =>
+        within(container)
+          .getAllByTestId("calendar-entry")
+          .find((node) => node.getAttribute("aria-label")?.startsWith(id))!;
+      expect(getComputedStyle(tile("Blue Session")).backgroundColor).toBe("rgb(232, 241, 251)");
+      expect(getComputedStyle(tile("Blue Session")).borderLeftColor).toBe("rgb(21, 101, 192)");
+      expect(getComputedStyle(tile("Team Practice")).backgroundColor).toBe("rgb(217, 229, 245)");
+      unmount();
+    }
+  });
+
   it("explains the colours it is using, and only those", async () => {
     // The season holds a game and a chalk session too, but they are in other
     // months.
