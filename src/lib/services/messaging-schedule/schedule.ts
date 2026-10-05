@@ -21,6 +21,7 @@ export interface MessagingSchedule {
   readonly escalationHours: number; // hours after the RSVP deadline before the President is told; zero is legal
   readonly recruitInvitationLeadDays: number | null; // DEC-split-on-the-schedule (LAN-201); null off `recruitment`
   readonly recruitFollowUpCadenceHours: number | null; // hours to the one permitted follow-up; null likewise
+  readonly recruitEventReminderHours: number | null; // LAN-464: hours before the event for the Yes recruits' reminder; 0 is off; null likewise
   readonly updatedAt: Date;
 }
 
@@ -38,6 +39,7 @@ const SCHEDULE_COLUMNS = `
   s.escalation_hours,
   s.recruit_invitation_lead_days,
   s.recruit_follow_up_cadence_hours,
+  s.recruit_event_reminder_hours,
   s.updated_at`;
 
 // Aliased s/t so SCHEDULE_COLUMNS can qualify every column — after LAN-265, event_type is no longer unique across this table.
@@ -56,6 +58,7 @@ interface ScheduleRow {
   escalation_hours: number;
   recruit_invitation_lead_days: number | null;
   recruit_follow_up_cadence_hours: number | null;
+  recruit_event_reminder_hours: number | null;
   updated_at: Date;
 }
 
@@ -72,6 +75,7 @@ function toSchedule(row: ScheduleRow): MessagingSchedule {
     escalationHours: row.escalation_hours,
     recruitInvitationLeadDays: row.recruit_invitation_lead_days,
     recruitFollowUpCadenceHours: row.recruit_follow_up_cadence_hours,
+    recruitEventReminderHours: row.recruit_event_reminder_hours,
     updatedAt: row.updated_at,
   };
 }
@@ -151,6 +155,7 @@ export interface MessagingScheduleChange {
   readonly escalationHours: number;
   readonly recruitInvitationLeadDays?: number; // LAN-203, Recruitment row only; undefined leaves the column untouched elsewhere
   readonly recruitFollowUpCadenceHours?: number;
+  readonly recruitEventReminderHours?: number; // LAN-464; 0 is off
 }
 
 export async function updateMessagingScheduleIn(
@@ -171,6 +176,7 @@ export async function updateMessagingScheduleIn(
             escalation_hours = $7,
             recruit_invitation_lead_days = coalesce($8::smallint, recruit_invitation_lead_days),
             recruit_follow_up_cadence_hours = coalesce($9::smallint, recruit_follow_up_cadence_hours),
+            recruit_event_reminder_hours = coalesce($10::smallint, recruit_event_reminder_hours),
             updated_at = now()
       where template_id = $1::uuid
      returning template_id`,
@@ -184,6 +190,7 @@ export async function updateMessagingScheduleIn(
       change.escalationHours,
       change.recruitInvitationLeadDays ?? null,
       change.recruitFollowUpCadenceHours ?? null,
+      change.recruitEventReminderHours ?? null,
     ],
   );
 

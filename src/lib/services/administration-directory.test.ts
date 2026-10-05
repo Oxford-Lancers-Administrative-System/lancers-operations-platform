@@ -228,7 +228,7 @@ describe("both list reads are the capability floor", () => {
 // ---------------------------------------------------------------------------
 
 describe("the role catalogue", () => {
-  it("returns the twenty approved seats in the three approved groups, in order", async () => {
+  it("returns the twenty-one approved seats in the three approved groups, in order", async () => {
     const catalogue = await readRoleCatalogue(administrator());
 
     expect(catalogue.groups.map((group) => group.label)).toEqual([
@@ -236,12 +236,12 @@ describe("the role catalogue", () => {
       "Club Committee",
       "Coaching Staff",
     ]);
-    expect(catalogue.groups.flatMap((group) => group.roles)).toHaveLength(20);
+    expect(catalogue.groups.flatMap((group) => group.roles)).toHaveLength(21);
     expect(catalogue.groups[0].roles.map((role) => role.label)).toEqual([
       "General Manager",
       "IT Officer",
     ]);
-    expect(catalogue.groups[2].roles).toHaveLength(10);
+    expect(catalogue.groups[2].roles).toHaveLength(11);
   });
 
   it("names each seat exactly as the capability map does", async () => {
@@ -306,9 +306,9 @@ describe("the role catalogue", () => {
       }
     }
 
-    // All twenty, on a seeded club. A skip that quietly swallowed half the
+    // All twenty-one, on a seeded club. A skip that quietly swallowed half the
     // catalogue is what let the two readers disagree about every coaching seat.
-    expect(compared).toBe(20);
+    expect(compared).toBe(21);
   });
 
   /**
@@ -733,7 +733,7 @@ describe("a gap between committee years", () => {
     const catalogue = await withNoCommitteeYear(() => readRoleCatalogue(administrator()));
 
     expect(catalogue.committeeYear).toBeNull();
-    expect(catalogue.groups.flatMap((group) => group.roles)).toHaveLength(20);
+    expect(catalogue.groups.flatMap((group) => group.roles)).toHaveLength(21);
   });
 
   it("still names the committee seats' holders, and refuses new assignments", async () => {

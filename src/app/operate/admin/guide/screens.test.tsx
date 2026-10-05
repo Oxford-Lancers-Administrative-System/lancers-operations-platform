@@ -170,3 +170,18 @@ describe("the FAQ", () => {
     }
   });
 });
+
+// LAN-467: Compliance and user protections moved to its own guide page
+// (Brian's visual review, 5 October 2026); this page no longer carries it.
+describe("Compliance and user protections", () => {
+  it("is no longer a section on this page", async () => {
+    resolve.mockResolvedValue({ state: "active", operator: operator(["general_manager"]) });
+
+    const { container } = await renderPage();
+
+    expect(screen.queryByTestId("section-compliance")).toBeNull();
+    expect(container.querySelectorAll("details")).toHaveLength(ADMINISTRATION_GUIDE.length);
+    expect(container.textContent).not.toContain("Compliance and user protections");
+    expect(container.textContent).not.toContain("row-level security");
+  });
+});

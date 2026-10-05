@@ -56,6 +56,8 @@ function readDraft(formData: FormData): RawEventDraft {
     requiredEquipment: text(formData, "requiredEquipment"),
     joiningUrl: text(formData, "joiningUrl"),
     attendance: text(formData, "attendance"),
+    // LAN-475: empty when unanswered or when the Game template's control is not on the form.
+    homeAway: text(formData, "homeAway"),
   };
 }
 

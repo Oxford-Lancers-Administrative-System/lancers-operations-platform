@@ -224,12 +224,25 @@ async function png(svg, size, ground = null) {
  * Raster and not SVG because this one is consumed by mail clients. Outlook on
  * Windows draws HTML through Word, which does not render an SVG `<img>` at all;
  * a vector crest there is an empty box. Every client renders a PNG.
+ *
+ * `ground` makes it a tile — LAN-456: the mark drawn `inset` (a fraction of the
+ * height, each side) inside an opaque rectangle of that colour, the rectangle
+ * keeping the mark's own ratio so the email's `width`/`height` attributes still
+ * describe it.
  */
-async function rasterAtHeight(svg, height) {
+async function rasterAtHeight(svg, height, { ground = null, inset = 0 } = {}) {
   const view = attribute(openTag(svg), "viewBox").split(/\s+/).map(Number);
   const width = Math.round((height * view[2]) / view[3]);
-  return sharp(Buffer.from(svg), { density: densityFor(svg, width) })
-    .resize(width, height, { fit: "fill" })
+  const innerHeight = Math.round(height * (1 - 2 * inset));
+  const innerWidth = Math.round((innerHeight * view[2]) / view[3]);
+  const mark = await sharp(Buffer.from(svg), { density: densityFor(svg, width) })
+    .resize(innerWidth, innerHeight, { fit: "fill" })
+    .ensureAlpha(1)
+    .png({ compressionLevel: 9, palette: false })
+    .toBuffer();
+  if (ground === null) return mark;
+  return sharp({ create: { width, height, channels: 4, background: ground } })
+    .composite([{ input: mark, gravity: "center" }])
     .ensureAlpha(1)
     .png({ compressionLevel: 9, palette: false })
     .toBuffer();
@@ -293,7 +306,8 @@ async function main() {
     "own crown path (Brian, 2026-09-10); viewBox cropped to the mark. Regenerate with " +
     "scripts/generate-brand-assets.mjs.";
 
-  await put(path.join(brand, "crest.svg"), crop(logo, logoBox, `White. ${provenance}`));
+  const crestWhite = crop(logo, logoBox, `White. ${provenance}`);
+  await put(path.join(brand, "crest.svg"), crestWhite);
   const crestBlue = crop(
     recolourWhite(logo, NAVY),
     logoBox,
@@ -301,16 +315,20 @@ async function main() {
   );
   await put(path.join(brand, "crest-blue.svg"), crestBlue);
 
-  // -- LAN-398: the crest in every email -----------------------------------
-  // The blue variant, because an email's shell is a white card on the same
-  // warm off-white ground the application uses, and the white variant would
-  // disappear into it. The header shows this 48px tall and the signature block
-  // 32px, so the committed raster is the 2x of the larger of the two and both
-  // slots scale it down. `@1x` is the matching non-retina rendition, offered
-  // through `srcset`; a client that ignores `srcset` takes the 2x from `src`
-  // and is sharp either way.
-  await put(path.join(brand, "crest-email.png"), await rasterAtHeight(crestBlue, 96));
-  await put(path.join(brand, "crest-email@1x.png"), await rasterAtHeight(crestBlue, 48));
+  // -- LAN-398, LAN-456: the crest in every email ---------------------------
+  // The application's own mark — the white crest with the brown football on
+  // the club navy, as `BrandMark` draws it in the operator shell — so there is
+  // one mark in circulation (LAN-456, replacing LAN-398's blue-on-white). The
+  // navy is in the raster itself, an opaque tile, because the email's shell is
+  // a white card and a white mark on transparency would vanish into it; a tile
+  // also needs no change to the email's HTML. The header shows this 48px tall
+  // and the signature block 32px, so the committed raster is the 2x of the
+  // larger of the two and both slots scale it down. `@1x` is the matching
+  // non-retina rendition, offered through `srcset`; a client that ignores
+  // `srcset` takes the 2x from `src` and is sharp either way.
+  const tile = { ground: NAVY, inset: 0.1 };
+  await put(path.join(brand, "crest-email.png"), await rasterAtHeight(crestWhite, 96, tile));
+  await put(path.join(brand, "crest-email@1x.png"), await rasterAtHeight(crestWhite, 48, tile));
 
   // -- LAN-269, LAN-385: the icons -----------------------------------------
   // Everything below is one SVG rendered at six sizes. The badge already is an

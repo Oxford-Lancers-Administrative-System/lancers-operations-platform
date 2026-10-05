@@ -14,6 +14,7 @@ export interface FeedEvent {
   deliveryMode: string;
   venue: string | null;
   isCancelled: boolean;
+  isDraft: boolean; // LAN-463 — title and date/time only, until approval
   description: string | null; // D18; joined with requiredEquipment into DESCRIPTION (Q-29)
   requiredEquipment: string | null; // D17; joined with description into DESCRIPTION (Q-29)
   joiningUrl: string | null; // LAN-284; emitted as URL, never inside DESCRIPTION
@@ -151,11 +152,21 @@ function descriptionFor(event: FeedEvent): string | null {
   return `${description}\n\n${EQUIPMENT_LABEL}: ${equipment}`;
 }
 
+/**
+ * LAN-463 (Stu and Brian, 2 October 2026): what a draft carries in place of its description. A
+ * draft holds its place in a subscriber's calendar with its title and time, and nothing the club
+ * has not approved; approval fills in the same entry (same UID, later SEQUENCE).
+ */
+export const DRAFT_PLACEHOLDER = "Details to be confirmed. They may change.";
+
 function buildVEventLines(event: FeedEvent, now: Date): string[] {
   const timing = eventTiming(event);
-  const location = locationFor(event);
-  const description = descriptionFor(event);
-  const joiningUrl = safeUri(event.joiningUrl);
+  // The public tier already reads a draft's venue, description, equipment and link as null; the
+  // feed withholds them again here, and the delivery mode's "Online" with them, so the rule does
+  // not depend on which caller built the row.
+  const location = event.isDraft ? null : locationFor(event);
+  const description = event.isDraft ? DRAFT_PLACEHOLDER : descriptionFor(event);
+  const joiningUrl = event.isDraft ? null : safeUri(event.joiningUrl);
   const dateParam = timing.allDay ? ";VALUE=DATE" : "";
 
   const lines = [
@@ -169,7 +180,10 @@ function buildVEventLines(event: FeedEvent, now: Date): string[] {
   if (location !== null) lines.push(`LOCATION:${escapeText(location)}`);
   if (description !== null) lines.push(`DESCRIPTION:${escapeText(description)}`);
   if (joiningUrl !== null) lines.push(`URL:${joiningUrl}`); // URI-typed, never escaped; safe only because safeUri already refused control chars and non-http(s) schemes
-  lines.push(`STATUS:${event.isCancelled ? "CANCELLED" : "CONFIRMED"}`);
+  // LAN-463: a draft is TENTATIVE (RFC 5545 §3.8.1.11) until approval confirms it.
+  lines.push(
+    `STATUS:${event.isCancelled ? "CANCELLED" : event.isDraft ? "TENTATIVE" : "CONFIRMED"}`,
+  );
   lines.push(`SEQUENCE:${deriveSequence(event.updatedAt)}`);
   lines.push("END:VEVENT");
   return lines;

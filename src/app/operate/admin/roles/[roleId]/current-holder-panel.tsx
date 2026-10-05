@@ -7,7 +7,24 @@ import { StatusChip } from "@/components/status-chip";
 import { operatorAccountState } from "@/lib/services/operator-account-state";
 import type { CatalogueRole } from "@/lib/services/administration-directory";
 import { describePeriod, NOT_ASSIGNED } from "../../presentation";
+import type { DetailsRequestState } from "@/lib/services/operator-details";
+import SendDetailsRequest from "./send-details-request";
 import SendInvitation from "./send-invitation";
+
+/** LAN-459: where a holder's details request stands, on their line. */
+const DETAILS_STATE_LABELS: Readonly<Record<DetailsRequestState, string>> = Object.freeze({
+  requested: "Details requested",
+  not_delivered: "Details request not delivered",
+  received: "Details received",
+});
+
+/** LAN-459: each holder's details request, and who may be sent one. */
+export interface HolderDetails {
+  readonly roleId: string;
+  readonly states: Readonly<Record<string, { state: DetailsRequestState; email: string | null }>>;
+  /** Holders with no account and no usable email: the WhatsApp request is theirs to send. */
+  readonly requestable: readonly string[];
+}
 
 /**
  * Current holder panel for one role seat — LAN-133.
@@ -18,9 +35,11 @@ export default function CurrentHolderPanel({
   role,
   cycleLabel,
   invite = null,
+  details = null,
 }: {
   role: CatalogueRole;
   cycleLabel: string;
+  details?: HolderDetails | null;
   /**
    * LAN-434: offered on a holder line with no operator account when the actor
    * may assign this seat. Each holder's usable recorded email, or `null` when
@@ -77,6 +96,24 @@ export default function CurrentHolderPanel({
               <Typography variant="body2" color="text.secondary">
                 {describePeriod(holder)}
               </Typography>
+              {details?.states[holder.personId] ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  data-testid="holder-details-state"
+                  data-state={details.states[holder.personId].state}
+                >
+                  {[
+                    DETAILS_STATE_LABELS[details.states[holder.personId].state],
+                    details.states[holder.personId].email,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Typography>
+              ) : null}
+              {!holder.operatorAccountId && details?.requestable.includes(holder.personId) ? (
+                <SendDetailsRequest roleId={details.roleId} personId={holder.personId} />
+              ) : null}
               {!holder.operatorAccountId && invite ? (
                 <SendInvitation
                   roleId={invite.roleId}

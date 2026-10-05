@@ -62,9 +62,9 @@
  * - `special_teams` — Special teams.
  * - `warmup` — Warmup.
  * - `kit` — Kit.
- * - `attendance` — Attendance: the player record's Attendance section, and
- *   nothing else (LAN-423 round 6). At most `view`. No board columns; event
- *   attendance recording keeps its own capabilities.
+ * - `attendance` — Attendance: the player record's Attendance section and,
+ *   since LAN-457, the board's Attendance group (LAN-423 round 6). At most
+ *   `view`. Event attendance recording keeps its own capabilities.
  */
 export const ROSTER_CATEGORIES = Object.freeze([
   "person",
@@ -83,18 +83,17 @@ export const ROSTER_CATEGORIES = Object.freeze([
 
 export type RosterCategory = (typeof ROSTER_CATEGORIES)[number];
 
-/** The roster categories that are not a board group: no colour, no board columns. */
-type NonGroupCategory = "contact_emergency" | "attendance";
+/** The roster category without a club colour of its own: Contact & emergency wears Person's. */
+type NonGroupCategory = "contact_emergency";
 
 /**
- * The ten roster groups that carry a colour (`public.roster_group_colours`):
+ * The eleven roster groups that carry a colour (`public.roster_group_colours`):
  * every roster category except Contact & emergency, whose record section
- * wears Person's colour, and Attendance, whose section keeps its own.
+ * wears Person's colour. Attendance joined the ten in LAN-457's fix round 4
+ * (`20261014090000_attendance_group_colour.sql`).
  */
 export const ROSTER_GROUP_KEYS = Object.freeze(
-  ROSTER_CATEGORIES.filter(
-    (category) => category !== "contact_emergency" && category !== "attendance",
-  ),
+  ROSTER_CATEGORIES.filter((category) => category !== "contact_emergency"),
 ) as readonly Exclude<RosterCategory, NonGroupCategory>[];
 
 export type RosterGroupKey = Exclude<RosterCategory, NonGroupCategory>;

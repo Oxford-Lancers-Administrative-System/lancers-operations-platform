@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { isServiceError } from "@/lib/db";
 import { readPersonRecord } from "@/lib/services/person-record";
+import { showsStudentInformation } from "@/lib/services/person-student-information";
 import { personVersion } from "@/lib/services/person-write";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../../gate";
@@ -63,6 +64,7 @@ export default async function EditPersonPage({
       }}
       mayEditPerson={mayEditPerson}
       mayEditContact={mayEditContact}
+      showsStudentInformation={showsStudentInformation(record)}
       expectedVersion={version}
       seasonLabel={season?.label ?? "the active season"}
     />

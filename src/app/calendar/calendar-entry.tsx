@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
+import type { HomeAway } from "@/lib/services/event-input";
 import { labelFor } from "@/lib/services/event-vocabulary";
 import { formatCellDate, templateColour } from "./presentation";
 
@@ -13,6 +14,12 @@ import { formatCellDate, templateColour } from "./presentation";
  * destination arrives as `href` — each tier passes the same one its list rows
  * use, making `REQ-three-arrangements` true by construction.
  */
+
+/** LAN-475 — the first line of a current-Game-template tile, printed as Stewart asked for it. */
+const HOME_AWAY_LINES: Readonly<Record<HomeAway, string>> = Object.freeze({
+  home: "HOME",
+  away: "AWAY",
+});
 
 /** The statuses a tile stays quiet about. One, since LAN-151 — `occurred` is derived from the date rather than stored (D30). */
 const QUIET_STATUSES: readonly string[] = Object.freeze(["approved"]);
@@ -55,8 +62,11 @@ export default function CalendarEntry({
   const time = event.startsAt ?? "";
   const colour = templateColour(event.templateColour);
 
+  // LAN-475: Home or Away, its own line above the name. The name itself is untouched.
+  const side = event.homeAway ? HOME_AWAY_LINES[event.homeAway] : "";
+
   // The accessible name states the status whether or not the tile shows it.
-  const description = [event.name, when, time, announced, type, event.venue ?? ""]
+  const description = [side, event.name, when, time, announced, type, event.venue ?? ""]
     .filter((piece) => piece !== "")
     .join(", ");
 
@@ -87,6 +97,17 @@ export default function CalendarEntry({
         "&:focus-visible": { outline: 2, outlineColor: "primary.main", outlineOffset: 2 },
       }}
     >
+      {side === "" ? null : (
+        <Typography
+          variant="caption"
+          component="span"
+          color="text.secondary"
+          data-testid="calendar-entry-home-away"
+          sx={{ display: "block" }}
+        >
+          {side}
+        </Typography>
+      )}
       <Typography
         variant="caption"
         component="span"

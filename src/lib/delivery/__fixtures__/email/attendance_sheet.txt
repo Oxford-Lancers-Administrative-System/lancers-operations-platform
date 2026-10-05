@@ -1,0 +1,5 @@
+Hello Jamie, here is the attendance sheet for Michaelmas week 3 on Wednesday 14 October, 20:00.
+
+Venue: Iffley Road.
+
+https://app.oxfordlancers.example/operate/events/event-id/attendance

@@ -619,6 +619,9 @@ describe("the club-link page", () => {
     // LAN-440: the card set is Recruits, Players, Coaches — never Committee.
     expect(screen.queryByTestId("response-progress-committee")).toBeNull();
 
+    // LAN-458: the name-and-response box is the operator page's only.
+    expect(screen.queryByTestId("response-names")).toBeNull();
+
     // Nobody was invited as a coach or a recruit, so neither block is there.
     expect(screen.queryByTestId("response-progress-coach")).toBeNull();
     expect(screen.queryByTestId("response-progress-recruit")).toBeNull();

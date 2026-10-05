@@ -11,7 +11,7 @@ import { LockIcon } from "./lock-icon";
 
 /**
  * `Section variant="banded"` — a filled overline band over a tinted body
- * (LAN-225). A client component since LAN-430, so the ten roster groups can
+ * (LAN-225). A client component since LAN-430, so the eleven roster groups can
  * wear the colour the club chose (`useBandColours`); the head's text is the
  * swatch's own band text. Rendered only through `Section`.
  */

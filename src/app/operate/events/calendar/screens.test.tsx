@@ -189,6 +189,7 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    homeAway: null,
     registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
@@ -664,6 +665,26 @@ describe("what a calendar tile states", () => {
     ]);
   });
 
+  it("paints a regular Blue template's tile apart from Oxford Blue, on both calendars — LAN-474", async () => {
+    givenEvents([
+      listEntry({ name: "Team Practice", scheduledOn: "2026-10-14" }),
+      listEntry({ name: "Blue Session", templateColour: "royal_blue", scheduledOn: "2026-10-15" }),
+    ]);
+
+    const modes: Record<string, string>[] = [{}, { mode: "oxford" }];
+    for (const mode of modes) {
+      const { container, unmount } = render(await EventCalendarPage(calendarProps(mode)));
+      const tile = (id: string) =>
+        within(container)
+          .getAllByTestId("calendar-entry")
+          .find((node) => node.getAttribute("aria-label")?.startsWith(id))!;
+      expect(getComputedStyle(tile("Blue Session")).backgroundColor).toBe("rgb(232, 241, 251)");
+      expect(getComputedStyle(tile("Blue Session")).borderLeftColor).toBe("rgb(21, 101, 192)");
+      expect(getComputedStyle(tile("Team Practice")).backgroundColor).toBe("rgb(217, 229, 245)");
+      unmount();
+    }
+  });
+
   it("explains the colours it is using, and only those", async () => {
     // The season holds a game and a chalk session too, but they are in other
     // months.
@@ -883,5 +904,95 @@ describe("one event, three presentations", () => {
     expect(fromGrid).toBe(fromColumn);
     expect(fromGrid).toContain("20:00 Team Practice");
     expect(fromGrid).toContain("Cancelled");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-475 — HOME or AWAY, its own first line on a Game-template tile
+// ---------------------------------------------------------------------------
+
+describe("LAN-475 — a game's tile prints HOME or AWAY above its name", () => {
+  /** Every tile for this event inside `scope`, as [first line, second line …]. */
+  function linesOf(scope: HTMLElement): string[][] {
+    return within(scope)
+      .getAllByTestId("calendar-entry")
+      .map((tile) => [...tile.children].map((line) => flatten(line.textContent)));
+  }
+
+  const home = () =>
+    listEntry({
+      name: "Oxford Lancers vs Oxford Brookes University",
+      eventType: "game",
+      homeAway: "home",
+      scheduledOn: "2026-10-18",
+      startsAt: "14:00",
+    });
+  const away = () =>
+    listEntry({
+      name: "Oxford Lancers @ University of Reading Knights",
+      eventType: "game",
+      homeAway: "away",
+      scheduledOn: "2026-10-11",
+      startsAt: "14:00",
+    });
+
+  it("prints it on the Gregorian grid and the phone agenda, the name unchanged beneath", async () => {
+    givenEvents([home(), away()]);
+    const { container } = render(await EventCalendarPage(calendarProps()));
+
+    for (const scope of ["gregorian-grid", "gregorian-agenda"]) {
+      const lines = linesOf(within(container).getByTestId(scope));
+      expect(lines.map((tile) => tile.slice(0, 2))).toEqual([
+        ["AWAY", "14:00 Oxford Lancers @ University of Reading Knights"],
+        ["HOME", "14:00 Oxford Lancers vs Oxford Brookes University"],
+      ]);
+    }
+  });
+
+  it("prints it on the Oxford View's week rows and its phone cards", async () => {
+    givenEvents([home(), away()]);
+    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+
+    const desktop = [
+      ...linesOf(cell(container, "year-day", "2026-10-11")),
+      ...linesOf(cell(container, "year-day", "2026-10-18")),
+    ];
+    expect(desktop.map((tile) => tile.slice(0, 2))).toEqual([
+      ["AWAY", "14:00 Oxford Lancers @ University of Reading Knights"],
+      ["HOME", "14:00 Oxford Lancers vs Oxford Brookes University"],
+    ]);
+
+    const phone = linesOf(within(container).getByTestId("year-column-stack"));
+    expect(phone.map((tile) => tile.slice(0, 2))).toEqual([
+      ["AWAY", "14:00 Oxford Lancers @ University of Reading Knights"],
+      ["HOME", "14:00 Oxford Lancers vs Oxford Brookes University"],
+    ]);
+  });
+
+  it("gives a screen reader the same first word", async () => {
+    givenEvents([home()]);
+    const { container } = render(await EventCalendarPage(calendarProps()));
+
+    const tile = within(cell(container, "gregorian-cell", "2026-10-18")).getByTestId(
+      "calendar-entry",
+    );
+    expect(tile.getAttribute("aria-label")).toMatch(
+      /^HOME, Oxford Lancers vs Oxford Brookes University, /,
+    );
+  });
+
+  it("adds no line to a game nobody has answered, or to any other event", async () => {
+    givenEvents([
+      listEntry({ name: "vs Elmswell Eagles", eventType: "game", scheduledOn: "2026-10-18" }),
+      listEntry({ name: "Team Practice", scheduledOn: "2026-10-14" }),
+    ]);
+    const { container } = render(await EventCalendarPage(calendarProps()));
+
+    expect(container.querySelector('[data-testid="calendar-entry-home-away"]')).toBeNull();
+    const lines = linesOf(within(container).getByTestId("gregorian-grid"));
+    expect(lines.map((tile) => tile[0])).toEqual([
+      "20:00 Team Practice",
+      "20:00 vs Elmswell Eagles",
+    ]);
   });
 });

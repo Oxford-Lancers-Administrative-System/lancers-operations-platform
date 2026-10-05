@@ -87,14 +87,14 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all fifteen kinds and gives each one a distinct canonical name", () => {
+  it("covers all sixteen kinds and gives each one a distinct canonical name", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
     // `recruit_event_followup` and the four capture-cycle templates below —
     // plus LAN-215's one door-independent onboarding welcome, plus LAN-218's
-    // chase and its own escalation, plus LAN-367's question-change notice.
-    expect(MESSAGE_KINDS).toHaveLength(15);
+    // chase and its own escalation, plus LAN-367's question-change notice, plus LAN-464's recruit event reminder.
+    expect(MESSAGE_KINDS).toHaveLength(16);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(15);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(16);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -591,7 +591,7 @@ describe("the button labels", () => {
   });
 });
 
-describe("the fifteen canonical template names", () => {
+describe("the sixteen canonical template names", () => {
   // LAN-348. Every name carries `_v2` or `_v3`, and that is not decoration:
   // the unsuffixed and `_v1` names are the club's original Marketing
   // submissions, which Meta will not reclassify and will not let anyone edit
@@ -617,6 +617,8 @@ describe("the fifteen canonical template names", () => {
       "lancers_event_cancellation_v2",
       "lancers_nonresponse_escalation_v2",
       "recruit_event_followup_v2",
+      // LAN-464. Submitted 2 October 2026, read back from the account.
+      "recruit_event_reminder_v1",
       "recruit_welcome_v2",
       "recruit_details_reminder_v2",
       "recruit_interest_ask_v2",

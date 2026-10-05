@@ -592,6 +592,11 @@ export function stopMessagesUrl(appBaseUrl: string, token: string): string {
   return `${appBaseUrl.replace(/\/+$/, "")}/stop/${encodeURIComponent(token)}`;
 }
 
+/** LAN-465. One event's attendance sheet, behind the operator login — no credential in the link. */
+export function attendanceSheetUrl(appBaseUrl: string, eventId: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/operate/events/${encodeURIComponent(eventId)}/attendance`;
+}
+
 /** The nudge's own page: one event's outstanding questions, on its per-invitation RSVP token. */
 export function eventQuestionsUrl(appBaseUrl: string, token: string): string {
   return `${appBaseUrl.replace(/\/+$/, "")}/questions/${encodeURIComponent(token)}`;

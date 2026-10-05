@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The fourteen production contracts, pinned — LAN-348.
+ * The production contracts, pinned — LAN-348 (fourteen), LAN-367, LAN-464.
  *
  * `templates.test.ts` beside this one proves the registry is self-consistent:
  * that each kind renders as many parameters as it declares, in the order it
@@ -44,6 +44,8 @@ const expected = {
   cancellation: [["inviteeName", "eventName", "whenLabel", "cancellationReason"], 0],
   escalation: [["outstandingCount", "eventName", "whenLabel", "deadlineLabel"], 0],
   recruit_event_followup: [["inviteeName", "eventName", "whenLabel", "venue"], 2],
+  // LAN-464. Submitted 2 October 2026 (In review at Meta); no buttons.
+  recruit_event_reminder: [["inviteeName", "eventName", "whenLabel", "venue"], 0],
   recruit_welcome: [["inviteeName", "subject", "openedOn"], 1],
   recruit_details_reminder: [["inviteeName", "subject", "openedOn"], 1],
   recruit_interest_ask: [["inviteeName", "subject", "openedOn"], 1],
@@ -147,6 +149,24 @@ describe("the approved production WhatsApp contracts", () => {
       // token at index 1. Swapping them delivers cleanly and answers backwards.
       if (kind === "invitation" || kind === "reminder" || kind === "recruit_event_followup") {
         expect(buttons.map((b) => b.parameters[0].text)).toEqual(["y.token", "n.token"]);
+      }
+
+      // LAN-464: the reminder fills its four slots exactly as the recruit
+      // follow-up fills the same four — name, event, when, venue.
+      if (kind === "recruit_event_reminder") {
+        const followUp = buildMessageBody(config, {
+          ...message,
+          kind: "recruit_event_followup",
+        }) as Payload;
+        const followUpBody = followUp.template.components.find((c) => c.type === "body");
+        expect(body[0]?.parameters).toEqual(followUpBody?.parameters);
+        expect(body[0]?.parameters.map((p) => p.text)).toEqual([
+          "Synthetic Player",
+          "Practice",
+          "Tuesday at 6 pm",
+          "Training ground",
+        ]);
+        expect(TEMPLATE_NAMES.recruit_event_reminder).toBe("recruit_event_reminder_v1");
       }
 
       const sink = createDeliverySink(

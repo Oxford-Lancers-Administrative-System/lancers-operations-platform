@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
 import type { CategoryLevel, RosterCategory } from "@/lib/auth/grants";
@@ -48,6 +49,7 @@ export default function SeasonFactsSection({
   collapsedGroups,
   onToggleGroup,
   access = FULL_RECORD_ACCESS,
+  attendance = null,
 }: {
   /** Narrowed on the server: a `none` category's facts are absent (LAN-432). */
   record: VisiblePlayerRecord;
@@ -64,6 +66,8 @@ export default function SeasonFactsSection({
   onToggleGroup: (group: RecordGroup, open: boolean) => void;
   /** LAN-432 — the seat's level on each category: `none` locks a group, `view` makes it text. */
   access?: RecordAccess;
+  /** LAN-457 (fix round 4): the record's Attendance section, drawn between Availability and Coaching as on the board. */
+  attendance?: ReactNode;
 }) {
   const errorFor = (key: string) => (fieldErrorKey === key ? fieldErrorMessage : null);
   const savingOf = (key: string) => savingKey === key;
@@ -236,6 +240,8 @@ export default function SeasonFactsSection({
           />
         </Section>
       )}
+
+      {attendance}
 
       {level("coaching") === "none" ? (
         <Section

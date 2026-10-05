@@ -29,8 +29,8 @@ describe("Section", () => {
     expect(BAND_COLOURS.season.header).toBe(CLUB.royalBlue);
     // LAN-430 (W2, round 4): the Old Gold groups moved to Lancer Gold.
     expect(BAND_COLOURS.onboarding.header).toBe(CLUB.gold);
-    // The purple attendance band is gone: attendance and history read neutral.
-    expect(BAND_COLOURS.attendance.header).toBe(BAND_COLOURS.history.header);
+    // LAN-457 (fix round 4): Attendance is a stored group now, seeded at Slate.
+    expect(BAND_COLOURS.attendance.header).toBe(bandColoursForSwatch("slate").header);
   });
 
   it("prints charcoal band text on Lancer Gold and Orange, white elsewhere", () => {
@@ -43,8 +43,13 @@ describe("Section", () => {
 
   it("draws a roster group in the colour the club chose, and leaves a record-only band alone", () => {
     render(
-      <BandColoursProvider groupColours={{ ...DEFAULT_ROSTER_GROUP_COLOURS, kit: "red" }}>
+      <BandColoursProvider
+        groupColours={{ ...DEFAULT_ROSTER_GROUP_COLOURS, kit: "red", attendance: "red" }}
+      >
         <Section title="Kit" variant="banded" band="kit" testId="kit">
+          body
+        </Section>
+        <Section title="Attendance" variant="banded" band="attendance" testId="attendance">
           body
         </Section>
         <Section title="History" variant="banded" band="history" testId="history">
@@ -56,6 +61,27 @@ describe("Section", () => {
       screen.getByTestId(id).querySelector("h2")!.parentElement as HTMLElement;
     expect(getComputedStyle(head("section-kit")).backgroundColor).toBe("rgb(198, 40, 40)");
     expect(getComputedStyle(head("section-kit")).color).toBe("rgb(255, 255, 255)");
+    expect(getComputedStyle(head("section-attendance")).backgroundColor).toBe("rgb(198, 40, 40)");
     expect(getComputedStyle(head("section-history")).backgroundColor).not.toBe("rgb(198, 40, 40)");
+  });
+
+  it("draws regular Blue and Oxford Blue as two different band heads — LAN-474", () => {
+    render(
+      <BandColoursProvider
+        groupColours={{ ...DEFAULT_ROSTER_GROUP_COLOURS, person: "blue", coaching: "royal_blue" }}
+      >
+        <Section title="Person" variant="banded" band="person" testId="person">
+          body
+        </Section>
+        <Section title="Coaching" variant="banded" band="coaching" testId="coaching">
+          body
+        </Section>
+      </BandColoursProvider>,
+    );
+    const head = (id: string) =>
+      screen.getByTestId(id).querySelector("h2")!.parentElement as HTMLElement;
+    expect(getComputedStyle(head("section-coaching")).backgroundColor).toBe("rgb(21, 101, 192)");
+    expect(getComputedStyle(head("section-coaching")).color).toBe("rgb(255, 255, 255)");
+    expect(getComputedStyle(head("section-person")).backgroundColor).toBe("rgb(0, 33, 71)");
   });
 });

@@ -34,6 +34,14 @@ import { AlreadyCompletePage, DonePage } from "./terminal-pages";
 import { DetailsStepPage } from "./details-step";
 import { DocumentStepPage } from "./document-step";
 import { BucsStepPage, HudlStepPage } from "./trust-steps";
+import { PageHeader } from "@/components/page-header";
+import {
+  readOperatorDetailsViewIn,
+  resolveOperatorDetailsLinkIn,
+  type OperatorDetailsView,
+} from "@/lib/services/operator-details";
+import { OperatorDetailsForm } from "../../_operator-details/details-form";
+import { saveOperatorDetailsFromLink } from "./actions";
 
 /** The generic club card (LAN-269 item 5), declared here since LAN-343 emptied `/me` of the layout that used to carry it. */
 export const metadata: Metadata = TOKEN_LINK_METADATA;
@@ -54,9 +62,13 @@ interface Resolved {
   personId: string | null;
   seasonId: string | null;
   view: QuestionnaireView | null;
+  /** LAN-459: an `operator_details` link opens the operator details form instead. */
+  operator?: OperatorDetailsView | null;
 }
 
 const STEP_PARAM_VALUES: readonly string[] = [...STEP_ORDER, "done"];
+
+const OPERATOR_DETAILS_HEADING = "Your details";
 
 export default async function PlayerDetailsPage({ params, searchParams }: PageProps) {
   const { token } = await params;
@@ -82,7 +94,17 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
       return withTransaction(async (tx) => {
         const resolution = await resolvePersonTokenIn(tx, token, "onboarding_details");
         if (resolution.state !== "valid" || !resolution.resolved) {
-          return { personId: null, seasonId: null, view: null };
+          // LAN-459: the approved template's button is fixed to `/onboarding/`,
+          // so this route resolves the operator details link too — its own
+          // purpose, to its own page, and nothing else.
+          const link = await resolveOperatorDetailsLinkIn(tx, token);
+          if (link === null) return { personId: null, seasonId: null, view: null };
+          return {
+            personId: link.personId,
+            seasonId: link.seasonId,
+            view: null,
+            operator: await readOperatorDetailsViewIn(tx, link.personId),
+          };
         }
         const view = await readQuestionnaireViewIn(
           tx,
@@ -96,8 +118,24 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
         };
       });
     },
-    (outcome) => outcome.personId === null || outcome.view === null,
+    (outcome) => outcome.personId === null || (outcome.view === null && !outcome.operator),
   );
+
+  if (resolved.operator) {
+    return (
+      <PublicShell layout="stack" testId="operator-details-link">
+        <Stack spacing={3}>
+          {busy ? <Notice severity="warning">{BUSY_MESSAGE}</Notice> : null}
+          <PageHeader title={OPERATOR_DETAILS_HEADING} />
+          <OperatorDetailsForm
+            action={saveOperatorDetailsFromLink.bind(null, token)}
+            values={resolved.operator.values}
+            fields={resolved.operator.fields}
+          />
+        </Stack>
+      </PublicShell>
+    );
+  }
 
   if (resolved.personId === null || resolved.view === null) {
     notFound();

@@ -8,6 +8,7 @@ import { isServiceError } from "@/lib/db";
 import { readHolderHistory } from "@/lib/services/administration-audit";
 import { readSeatAccess, type SeatAccess } from "@/lib/services/access-grants";
 import { earliestEndFor, readSeatHolderEmails } from "@/lib/services/operator-administration";
+import { readOperatorDetailsStatuses } from "@/lib/services/operator-details";
 import {
   readRoleCatalogue,
   type CatalogueGroup,
@@ -20,7 +21,7 @@ import AdministrationHistory from "../../history";
 import { permittedRoleActions } from "../../permissions";
 import { NO_CYCLE } from "../../presentation";
 import AccessSection from "./access-section";
-import CurrentHolderPanel from "./current-holder-panel";
+import CurrentHolderPanel, { type HolderDetails } from "./current-holder-panel";
 import RoleActions from "./role-actions";
 import { usableRecordedEmail } from "../../seat-email";
 
@@ -93,6 +94,18 @@ export default async function RoleRecordPage({
     };
   }
 
+  // LAN-459: each holder's details request, and a holder the club has only a
+  // phone number for may be sent one again.
+  const statuses = await readOperatorDetailsStatuses(
+    gate.operator,
+    role.holders.map((holder) => holder.personId),
+  );
+  const details: HolderDetails = {
+    roleId: role.id,
+    states: Object.fromEntries(statuses),
+    requestable: invite ? unaccounted.filter((personId) => invite.emails[personId] === null) : [],
+  };
+
   return (
     <Stack spacing={3}>
       <AdminPageHeading
@@ -102,7 +115,7 @@ export default async function RoleRecordPage({
       />
 
       <Section title="Current holder" testId="current-holder">
-        <CurrentHolderPanel role={role} cycleLabel={cycleLabel} invite={invite} />
+        <CurrentHolderPanel role={role} cycleLabel={cycleLabel} invite={invite} details={details} />
       </Section>
 
       <AccessSection

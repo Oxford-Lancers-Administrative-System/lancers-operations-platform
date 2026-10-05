@@ -94,6 +94,12 @@ export interface ParticipationPerson {
   readonly presence: AttendancePresence | null;
   readonly discrepancy: ParticipationDiscrepancy | null;
   readonly answers: Readonly<Record<string, string>>;
+  /**
+   * LAN-466. Holds the General Manager or IT Officer seat on the event's date,
+   * so a committee-only invitation is tallied under Coaches in the response
+   * progress blocks. Display only; the capacity above is unchanged.
+   */
+  readonly countsAsCoach?: boolean;
 }
 
 /** One person, at the operator tier: the same row plus D3's one addition. */

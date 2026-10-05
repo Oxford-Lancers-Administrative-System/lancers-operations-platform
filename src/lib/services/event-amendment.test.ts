@@ -1813,6 +1813,8 @@ describe("rescheduling recomputes the chase threshold", () => {
     const game = await approvedEvent({
       name: `${NAME_MARKER} Game`,
       templateId: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+      // LAN-475: approval refuses a Game-template event that says neither.
+      homeAway: "home",
     });
     const newDate = futureDay(60);
 

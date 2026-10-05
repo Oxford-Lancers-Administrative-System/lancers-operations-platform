@@ -22,9 +22,14 @@ import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 
-import { isShowedPresence } from "@/lib/services/attendance-vocabulary";
+import {
+  attendanceBand,
+  formatAttendanceTally,
+  type AttendanceScore,
+  type AttendanceTally,
+} from "@/lib/services/attendance-score";
 import type { AttendanceEvent } from "@/lib/services/player-record";
-import { formatDay } from "../presentation";
+import { ATTENDANCE_BAND_COLOUR, formatDay } from "../presentation";
 import {
   ATTENDANCE_LABEL,
   COLUMNS,
@@ -42,13 +47,48 @@ import {
 } from "./attendance-filters";
 import { FilterButton, ValueOrNotRecorded } from "./attendance-table-bits";
 
+/** The three tallies, in the board's Attendance group's order and with its labels. */
+const SCORE_FACTS: readonly { key: keyof AttendanceScore; label: string }[] = Object.freeze([
+  { key: "mandatory", label: "Mandatory" },
+  { key: "bps", label: "BPS" },
+  { key: "all", label: "All events" },
+]);
+
+/**
+ * What a tally prints: `9/9 · 100%` in its band's colour, or an uncoloured
+ * dash when nothing is counted — the board's own cell (LAN-457).
+ */
+function TallyFigure({ tally }: { tally: AttendanceTally }) {
+  const band = attendanceBand(tally);
+  return (
+    <Typography
+      variant="body1"
+      data-band={band ?? undefined}
+      sx={{ fontWeight: 600, color: band ? ATTENDANCE_BAND_COLOUR[band] : "text.primary" }}
+    >
+      {formatAttendanceTally(tally) ?? "—"}
+    </Typography>
+  );
+}
+
 /**
  * `WP-player-record`'s Attendance band — `Q15-attendance`, corrected at W1/W2
  * (Brian's walkthrough, `Q-19`): this season's RSVP and attendance history,
- * read-only, with a mandatory-attendance score that follows the same four
- * filters (Mandatory, RSVP, Attendance, Event status) the table applies.
+ * read-only.
+ *
+ * LAN-457: the score above the list is the roster board's Attendance group —
+ * Mandatory, BPS and All events, computed on the server by `scoreAttendance`
+ * over the whole season. It no longer follows the list's filters, so the
+ * record and the board always show the same figures. The unrecorded count
+ * beside it still reads the filtered list, as it did.
  */
-export default function AttendanceSection({ events }: { events: readonly AttendanceEvent[] }) {
+export default function AttendanceSection({
+  events,
+  score,
+}: {
+  events: readonly AttendanceEvent[];
+  score: AttendanceScore;
+}) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "date",
     dir: "desc",
@@ -84,15 +124,8 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
     );
   }, [filtered, sort]);
 
-  // Mandatory, and carrying an attendance record — the only rows the score
-  // reads, out of exactly the set the filters have left standing. An upcoming
-  // event and a cancelled invitation both drop out here because both have
-  // `attendance: null`, not because either was special-cased.
-  const scored = filtered.filter((event) => event.isMandatory && event.attendance !== null);
-  const attended = scored.filter((event) => isShowedPresence(event.attendance));
-  const pct = scored.length === 0 ? null : Math.round((attended.length / scored.length) * 100);
   // W2/Q-19: occurred mandatory events with no attendance record, out of the
-  // same filtered set the score above reads — "occurred" is asked explicitly
+  // filtered set the list shows — "occurred" is asked explicitly
   // here (rather than only via the Event status filter) so widening that
   // filter to show upcoming events too never counts one of *those* as
   // unrecorded. Neither attended nor missed; a value that cannot be derived
@@ -144,33 +177,35 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
 
   return (
     <Box>
-      <Stack
-        direction="row"
-        spacing={1.5}
-        sx={{ alignItems: "baseline", flexWrap: "wrap", gap: 1, pb: 1.5 }}
-      >
-        {pct === null ? (
-          <Typography
-            variant="body2"
-            data-testid="attendance-score"
-            sx={{ color: "text.disabled", fontStyle: "italic" }}
-          >
-            {["not recorded", unrecordedLabel].filter(Boolean).join(" · ")}
-          </Typography>
-        ) : (
-          <Typography variant="body2" data-testid="attendance-score" sx={{ fontWeight: 700 }}>
-            {[`${attended.length} of ${scored.length} mandatory · ${pct}%`, unrecordedLabel]
-              .filter(Boolean)
-              .join(" · ")}
-          </Typography>
-        )}
-        <Typography variant="caption" color="text.secondary">
-          Mandatory attendance
-        </Typography>
-        {isFiltered ? (
-          <Chip size="small" color="primary" variant="outlined" label="Filtered" />
-        ) : null}
-      </Stack>
+      <Box sx={{ pb: 1.5 }}>
+        <FactGrid columns={3} testId="attendance-score">
+          {SCORE_FACTS.map((fact) => (
+            <Fact
+              key={fact.key}
+              label={fact.label}
+              value={<TallyFigure tally={score[fact.key]} />}
+              emphasis
+              testId={`attendance-score-${fact.key}`}
+            />
+          ))}
+        </FactGrid>
+      </Box>
+      {unrecordedLabel || isFiltered ? (
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "baseline", flexWrap: "wrap", gap: 1, pb: 1.5 }}
+        >
+          {unrecordedLabel ? (
+            <Typography variant="body2" color="text.secondary" data-testid="attendance-unrecorded">
+              {unrecordedLabel}
+            </Typography>
+          ) : null}
+          {isFiltered ? (
+            <Chip size="small" color="primary" variant="outlined" label="Filtered" />
+          ) : null}
+        </Stack>
+      ) : null}
 
       {chips}
 

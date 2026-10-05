@@ -21,6 +21,7 @@ import {
   buildCalendarFeed,
   buildEventUid,
   deriveSequence,
+  DRAFT_PLACEHOLDER,
   escapeText,
   FEED_HOSTNAME,
   FEED_SEQUENCE_EPOCH,
@@ -42,6 +43,7 @@ function anEvent(overrides: Partial<FeedEvent> = {}): FeedEvent {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isCancelled: false,
+    isDraft: false,
     description: null,
     requiredEquipment: null,
     joiningUrl: null,
@@ -202,6 +204,68 @@ describe("buildCalendarFeed", () => {
     expect(document).toContain(`UID:${buildEventUid(EVENT_ID)}`);
     expect(document).toContain("STATUS:CANCELLED");
     expect(document).not.toContain("STATUS:CONFIRMED");
+  });
+
+  // LAN-463 (Stu and Brian, 2 October 2026).
+  describe("a draft event", () => {
+    const FULL = {
+      deliveryMode: "online",
+      venue: "Microsoft Teams",
+      description: "Bring the playbook.",
+      requiredEquipment: "Laptop",
+      joiningUrl: "https://teams.example.invalid/l/meetup-join/lan463",
+    } as const;
+
+    it("carries its title and time, the placeholder line, and nothing else", () => {
+      const document = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [anEvent({ ...FULL, isDraft: true })],
+        now: GENERATED_AT,
+      });
+      const unfolded = unfoldDocument(document);
+
+      expect(validateICalendar(document)).toEqual([]);
+      expect(unfolded).toContain(`SUMMARY:${escapeText("Chalk — michaelmas week 4")}`);
+      expect(unfolded).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+      expect(unfolded).toMatch(/DTEND:\d{8}T\d{6}Z/);
+      expect(unfolded).toContain(`DESCRIPTION:${escapeText(DRAFT_PLACEHOLDER)}`);
+      expect(unfolded).toContain("STATUS:TENTATIVE");
+      for (const withheld of ["LOCATION:", "URL:", "Microsoft Teams", "playbook", "Laptop"]) {
+        expect(unfolded, withheld).not.toContain(withheld);
+      }
+    });
+
+    it("says nothing of an online draft's place, not even Online", () => {
+      const document = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [anEvent({ deliveryMode: "online", venue: null, isDraft: true })],
+        now: GENERATED_AT,
+      });
+      expect(document).not.toContain("LOCATION:");
+    });
+
+    it("fills in the same entry once approved — same UID, a later SEQUENCE", () => {
+      const draftDocument = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [anEvent({ ...FULL, isDraft: true })],
+        now: GENERATED_AT,
+      });
+      const approvedDocument = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [anEvent({ ...FULL, isDraft: false, updatedAt: "2026-10-02T12:00:00.000Z" })],
+        now: GENERATED_AT,
+      });
+      const uidOf = (document: string) => document.match(/UID:(.+)\r\n/)![1];
+      const sequenceOf = (document: string) => Number(document.match(/SEQUENCE:(\d+)/)![1]);
+
+      expect(uidOf(approvedDocument)).toBe(uidOf(draftDocument));
+      expect(sequenceOf(approvedDocument)).toBeGreaterThan(sequenceOf(draftDocument));
+      const approved = unfoldDocument(approvedDocument);
+      expect(approved).toContain("LOCATION:Microsoft Teams");
+      expect(approved).toContain(`URL:${FULL.joiningUrl}`);
+      expect(approved).toContain("STATUS:CONFIRMED");
+      expect(approved).not.toContain(escapeText(DRAFT_PLACEHOLDER));
+    });
   });
 
   it("skips an event with no scheduledOn rather than emitting a VEVENT with no date", () => {

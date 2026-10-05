@@ -10,6 +10,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
+import { EMPTY_ATTENDANCE_SCORE } from "@/lib/services/attendance-score";
 import type { MembershipStatus, OnboardingItemStatus } from "@/lib/services/membership";
 import {
   SUBS_INVOICED_ITEM_CODE,
@@ -653,23 +654,33 @@ export default function PlayerRecordView({
         collapsedGroups={collapsedGroups}
         onToggleGroup={toggleGroup}
         access={access}
+        attendance={
+          lockedOf("attendance") ? (
+            <Section
+              variant="banded"
+              band="attendance"
+              title="Attendance"
+              testId="attendance"
+              locked
+            />
+          ) : (
+            <Section
+              variant="banded"
+              band="attendance"
+              title="Attendance"
+              testId="attendance"
+              collapsible
+              defaultOpen={!collapsedGroups.has("attendance")}
+              onToggleOpen={(open) => toggleGroup("attendance", open)}
+            >
+              <AttendanceSection
+                events={record.attendance ?? []}
+                score={record.attendanceScore ?? EMPTY_ATTENDANCE_SCORE}
+              />
+            </Section>
+          )
+        }
       />
-
-      {lockedOf("attendance") ? (
-        <Section variant="banded" band="attendance" title="Attendance" testId="attendance" locked />
-      ) : (
-        <Section
-          variant="banded"
-          band="attendance"
-          title="Attendance"
-          testId="attendance"
-          collapsible
-          defaultOpen={!collapsedGroups.has("attendance")}
-          onToggleOpen={(open) => toggleGroup("attendance", open)}
-        >
-          <AttendanceSection events={record.attendance ?? []} />
-        </Section>
-      )}
 
       {/* LAN-432: Their other seasons and Status history read as Membership. */}
       {lockedOf("membership") ? (

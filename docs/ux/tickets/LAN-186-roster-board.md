@@ -46,7 +46,7 @@ person record behind, and refuses everyone else before any board data is read.
 ## What renders
 
 Player is pinned, and every other column belongs to one labelled and tinted
-band. The band inventory, current as of LAN-412 and in the order the board
+band. The band inventory, current as of LAN-457 and in the order the board
 draws them:
 
 | Band                          | Holds                                                              |
@@ -55,6 +55,7 @@ draws them:
 | **Onboarding**                | the operator-ticked items                                          |
 | **Membership**                | Status, Entry, Blue #, White #, Blues, Eligibility, BPS            |
 | **Availability**              | Availability, and nothing else (LAN-412)                           |
+| **Attendance**                | Mandatory, BPS, All events — read-only tallies (LAN-457)           |
 | **Coaching assignments**      | coaching group, offensive position group, defensive position group |
 | **Offensive assignments**     | primary and backup position                                        |
 | **Defensive assignments**     | primary and backup position                                        |
@@ -76,9 +77,17 @@ picker and write action exactly as they were inside Membership, and takes the
 most desaturated band colour on the board, because its values are the only
 traffic-light values the board has.
 
+**Attendance is its own band** (LAN-457, Brian 2026-10-02): three read-only
+columns, each `attended/counted · percentage`, sortable with a dash last, never
+filtered, shown only with View on the Attendance access line. The figure's text
+is coloured by its rounded percentage (Brian, 2026-10-05): 80–100 % success
+green, 60–79 % warning amber, below 60 % error red; a dash is uncoloured. It keeps the
+record's Attendance colour (it is not one of the ten club-coloured groups) and
+shares its fold with the record's Attendance section.
+
 Every band folds, and which are folded is remembered on the operator's own
-account. Special teams, Warmup and Kit arrive folded; Availability arrives
-open. The board scrolls sideways inside its own container; the page never
+account. Special teams, Warmup and Kit arrive folded; Availability and
+Attendance arrive open. The board scrolls sideways inside its own container; the page never
 scrolls horizontally.
 
 Raw email and phone are gone, replaced by a Contactable indicator (`Mobile` /

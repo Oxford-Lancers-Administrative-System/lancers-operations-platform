@@ -188,7 +188,8 @@ They take the tokens and the band colours and are otherwise untouched.
   a gold rule, the body at `body1` in Charcoal, and a signature block with the
   crest at 32px, the club's name in full and the privacy notice. One 600px
   column, fluid to 375px. Inline styles only and a raster crest
-  (`public/brand/crest-email.png`), because no mail client fetches a stylesheet
+  (`public/brand/crest-email.png` — since LAN-456 the application's own white
+  mark on an opaque Oxford Blue tile, not a blue mark), because no mail client fetches a stylesheet
   and Outlook draws HTML through Word, which renders neither `max-width` on a
   `div` nor an SVG `<img>`. Geist is named in the stack and never fetched; a
   reader without it lands on their platform's UI face. Evidence:

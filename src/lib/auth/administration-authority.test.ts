@@ -78,6 +78,7 @@ const CATALOGUE = [
   "offence_coach",
   "defence_coach",
   "quarterbacks_coach",
+  "running_backs_coach",
   "offensive_line_coach",
   "wide_receivers_coach",
   "defensive_line_coach",

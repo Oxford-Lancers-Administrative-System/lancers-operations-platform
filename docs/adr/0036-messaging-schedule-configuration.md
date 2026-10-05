@@ -156,3 +156,9 @@ already-queued jobs and jobs rescheduled by approval or amendment obey it alike,
 and at release every dispatch-time eligibility check runs, under normal pacing.
 The bullet above that calls `OWN-no-quiet-hours` absolute is superseded to that
 extent; no data was repaired.
+
+On 2026-10-02 (LAN-465) Brian added a fourth exempt kind: the email-only
+`attendance_sheet`, sent an hour before an event, so an event starting before
+08:00 still gets its sheet. It rides the `other` job type, so it is exempted by
+its idempotency-key prefix (`OTHER_JOB_KEY_PREFIX_KINDS`) through the same
+`LIGHTS_OUT_EXEMPT` record.

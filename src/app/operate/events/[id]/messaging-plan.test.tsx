@@ -31,6 +31,7 @@ const SCHEDULE: MessagingSchedule = {
   escalationHours: 12,
   recruitInvitationLeadDays: 5,
   recruitFollowUpCadenceHours: 72,
+  recruitEventReminderHours: 1,
   updatedAt: new Date("2026-08-25T00:00:00Z"),
 };
 
@@ -56,6 +57,7 @@ function planWithRecruitLadder(overrides: Partial<MessagingPlan> = {}): Messagin
       configuredInvitationAt: recruitInvitationAt,
       dispatchesImmediately: false,
       followUpAt: new Date("2026-09-18T19:00:00Z"),
+      reminderAt: null,
     },
     ...overrides,
   };
@@ -84,6 +86,7 @@ describe("planForDisplay / frozenPlanForDisplay", () => {
           configuredInvitationAt: new Date("2026-09-15T19:00:00Z"),
           dispatchesImmediately: false,
           followUpAt: null,
+          reminderAt: null,
         },
       }),
     );
@@ -106,6 +109,7 @@ describe("planForDisplay / frozenPlanForDisplay", () => {
         invitationAt: new Date("2026-09-15T19:00:00Z"),
         dispatchesImmediately: false,
         followUpAt: new Date("2026-09-18T19:00:00Z"),
+        reminderAt: null,
       },
     };
     const display = frozenPlanForDisplay(frozen);

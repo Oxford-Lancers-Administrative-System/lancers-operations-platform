@@ -266,6 +266,7 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    homeAway: null,
     registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
@@ -1658,6 +1659,71 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
 // The edit view
 // ---------------------------------------------------------------------------
 
+describe("LAN-475 — Home or Away on the editor, for the current Game template only", () => {
+  const sides = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLInputElement>('input[name="homeAway"]')].map((input) => ({
+      value: input.value,
+      checked: input.checked,
+    }));
+
+  it("is not offered on a create that opens on another template", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    expect(sides(container)).toEqual([]);
+    expect(screen.queryByText("Home or Away")).not.toBeInTheDocument();
+  });
+
+  it("is offered on a Game draft, unanswered, as two choices", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        name: "vs Netherfield Nomads",
+        eventType: "game",
+        templateId: SEEDED_TEMPLATE_IDS.game,
+        templateName: "Game",
+      }),
+    );
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(screen.getByText("Home or Away")).toBeVisible();
+    expect(sides(container)).toEqual([
+      { value: "home", checked: false },
+      { value: "away", checked: false },
+    ]);
+  });
+
+  it("opens a Game draft on the side it was saved with", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        name: "vs Netherfield Nomads",
+        eventType: "game",
+        templateId: SEEDED_TEMPLATE_IDS.game,
+        templateName: "Game",
+        homeAway: "away",
+      }),
+    );
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(sides(container)).toEqual([
+      { value: "home", checked: false },
+      { value: "away", checked: true },
+    ]);
+    // The name is the name — nothing is prefixed onto it.
+    expect(container.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe(
+      "vs Netherfield Nomads",
+    );
+  });
+
+  it("is not offered on a draft of any other template", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(sides(container)).toEqual([]);
+  });
+});
+
 describe("the edit view — UX-31 against an existing draft", () => {
   it("opens with the draft's own values", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
@@ -1979,6 +2045,7 @@ function planWithRecruitLadder(): MessagingPlan {
     escalationHours: 12,
     recruitInvitationLeadDays: 5,
     recruitFollowUpCadenceHours: 72,
+    recruitEventReminderHours: 1,
     updatedAt: new Date("2026-08-25T00:00:00Z"),
   };
   return {
@@ -1999,6 +2066,7 @@ function planWithRecruitLadder(): MessagingPlan {
       configuredInvitationAt: at,
       dispatchesImmediately: false,
       followUpAt: null,
+      reminderAt: null,
     },
   };
 }
@@ -3260,6 +3328,125 @@ describe("the participation table on the event page", () => {
       expect(card.querySelector("[data-discrepancy]")).not.toBeNull();
     });
 
+    /**
+     * LAN-458 (Stu, 30 September; Brian, 1 October 2026): a fourth box under
+     * the three blocks, every invitee's full name under Yes, No or No
+     * response, each group with its count. Nothing collapses, at either width:
+     * the phone stacks the groups and the desktop sets them side by side, by
+     * breakpoint alone, so the same names are in the page at both.
+     */
+    describe("LAN-458 — the name-and-response box", () => {
+      const person = PARTICIPATION.people[0];
+      const NAMED: OperatorParticipation = {
+        ...PARTICIPATION,
+        people: [
+          { ...person, key: "player:a", displayName: "Aldous None", answer: null },
+          { ...person, key: "player:b", displayName: "Bryony No", answer: "no" },
+          { ...person, key: "player:c", displayName: "Cyril Yes", answer: "yes" },
+          { ...person, key: "coach:d", capacity: "coach", displayName: "Delia Yes", answer: "yes" },
+          {
+            ...person,
+            key: "player:e",
+            displayName: "Edwin Walkup",
+            answer: null,
+            isWalkUp: true,
+            invitationId: null,
+          },
+          ...Array.from({ length: 40 }, (_, at) => ({
+            ...person,
+            key: `player:n${at}`,
+            displayName: `Quorra Pending ${String(at).padStart(2, "0")}`,
+            answer: null as "yes" | "no" | null,
+          })),
+        ],
+      };
+
+      const jsdomWidth = window.innerWidth;
+      afterEach(() => {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: jsdomWidth });
+      });
+
+      async function renderNamed(width: number) {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+        vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+        vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+        vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+        vi.mocked(readOperatorParticipation).mockResolvedValue(NAMED);
+        return render(await EventDetailPage(detailProps()));
+      }
+
+      for (const width of [1280, 375]) {
+        it(`lists every invitee by answer, Yes, No, then No response, at ${width}px`, async () => {
+          await renderNamed(width);
+
+          const box = screen.getByTestId("response-names");
+          const groups = [...box.querySelectorAll('[data-testid^="response-names-"]')];
+          expect(groups.map((node) => node.getAttribute("data-testid"))).toEqual([
+            "response-names-yes",
+            "response-names-no",
+            "response-names-none",
+          ]);
+          const names = (group: Element) =>
+            [...group.querySelectorAll("li")].map((item) => item.textContent);
+
+          expect(groups[0].textContent).toContain("Yes · 2");
+          expect(names(groups[0])).toEqual(["Cyril Yes", "Delia Yes"]);
+          expect(groups[1].textContent).toContain("No · 1");
+          expect(names(groups[1])).toEqual(["Bryony No"]);
+          // Every nonresponder is listed — no "show more" — and the walk-up,
+          // who was never invited, is not.
+          expect(groups[2].textContent).toContain("No response · 41");
+          expect(names(groups[2])).toHaveLength(41);
+          expect(names(groups[2])[0]).toBe("Aldous None");
+          expect(box.textContent).not.toContain("Edwin Walkup");
+          expect(within(box).queryByRole("button")).toBeNull();
+        });
+      }
+
+      it("sits directly under the response blocks", async () => {
+        const { container } = await renderNamed(1280);
+
+        const order = [...container.querySelectorAll("[data-testid]")]
+          .map((node) => node.getAttribute("data-testid"))
+          .filter((id): id is string =>
+            ["response-progress", "response-names", "audience-fact"].includes(id ?? ""),
+          );
+        expect(order).toEqual(["response-progress", "response-names", "audience-fact"]);
+      });
+
+      // Brian's visual review, 5 October 2026: one collapsible "Attendance"
+      // section, open on arrival, the counts card above and outside it.
+      it("holds the three lists in one open Attendance section, the counts card outside it", async () => {
+        await renderNamed(1280);
+
+        const section = screen.getByTestId("section-response-names");
+        expect(section.tagName).toBe("DETAILS");
+        expect(section).toHaveAttribute("open");
+        expect(section.querySelector("summary")?.textContent).toBe("Attendance");
+        expect(section).toContainElement(screen.getByTestId("response-names-yes"));
+        expect(section).toContainElement(screen.getByTestId("response-names-no"));
+        expect(section).toContainElement(screen.getByTestId("response-names-none"));
+
+        const progress = screen.getByTestId("response-progress");
+        expect(section.contains(progress)).toBe(false);
+        expect(
+          progress.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+
+        // Yes and No are the first two cells of the grid; No response spans it.
+        const grid = screen.getByTestId("response-names");
+        expect([...grid.children].map((node) => node.getAttribute("data-testid"))).toEqual([
+          "response-names-yes",
+          "response-names-no",
+          "response-names-none",
+        ]);
+        expect(
+          getComputedStyle(screen.getByTestId("response-names-none")).gridColumn.replace(/\s/g, ""),
+        ).toBe("1/-1");
+        expect(getComputedStyle(screen.getByTestId("response-names-yes")).gridColumn).toBe("");
+      });
+    });
+
     it("shows no block at all before approval, when nobody is invited", async () => {
       vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
       vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
@@ -3268,6 +3455,7 @@ describe("the participation table on the event page", () => {
       render(await EventDetailPage(detailProps()));
 
       expect(screen.queryByTestId("response-progress")).toBeNull();
+      expect(screen.queryByTestId("response-names")).toBeNull();
     });
 
     it("puts the register below Audience and distribution, and no Showed card above it", async () => {

@@ -23,6 +23,7 @@ import {
   type DeliveryState,
 } from "./delivery";
 import { readEventIn, requireEventGrant } from "./events";
+import { COACH_COUNTED_SEAT_CODES } from "./event-response-progress";
 import { JOB_CANCELLED_REASON } from "./rsvp";
 import { personDisplayNameSql as displayName } from "./sql-text";
 import {
@@ -55,6 +56,8 @@ interface PersonRow {
   /** LAN-376: when the standing answer says it was given, for the operator's record-answer form. */
   responded_at: Date | string | null;
   presence: string | null;
+  /** LAN-466 — holds a `COACH_COUNTED_SEAT_CODES` seat on the event's date. */
+  counts_as_coach: boolean;
   delivery_state: DeliveryState | null;
   /** LAN-411 — `NOT_DELIVERED_EXPRESSION`. `null` where no job exists. */
   not_delivered: boolean | null;
@@ -134,6 +137,11 @@ function participantQuery(tier: ParticipationTier): string {
       from public.attendance_records a
       left join public.season_memberships m on m.id = a.season_membership_id
      where a.event_id = $1
+  ),
+  -- LAN-466: the seat is read as effective on the event's own date, as the
+  -- audience catalogue reads it; a dateless draft falls back to today.
+  event_day as (
+    select coalesce(e.scheduled_on, current_date) as day from public.events e where e.id = $1
   )
   select inv.invitation_id,
          rec.attendance_id,
@@ -145,7 +153,17 @@ function participantQuery(tier: ParticipationTier): string {
          r.response::text as rsvp,
          r.reason,
          r.responded_at,
-         rec.presence${
+         rec.presence,
+         exists (
+           select 1
+             from public.role_assignments ra
+             join public.roles ro on ro.id = ra.role_id
+             cross join event_day
+            where ra.person_id = p.id
+              and ro.code = any($2::text[])
+              and ra.effective_from <= event_day.day
+              and (ra.effective_to is null or ra.effective_to > event_day.day)
+         ) as counts_as_coach${
            operator
              ? ",\n         delivery.state as delivery_state" +
                ",\n         delivery.not_delivered as not_delivered" +
@@ -327,7 +345,10 @@ async function readPeopleIn(
   tier: ParticipationTier,
   questions: readonly ParticipationQuestion[],
 ): Promise<OperatorParticipationPerson[]> {
-  const rows = await tx.query<PersonRow>(participantQuery(tier), [eventId]);
+  const rows = await tx.query<PersonRow>(participantQuery(tier), [
+    eventId,
+    COACH_COUNTED_SEAT_CODES,
+  ]);
 
   const operator = tier === "operator";
   const chaseJobsByInvitation = operator
@@ -405,6 +426,7 @@ async function readPeopleIn(
       presence,
       discrepancy: discrepancyFor({ answer, presence, isWalkUp }),
       answers: row.invitation_id ? (answersByInvitation.get(row.invitation_id) ?? {}) : {},
+      countsAsCoach: row.counts_as_coach,
       delivery: row.delivery_state ?? null,
       noUsableRoute,
       whatsappUnresponsive,
@@ -504,6 +526,7 @@ export async function buildClubLinkParticipationIn(
     presence: person.presence,
     discrepancy: person.discrepancy,
     answers: person.answers,
+    countsAsCoach: person.countsAsCoach,
   }));
 
   return { tier: "club_link", event: facts, questions, people: visible, headline };

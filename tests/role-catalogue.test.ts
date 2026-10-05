@@ -1,8 +1,9 @@
 // @vitest-environment node
 /**
- * The approved static twenty-role catalogue — LAN-128, mission
+ * The approved static role catalogue — twenty seats from LAN-128, mission
  * M-OPERATOR-ADMIN-WITHOUT-SQL, REQ-static-role-catalogue and
- * REQ-role-definition-and-permission-boundary.
+ * REQ-role-definition-and-permission-boundary — and the twenty-first, the
+ * Running Backs Coach, added by LAN-460 in its own forward-only migration.
  *
  * What makes this suite worth having is *which database it reads*. The
  * catalogue used to exist only in `scripts/seed-local.mjs`, a script that
@@ -16,12 +17,12 @@
  * Four properties, and each one is a requirement rather than an implementation
  * detail:
  *
- *   1. the twenty seats, their names, and the order they appear in;
+ *   1. the twenty-one seats, their names, and the order they appear in;
  *   2. cardinality — the constitution's four Offices, plus General Manager,
  *      and nothing else;
  *   3. the catalogue is the *only* definition: seeding does not redefine it,
  *      and no script carries a second copy;
- *   4. the migration is idempotent, proved by running it again.
+ *   4. the migrations are idempotent, proved by running them again.
  *
  * Local Supabase only, and after `npm run db:reset` — `openLocalClient` refuses
  * any non-loopback host.
@@ -37,6 +38,13 @@ const CATALOGUE_MIGRATION = join(
   "supabase",
   "migrations",
   "20260819090100_role_catalogue.sql",
+);
+// LAN-460: the Running Backs Coach, and the coaching seats below it renumbered.
+const RUNNING_BACKS_MIGRATION = join(
+  root,
+  "supabase",
+  "migrations",
+  "20261009090000_running_backs_coach.sql",
 );
 
 const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.DATABASE_URL);
@@ -66,6 +74,7 @@ const APPROVED: readonly (readonly [group: string, code: string, name: string])[
   ["Coaching Staff", "offence_coach", "Offensive Coordinator"],
   ["Coaching Staff", "defence_coach", "Defensive Coordinator"],
   ["Coaching Staff", "quarterbacks_coach", "Quarterbacks Coach"],
+  ["Coaching Staff", "running_backs_coach", "Running Backs Coach"],
   ["Coaching Staff", "offensive_line_coach", "Offensive Line Coach"],
   ["Coaching Staff", "wide_receivers_coach", "Wide Receivers Coach"],
   ["Coaching Staff", "defensive_line_coach", "Defensive Line Coach"],
@@ -107,12 +116,35 @@ describe.runIf(configured)("the approved role catalogue", () => {
     await client?.end();
   });
 
-  it("is the twenty approved seats, in the approved group order", async () => {
+  it("is the twenty-one approved seats, in the approved group order", async () => {
     const { rows } = await client.query<CatalogueRow>(CATALOGUE_QUERY);
 
     expect(rows.map((row) => [row.group_label, row.code, row.name])).toEqual(
       APPROVED.map((entry) => [...entry]),
     );
+  });
+
+  it("seeds the Running Backs Coach like every other assistant coach: every line, all none", async () => {
+    // LAN-460. Same lines, same levels as the Quarterbacks Coach it sits after.
+    const lines = (code: string) =>
+      client.query<{ subject_kind: string; line: string; level: string }>(
+        `select grants.subject_kind,
+                coalesce(grants.subject_key, templates.name) as line,
+                grants.level
+           from public.role_access_grants grants
+           join public.roles on roles.id = grants.role_id
+           left join public.event_templates templates on templates.id = grants.template_id
+          where roles.code = $1
+          order by 1, 2`,
+        [code],
+      );
+
+    const runningBacks = await lines("running_backs_coach");
+    const quarterbacks = await lines("quarterbacks_coach");
+
+    expect(runningBacks.rows.length).toBeGreaterThan(0);
+    expect(runningBacks.rows).toEqual(quarterbacks.rows);
+    expect(new Set(runningBacks.rows.map((row) => row.level))).toEqual(new Set(["none"]));
   });
 
   it("has three groups, in the order the requirement names them", async () => {
@@ -330,7 +362,7 @@ describe.runIf(configured)("the approved role catalogue", () => {
     });
   });
 
-  it("is idempotent: applying the catalogue migration again changes nothing", async () => {
+  it("is idempotent: applying the catalogue migrations again changes nothing", async () => {
     // REQ-one-time-bootstrap asks for "one versioned idempotent database
     // migration". Idempotent is a claim about what happens on a second run, so
     // this runs it a second time, against a database that already has the
@@ -342,9 +374,20 @@ describe.runIf(configured)("the approved role catalogue", () => {
     const idsBefore = await client.query<{ id: string; code: string }>(
       "select id, code from public.roles order by code",
     );
+    const GRANTS_QUERY = `select roles.code, grants.subject_kind, grants.subject_key,
+                                 grants.template_id, grants.level
+                            from public.role_access_grants grants
+                            join public.roles on roles.id = grants.role_id
+                           order by 1, 2, 3, 4`;
+    const grantsBefore = await client.query(GRANTS_QUERY);
 
+    // In the order the migration runner applies them: the original catalogue
+    // alone would put the six seats below Quarterbacks Coach back at 5–10, and
+    // the LAN-460 file moves them to 12–17 again, behind the Running Backs
+    // Coach at 11. Neither step passes through a collision.
     await client.query("begin");
     await client.query(readFileSync(CATALOGUE_MIGRATION, "utf8"));
+    await client.query(readFileSync(RUNNING_BACKS_MIGRATION, "utf8"));
 
     const after = await client.query<CatalogueRow>(CATALOGUE_QUERY);
     const aliasesAfter = await client.query<{ n: string }>(
@@ -353,8 +396,11 @@ describe.runIf(configured)("the approved role catalogue", () => {
     const idsAfter = await client.query<{ id: string; code: string }>(
       "select id, code from public.roles order by code",
     );
+    const grantsAfter = await client.query(GRANTS_QUERY);
 
     await client.query("rollback");
+
+    expect(grantsAfter.rows).toEqual(grantsBefore.rows);
 
     expect(after.rows).toEqual(before.rows);
     expect(aliasesAfter.rows[0].n).toBe(aliasesBefore.rows[0].n);

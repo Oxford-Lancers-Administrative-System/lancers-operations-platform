@@ -98,7 +98,7 @@ describe.runIf(configured)("the capability map against public.roles", () => {
     }
   });
 
-  it("has the approved ten coaching seats in the catalogue", () => {
+  it("has the approved eleven coaching seats in the catalogue (LAN-460 added the eleventh)", () => {
     const coachingSeats = catalogue
       .filter((role) => role.scope === "season")
       .map((role) => role.code)
@@ -116,6 +116,7 @@ describe.runIf(configured)("the capability map against public.roles", () => {
         "offence_coach",
         "offensive_line_coach",
         "quarterbacks_coach",
+        "running_backs_coach",
         "special_teams_coach",
         "wide_receivers_coach",
       ].sort(),
@@ -157,7 +158,7 @@ describe.runIf(configured)("the capability map against public.roles", () => {
       .filter((role) => role.scope === "season")
       .map((role) => role.code);
 
-    expect(coachingSeats).toHaveLength(10);
+    expect(coachingSeats).toHaveLength(11);
 
     for (const code of coachingSeats) {
       for (const key of CAPABILITY_KEYS) {

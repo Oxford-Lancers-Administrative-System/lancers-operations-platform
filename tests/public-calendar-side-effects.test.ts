@@ -97,6 +97,8 @@ async function anOnlineEvent(): Promise<{ id: string; joiningUrl: string; name: 
        join public.seasons s on s.id = e.season_id
       where e.delivery_mode = 'online'
         and e.joining_url is not null
+        -- LAN-463: a draft's joining URL is withheld, so only an approved event proves it published.
+        and e.status = 'approved'
         and s.status = any(array['open','active','closing']::public.season_status[])
       order by e.scheduled_on desc nulls last
       limit 1`,
@@ -407,7 +409,9 @@ describe("what an anonymous response carries", () => {
     const payload = JSON.stringify(await readPublicEvent(online.id));
 
     // `isCancelled` is a bit, not the status column: a public reader learns that
-    // an event is off (D57, correction C1) and never that it is a draft.
+    // an event is off (D57, correction C1). LAN-463 adds one more bit,
+    // `isDraft`, because a draft's detail is withheld; the status column itself
+    // is still not public.
     expect(payload).not.toMatch(/"status"/);
     expect(payload).not.toContain('"draft"');
     expect(payload).not.toContain('"approved"');

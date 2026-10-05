@@ -138,9 +138,9 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     expect(`${printed}\n`).toBe(readFileSync(FIXTURE, "utf8"));
   });
 
-  it("gives every one of the twenty seats every line: 12 + 3 + 7 templates + 2", async () => {
+  it("gives every one of the twenty-one seats every line: 12 + 3 + 7 templates + 2", async () => {
     const seats = await client.query<{ code: string }>("select code from public.roles");
-    expect(seats.rows).toHaveLength(20);
+    expect(seats.rows).toHaveLength(21);
     for (const { code } of seats.rows) {
       expect(
         rows.filter((row) => row.role_code === code),
@@ -157,17 +157,18 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
 
   it("holds every other seat at none on every line", () => {
     const others = rows.filter((entry) => !FULL_SEATS.includes(entry.role_code));
-    expect(others).toHaveLength(15 * 24);
+    expect(others).toHaveLength(16 * 24);
     for (const row of others) {
       expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe("none");
     }
   });
 
-  it("seeds the roster group colours from the packet", async () => {
+  it("seeds the roster group colours from the packet, Attendance at Slate (LAN-457)", async () => {
     const colours = await client.query<{ group_key: string; colour_key: string }>(
       "select group_key, colour_key from public.roster_group_colours order by group_key",
     );
     expect(Object.fromEntries(colours.rows.map((row) => [row.group_key, row.colour_key]))).toEqual({
+      attendance: "slate",
       availability: "slate",
       coaching: "indigo",
       defensive: "purple",

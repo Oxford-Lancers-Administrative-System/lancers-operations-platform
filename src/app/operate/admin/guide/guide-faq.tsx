@@ -31,6 +31,26 @@ export default function GuideFaq({
   );
 }
 
+/**
+ * LAN-467: a guide page read straight through — every entry its own plain
+ * section, open, no disclosure. The Compliance and user protections page.
+ */
+export function GuideSections({ entries }: { entries: readonly GuideEntry[] }) {
+  return (
+    <Stack spacing={1.5}>
+      {entries.map((entry) => (
+        <Section key={entry.id} title={entry.question} testId={entry.id}>
+          <Box id={`${entry.id}-answer`}>
+            {entry.answer.map((block, blockIndex) => (
+              <AnswerBlock key={blockIndex} block={block} />
+            ))}
+          </Box>
+        </Section>
+      ))}
+    </Stack>
+  );
+}
+
 function AnswerBlock({ block }: { block: GuideBlock }) {
   if (block.kind === "paragraph") {
     return (

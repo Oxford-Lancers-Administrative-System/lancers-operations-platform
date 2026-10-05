@@ -44,7 +44,12 @@ export {
   PUBLIC_EVENT_SORT_COLUMNS,
   readPublicEvent,
 } from "./public-tier";
-export type { PublicEventDetail, PublicEventList, PublicEventListEntry } from "./public-tier";
+export type {
+  PublicCalendarEntry,
+  PublicEventDetail,
+  PublicEventList,
+  PublicEventListEntry,
+} from "./public-tier";
 
 export {
   createEventDraft,

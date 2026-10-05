@@ -148,7 +148,7 @@ every changed line. On the three fixed seats every line prints its value with
 no control. At 375px each group folds to its summary. A template added later
 arrives at Manage for the fixed seats and None for every other. An operator
 holding several seats holds the highest level any of them grants, from their
-next request. The ten roster group colours are edited from **Edit categories**,
+next request. The eleven roster group colours (Attendance, Slate by default, since LAN-457) are edited from **Edit categories**,
 beside Add players on the roster, by the same three seats; the board, the
 player and prospect records and the recruitment board draw from them. The
 sidebar follows: Roster, People and Missing data with any roster category at
@@ -161,10 +161,11 @@ on the list, the calendar, Follow-ups or by typed URL; View shows everything in
 the event, including the Event info link; Manage adds every create, edit,
 delete, send, approve, delivery and chase control and that template's messaging
 schedule (LAN-431). Attendance recording is unchanged for every seat: the
-Attendance line governs only the player record's Attendance section, and the
-roster board has no attendance columns.
+Attendance line governs the player record's Attendance section and the roster
+board's Attendance group (LAN-457), and nothing else.
 
-**A seat holder is always an operator (LAN-434, Brian 2026-09-26).** On a
+**A seat holder is always an operator (LAN-434, Brian 2026-09-26; relaxed for a
+phone-only holder by LAN-459 below).** On a
 seat's page (Administration → Roles → a seat, which a person record's **Assign a
 role** also opens), **Assign role** and **Replace role** say which account case
 applies once a person is chosen, before the submit. **Operator account: Created
@@ -180,6 +181,62 @@ before this change reads **No operator account** on the Current holder line
 with **Send invitation**, which opens the account and sends the invitation the
 same way. Invite operator and the Operators page are unchanged.
 
+**A phone number or an email (LAN-459, Brian 2026-10-02).** Email whenever the
+club has one, even with a phone number; WhatsApp only when a phone number is all
+it has. Seating a person with no email but a mobile (Assign role, Replace role,
+or **Invite operator** with the Email left blank and a Phone given) no longer
+refuses: the panel reads **Operator account: Created when they send their
+details** and **Details request by WhatsApp to** the number, with an optional
+**Login email** that still invites by email if typed. The seat is written with
+no account and stands from that moment, and the same submit sends one WhatsApp
+message — the approved `onboarding_chase_v2` template — whose button opens
+`/onboarding/<t>` on a single-purpose `operator_details` link. It obeys
+lights-out (held until 07:00) and the sending allowance like any other send, and
+is refused for a person who refused or withdrew messaging this season (a coach
+with no consent record is sent it). The link opens the **operator details
+form**: Personal information only — First name and Last name (prefilled,
+required), Middle name and Known as (optional), Mobile phone and Personal email
+(required, prefilled from what the club has), Date of birth (optional); no
+emergency contact, no student questions and no "Not now". A college address is
+refused in Personal email. Saving it records the details, revokes the link, and
+— with no operator step — opens the account and sends the sign-in invitation to
+the email they gave; the page then reads **Details saved** with **Sign-in
+invitation sent to** that address. They sign in with their details complete.
+An email the club already holds — on another person's record, or as another
+account's sign-in — is refused on the link form with one sentence, **This email
+cannot be used. Give another.**, whichever it is; the signed-in form keeps the
+specific reason. The journey ends with the seat and with the account: ending a
+person's last seat (End role, or Replace role handing it on), even with an end
+date of tomorrow, cancels any request still waiting and revokes any live link,
+and a request or link for someone who no longer holds or is due a seat sends
+nothing and opens nothing. Once the person has an operator account, by whatever
+path (Send invitation after an email is added, say), the link is revoked and is
+dead.
+An operator invited by email instead meets the same form at `/me/details` the
+first time they sign in, whenever their personal facts (first name, last name,
+mobile, personal email — the required-fields check at an operator's rung) are
+incomplete, and `/operate` sends them back to it until they are. A recruit or
+player who is also an operator is asked only for what is missing. The seat's
+Current holder line reads **Details requested**, **Details request not
+delivered**, or **Details received · <email>** — the address the invitation went
+to, so an operator can see it and deactivate the account if it is wrong — and a
+holder the club has only a phone number for has **Send details request**, which
+sends the message again with a fresh link. The Messaging queue lists each one as
+**Operator details request**, under Onboarding. The invitation link lasts 24
+hours and is resent with Send invitation, as before.
+
+**The email an operator is created with is classified (LAN-462, Brian
+2026-10-02).** Invite operator stores the address on a new person as **College
+email** when the Oxford rule accepts it (it ends in ox.ac.uk, or .edu) — for a
+coach who is not a student too — and as **Personal email** otherwise, never as
+"Email · not classified". Seating a person (or inviting an existing one) who has
+no email on record copies the login email onto them the same way; a person who
+already has an email is left as they are. If the person already has a preferred
+email of that kind, that one stays preferred and the new address is kept as a
+second one. Emails stored unclassified before this are corrected once by the
+owner-run script in the LAN-462 pilot directory. Anything the application sends
+an operator by email goes to the address on record, whichever kind it is.
+
 **Working the roster and recruits within the grants (LAN-432).** The roster
 board, a player's record, People, a person's record and Missing data open for
 any seat that reaches Roster; the recruitment board and a prospect's record for
@@ -194,10 +251,17 @@ of it is sent to the browser. The player record's sections read Person, Contact
 after Person), Onboarding (and Onboarding activity), Membership, Availability, the five
 assignment groups and Kit; Their other seasons and Status history read as
 Membership; Attendance reads as its own Attendance line (None / View), which
-governs only that section — recording attendance on an event is unchanged. On People and a person's record, Who
-they are, Restricted, Where they stand, Messaging and What changed read as
-Person, How to reach them (and the emergency contact) as Contact & emergency,
-Their seasons as Membership; Correct this record needs Edit on Person or
+governs that section and the board's Attendance group — recording attendance on an event is unchanged. On People and a person's record
+(LAN-462: **Personal information**, then **Student information**, then
+Restricted), the names, the student facts, Restricted, Where they stand,
+Messaging and What changed read as Person; the mobile, both emails and the
+emergency contact as Contact & emergency, each row drawn only where its line
+allows; Their seasons as Membership. Student information shows for anyone who
+has ever been a player or a recruit, or once any student fact (college email,
+college, matriculation year, expected graduation, degree field, student number,
+BAFA registration number) is recorded; on Correct this record it is present for
+every person, closed for anyone else, so a non-playing coach's BAFA number can
+still be entered. The missing-data rules are unchanged; Correct this record needs Edit on Person or
 Contact & emergency and edits only those; Add a person needs Edit on Person;
 Merge needs every roster and recruiting line at its maximum. On a prospect's
 record Personal questionnaire, How to reach them, Who they are, Restricted,
@@ -208,6 +272,36 @@ re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
 **Add recruit** and **QR code** only with "May add recruits"; their pages and
 actions refuse without it.
+
+**The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
+board (and a phone on its side) an **Attendance** group sits immediately right
+of Availability with three read-only columns: **Mandatory**, **BPS** and **All
+events**, each `attended/counted · percentage` (`9/9 · 100%`). Each sorts; a
+player with nothing counted shows a dash, last in either direction. Each figure
+is coloured by its rounded percentage (Brian, 5 October 2026): 80–100 % green,
+60–79 % amber, below 60 % red, in the theme's success, warning and error
+colours; a dash stays uncoloured (`attendanceBand`, the same scorer). There is
+no filter, the phone cards are unchanged, and the group shows
+only to a seat with View on the Attendance line. Its **BPS** is strength and
+conditioning attendance (any event of type Strength and conditioning); the
+Membership group's BPS Yes/No is a different column and is untouched. The rule,
+for one player this season: an event counts once it has happened (approved,
+dated today or earlier), the player was invited as a player, and the register
+marks them Present, Late or Absent; Present and Late are attended. Excused is
+left out entirely (ten mandatory, nine attended, one excused reads `9/9`); an
+unexcused Absent counts against; an invitation never messaged (no WhatsApp
+consent, or the event started before the send) counts as excused; an event
+with no register mark is left out; availability excuses nobody. The player
+record's Attendance section heads with the same three figures from the same
+read, the same rule and the same colour bands, over the whole season — they no longer follow the
+list's filters, so the record and the board always agree; "N attendants not
+recorded" beside them still reads the filtered list. The list itself now shows
+every messaged invitation, including one still pending because the player never
+answered; an invitation never messaged is not listed. Since Brian's visual
+review (5 October 2026) the group wears its own stored colour (Slate unless
+changed in **Edit categories**), its columns carry no "view" caption (there is
+no Edit level for attendance anywhere), and the record's Attendance section
+sits directly after Availability, in the board's order.
 
 **The sign-up code page (LAN-428, Brian 2026-09-26).** Recruitment → **QR
 code** opens with three numbers for the live code: **Visits** (times
@@ -459,8 +553,9 @@ the list on every event type since LAN-416, with a Recruits entry in the
 Capacity filter wherever there is one to show.
 
 **Which chase a recruit gets is the event's decision, not theirs** (LAN-416).
-On a Recruitment event they keep the gentle cadence — one invitation and at
-most one follow-up, never an escalation (REQ-two-ladders, REQ-never-harsh). On
+On a Recruitment event they keep the gentle cadence — one invitation, at most
+one follow-up, never an escalation (REQ-two-ladders, REQ-never-harsh), and one
+reminder before the event if they answered Yes (below). On
 any other event type there is no gentle cadence configured, so a recruit is
 invited and chased exactly as a player is for that type. Brian: "only
 recruitment events get that special status. Every other, I don't have to
@@ -536,7 +631,9 @@ moment falls in the window is held until 07:00. That covers everything: an
 invitation that would otherwise go the moment an event is approved, reminders,
 event and onboarding nudges, the recruitment and onboarding messages, the
 onboarding chase, a retry whose backoff lands overnight, an operator's
-**Retry**, and both escalations to the office. Held means queued: nothing is
+**Retry**, and both escalations to the office — everything but the four kinds
+below. A recruit event reminder that 07:00 would deliver at or after its event's
+start is dropped instead (below). Held means queued: nothing is
 dropped, marked sent or spent against the attempt ceiling, and an operator
 action overnight reads **Queued — sends at 07:00** — on **Retry**, **Reissue**,
 the recruitment and onboarding **Send** buttons, the Missing-data nudge and the
@@ -545,9 +642,11 @@ for a daytime hold. A **Retry** on a failed delivery that is held, overnight or 
 the sending allowance in the day, puts the delivery back to **Queued**, so the
 first sweep once it is allowed sends it (LAN-442).
 
-Exactly three kinds go at any hour, because an operator pressed Send on them
-and the news cannot wait: a **cancellation notice**, a **change notice** and a
-**question change**.
+Exactly four kinds go at any hour. Three because an operator pressed Send on
+them and the news cannot wait: a **cancellation notice**, a **change notice** and
+a **question change**. The fourth is the **attendance sheet** email (below),
+because it goes an hour before an event and an early event would otherwise get
+none (Brian 2026-10-02).
 
 At 07:00 the held messages go through the ordinary sweep, under the ordinary
 pacing — a large overnight pile drains over the following ticks rather than
@@ -574,6 +673,115 @@ before. The same test runs again when a declared chase is dispatched, so a
 player who finishes in between is not sent it, and a player who finished after
 their last chase is not counted in the office's "chases have run out" message.
 An operator's **Nudge** is not re-checked; it is the operator's own decision.
+
+### The attendance sheet, an hour before the start
+
+One hour before an approved event starts, one email headed **Attendance sheet:**
+and the event's name goes to the holder of the **General Manager** seat, the
+holder of the **President** seat, and every **coach who answered Yes** to that
+event (an invitation as Coach whose current answer is Yes), with a link to the
+event's attendance page (LAN-465, Brian 2026-10-02). A coach who said No, or has
+not answered, gets nothing; nor does anybody invited as a player. It is
+hard-coded — no screen controls it — and it is email only, to whichever email
+the person has on file, college or personal.
+
+"One hour before" is the first sweep at or after that mark: the sweep runs every
+five minutes, so the email can arrive up to five minutes after it. Each person
+gets one per event, even if they qualify twice (a President who also coaches and
+said Yes). A coach who answers Yes inside the last hour gets their copy on the
+next sweep; after the start, nobody does. A cancelled event sends nothing, and
+neither does an event with no start time. A moved event moves the send: an email
+declared before the move waits for the new one-hour mark, including one already
+held back from a coach who said No, so it does not sit in the queue as waiting.
+Who receives it is read
+again at the send: a coach who changes Yes to No, or a seat holder whose seat
+has ended, after the email was declared is not sent it. The email stays waiting
+rather than cancelled, and each sweep checks again until the start: a coach who
+goes back to Yes before the start gets it once on the next sweep. Lights-out does not
+hold it (Brian 2026-10-02): it goes at its one-hour mark at any hour, so an
+event starting at 06:30 gets its sheet at 05:30.
+
+The link opens the page for anyone allowed to record attendance — the General
+Manager, the President and every coaching seat hold that capability, and the
+register opens six hours before the start — but only once they are signed in. A
+recipient with no active operator account (a coach seated before LAN-434 who
+was never invited, or an invitation still pending) reaches the sign-in page,
+not the sheet. These emails appear on the **Messaging queue** as **Attendance
+sheet**.
+
+### The recruit event reminder
+
+A recruit who answered **Yes** to a Recruitment event gets **one WhatsApp
+reminder** before it, saying what, when and where: "Hello {name}, a reminder
+that {event} is on {when}. Venue: {venue}. See you there." (LAN-464, Brian
+2026-10-02; template `recruit_event_reminder_v1`). Nobody else gets it — not a
+recruit who said No or has not answered, not a player, a coach or the
+committee.
+
+The time is the recruit cadence's third control, **Reminder**, on the
+Recruitment row of **Administration → Messaging schedule**, right of
+**First inv.** and **One follow-up**: hours before the event, **1** by default.
+**0** (or blank) turns it off. Like the other two it is frozen onto an event when
+the event is approved, so a change affects events approved afterwards; events
+approved before LAN-464 have no reminder. Moving an approved event moves its
+reminder with it.
+
+Who gets it is decided when the reminder moment arrives, on the first sweep at
+or after it (up to five minutes later): a recruit invited as a recruit whose
+current answer is Yes, **given at or before the reminder moment**, who has
+season messaging consent and is still in recruitment. A Yes that arrives after
+the moment gets no reminder. The answer, recruitment status and consent are all
+read again just before it sends: a recruit who changed to No in between is
+stood down, one who left recruitment (an exit or the flip to the roster) has it
+cancelled with every other queued message, and a cancelled event sends nothing.
+One per recruit per event, whatever happens to the event afterwards.
+
+Lights-out holds it like any other recruit send: a reminder due between 22:00
+and 07:00 goes at 07:00, as long as 07:00 is still before the event starts. If
+it is not — an event at 07:30 with a two-hour reminder sends at 07:00; an event
+at 07:00 with a one-hour reminder sends nothing — the reminder is dropped rather
+than sent late. On the **Messaging queue** these read **Recruit reminder**, and
+a dropped one is **Cancelled** with **Quiet hours ran past the event start.**
+under its time.
+
+### The Messaging queue: every message in one place
+
+**Administration → Messaging queue** (`/operate/admin/messaging-queue`,
+directly above Messaging schedule; LAN-468, Brian 2026-10-02) is every message
+the application has sent, is sending or will send — events, recruitment and
+onboarding together — rather than one event at a time. It opens for the seats
+that already administer delivery (`delivery_administration`: President,
+Vice-President, Secretary, General Manager, IT Officer) and is read-only.
+
+**Expected.** Four tiles: **Queued** (with **Due now** or the next due time
+under it), **Attempted**, **Delivered today** and **Failed today**, the last two
+with **Yesterday** under them. The lights-out line while 22:00–07:00 applies,
+and a warning when any message is held. Filters **When** (opens on **Today**;
+Yesterday, Last 7 days, Next 7 days), **Status**, **Channel** and **Message**
+type. The list — fifty a page, cards on a phone — shows the time, who it is
+to (linked to the person where the viewer may open people), the message type,
+the channel, the event it belongs to and the status; no message text and no
+personal link. Two statuses the event's Delivery screen never needs: **Not sent
+— event passed** (queued against an event that has started or is no longer
+approved, so no sweep will ever send it) and **Withheld — no consent**.
+
+Two things the page computes rather than reads. **A queued message's "Sends
+07:00"** under its time is worked out when the page loads, from the lights-out
+hours, because the database does not record that a message was held overnight —
+reload after 07:00 and it reads differently. And **an email the provider
+accepted reads Attempted, not Delivered**: the email provider sends no delivery
+confirmation, so acceptance is the most the club ever learns about an email. A
+WhatsApp message moves from Attempted to Delivered only when WhatsApp confirms
+it. So **Delivered today** counts confirmed WhatsApp deliveries; an accepted
+email is counted under **Attempted** — until `WHATSAPP_MESSAGE_TTL_HOURS` (720 by
+default) has passed, when the sweep concludes every accepted attempt that was
+never confirmed as failed, an email's included.
+
+**Read cost** (measured on production through `npm run prod:inspect`, 2 October
+2026, 1,029 jobs): the summary and a day's page each run in about 6 ms on the
+server and a seven-day page in about 11 ms, scanning the jobs table without an
+index. That grows with the table; no index was added because nothing here calls
+for one yet.
 
 ### Nothing advances unless something sweeps
 
@@ -827,7 +1035,10 @@ Stewart's "OPS EVENTS UPDATES" of 2026-09-22, change 2). One block per capacity
 present in the audience, in the order **Recruits, Players, Coaches** — a
 capacity nobody was invited under shows no block at all, so a practice with no
 recruits shows Players and Coaches only. **A committee-only invitee is counted
-under Players** (LAN-440, Brian, 2026-09-26), and the participation table's
+under Players** (LAN-440, Brian, 2026-09-26), **except one holding the General
+Manager or IT Officer seat on the event's date, who is counted under Coaches**
+(LAN-466, 2026-10-02) — someone invited as a player stays under Players
+whatever seat they hold. Only the blocks move: the participation table's
 **As** column reads them as Player, and its **As** filter offers Recruit,
 Player and Coach, with Player matching them too (an old `?as=committee` link
 opens on Player), and sorting by **As** puts them among the players; the stored capacity, the audience builder,
@@ -861,6 +1072,19 @@ the link was sent to are reading the same numbers.
 
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.
+
+**Directly under the blocks, one collapsible section headed Attendance names
+everybody invited** (LAN-458, Stu, 2026-09-30; Brian, 2026-10-01 and his visual
+review of 2026-10-05): three groups, **Yes**, **No** and **No response**, each
+headed with its count (`Yes · 12`) and listing every invitee's full name
+alphabetically. The section is open on arrival and can be closed; the blocks
+with the counts sit above and outside it, so they stay when it is closed. Every
+name is shown — there is no "show more" — and a walk-up, who was never invited,
+is not listed. Yes and No sit side by side as two equal columns where there is
+room, with No response full width below them (its names in the same two
+columns); at 375px the groups stack, Yes first. The section groups by answer, not capacity,
+so the LAN-440 and LAN-466 folds do not touch it. It is on the operator's event
+page only: the public **Event info link** page has the blocks but not the names.
 
 **The audience is grouped Yes, then No, then No response** (LAN-439, client
 QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort
@@ -1053,6 +1277,24 @@ seeded 20:00 practice on the same day. A cancelled event appears struck through.
 Vacation weeks are numbered forward from 1 and a vacation belongs to neither
 adjacent term, which is the club's own way of reading its year.
 
+**A game prints HOME or AWAY as its own first line** (LAN-475, Brian and
+Stewart, 2026-10-02). On both arrangements, and on the phone agenda and week
+cards, a tile for an event of the **Game** template that has Home or Away set
+reads `HOME` (or `AWAY`) on a line above its ordinary `14:00 vs Brackenridge
+Bulls` line. The seeded fixtures carry the side they were seeded with; the two
+unconfirmed BUCS fixtures and the draft Hilary week 4 game carry none and print
+no extra line. To set it, open a Game draft's **Edit**: a **Home or Away** choice
+sits under **Type**, unselected until you pick one, and only for the Game
+template the migration seeded — a template the club creates later does not get
+it. A draft saves without it; **Choose audience and approve** on a Game draft
+without it shows "This event has no Home or Away yet. Add it and approve when
+you are ready." and **Approve event** refuses with the same sentence. Moving a
+draft off the Game template clears it. The public calendar view prints the same
+line on an approved game (section 12b). The name is never changed: the list, the
+event page, the public list and event page, the subscription feed, RSVP pages,
+messages and reports all show the name alone. An approved game's side is not changeable on
+**Change event**.
+
 Nothing in either arrangement creates an audience, an invitation, an RSVP or a
 delivery record; they are projections of the same events, and term and week are
 derived from the date rather than entered beside it.
@@ -1074,7 +1316,22 @@ earlier never-public rule). The calendar itself stays open, with no password: th
 protection lives on the meeting, which requires its own passcode. The event
 editor warns the operator of that whenever the delivery mode is online.
 
-`/calendar/view` gives the same two calendar arrangements. Nothing on any of these
+**A draft is shown as its name and when, and nothing else** (LAN-463, Stu and
+Brian, 2026-10-02). It stays on the list, the calendars and the subscription feed,
+but its where, required equipment, description and joining link are withheld —
+read as nothing from the database, not hidden after loading — and the list and
+event page show no Where for it at all. Nothing marks it as a draft on these
+pages. In the subscription feed (`/calendar/feed.ics`) a draft's entry carries
+its name, its date and time, the line "Details to be confirmed. They may
+change." in place of the description, and `STATUS:TENTATIVE`. Approving it
+fills in the same entry with everything on the subscriber's next refresh: the
+same `UID`, a later `SEQUENCE`, `STATUS:CONFIRMED`.
+
+`/calendar/view` gives the same two calendar arrangements with the same tiles: an
+approved Game event prints `HOME` or `AWAY` on its own line above its name, as
+on the operator calendar (LAN-475). A draft game prints no such line here, since
+a draft is its name and when only. The public list, the public event page and
+the subscription feed show the name alone. Nothing on any of these
 pages asks you to sign in, and reading them creates no record of any kind.
 
 ---
@@ -1104,8 +1361,19 @@ Vice-President, Secretary or General Manager — open **Guide** in the sidebar,
 under Administration.
 
 **Expected.** An index of eight workflows: Recruitment, Onboarding, Events,
-Messaging, Roster, People and data, Operators and roles, and Reports, plus a
-link to the existing **How administration works** page, which is unchanged.
+Messaging, Roster, People and data, Operators and roles, and Reports, then a
+link to the existing **How administration works** page and, last, **Compliance
+and user protections**.
+
+**Compliance and user protections** (LAN-467, Stu and Brian, 2026-10-02; its
+own page at `/operate/admin/guide/compliance` since Brian's visual review of
+2026-10-05, no longer a section of How administration works) is a plain
+account of personal data, messages, people's time, and access and security,
+for a reader at the club or the university: the guide's page shell, then one
+open section per heading. It keeps the audience it had on How administration
+works (President, General Manager, IT Officer). Each statement is pinned by
+`src/app/operate/admin/guide/content.test.ts` to the code it describes. It
+leaves who is responsible for the data, and retention, to the privacy notice.
 
 Open any one of them. Each page is the same four bands: a flowchart (a committed
 SVG under `public/guide/`, with the same diagram written out beneath it), the

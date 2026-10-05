@@ -21,6 +21,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { EMPTY_ATTENDANCE_SCORE, type AttendanceScore } from "@/lib/services/attendance-score";
+import { SEMANTIC } from "@/theme-tokens";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -161,6 +163,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
     jerseyHolders: { blue: {}, white: {} },
     otherSeasons: [],
     attendance: [],
+    attendanceScore: EMPTY_ATTENDANCE_SCORE,
     send: {
       onboarding: true,
       lastContact: null,
@@ -1044,7 +1047,7 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
     }),
   ];
 
-  it("lists every event with a sent invitation, and no more, once every filter is cleared", async () => {
+  it("lists every event with a messaged invitation, and no more, once every filter is cleared", async () => {
     givenRecord({ attendance: EVENTS });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
@@ -1054,8 +1057,8 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
       fireEvent.click(within(section).getByRole("button", { name: "Clear all" }));
     });
 
-    // One row per event in the fixture — a `pending` invitation would not be
-    // in this list at all, so there is nothing here that filters it out.
+    // One row per event in the fixture — an invitation never messaged would
+    // not be in this list at all (LAN-457), so nothing here filters it out.
     expect(within(section).getAllByTestId("attendance-row")).toHaveLength(EVENTS.length);
   });
 
@@ -1083,26 +1086,82 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
     expect(within(section).getAllByText("Term 3 opener vs Durham").length).toBeGreaterThan(0);
   });
 
-  it("excludes an upcoming invitation and a cancelled one from the score's denominator", async () => {
-    givenRecord({ attendance: EVENTS });
+  // LAN-457: the score is the roster board's Attendance group, computed on the
+  // server by `scoreAttendance` over the whole season and handed to the
+  // section as `attendanceScore`. The ticket's own example figures.
+  const SCORE: AttendanceScore = {
+    mandatory: { attended: 9, counted: 9 },
+    bps: { attended: 4, counted: 6 },
+    all: { attended: 18, counted: 25 },
+  };
+
+  it("shows Mandatory, BPS and All events as attended/counted · percentage (LAN-457)", async () => {
+    givenRecord({ attendance: EVENTS, attendanceScore: SCORE });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
-    // 5 mandatory events carry an attendance record (present, absent, late,
-    // excused, present) — ev-cancelled and ev-upcoming both hold no record and
-    // must not move the denominator. 3 of those 5 attended (present, late,
-    // present).
-    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
-      "3 of 5 mandatory · 60%",
+    expect(within(section).getByTestId("attendance-score-mandatory")).toHaveTextContent(
+      "Mandatory9/9 · 100%",
+    );
+    expect(within(section).getByTestId("attendance-score-bps")).toHaveTextContent("BPS4/6 · 67%");
+    expect(within(section).getByTestId("attendance-score-all")).toHaveTextContent(
+      "All events18/25 · 72%",
     );
   });
 
-  it('reads "7 of 7 mandatory · 100% · 8 attendants not recorded" (W2, Q-19)', async () => {
-    // 7 occurred mandatory events, each with an attendance record, all
-    // attended; 8 more occurred mandatory events with no attendance record at
-    // all; and one mandatory event that has not happened yet. The third
-    // figure counts the second group only — the first group is the score
-    // above it, and the future one is excluded from both, exactly as Brian's
-    // walkthrough required.
+  it("prints the board's own cell text for the same score, so the two cannot disagree (LAN-457)", async () => {
+    const { buildColumns } = await import("../board-columns");
+    const { displayOf } = await import("../board-data");
+    givenRecord({ attendance: EVENTS, attendanceScore: SCORE });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+
+    const columns = buildColumns({ offence: [], defence: [] });
+    const boardRow = { attendance: SCORE } as unknown as Parameters<typeof displayOf>[0];
+    for (const [key, testId] of [
+      ["attendanceMandatory", "attendance-score-mandatory"],
+      ["attendanceBps", "attendance-score-bps"],
+      ["attendanceAll", "attendance-score-all"],
+    ] as const) {
+      const column = columns.find((candidate) => candidate.key === key);
+      expect(column, key).toBeDefined();
+      expect(within(section).getByTestId(testId)).toHaveTextContent(displayOf(boardRow, column!));
+    }
+  });
+
+  it("draws a dash for a tally with nothing counted", async () => {
+    givenRecord({
+      attendance: EVENTS,
+      attendanceScore: { ...SCORE, bps: { attended: 0, counted: 0 } },
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getByTestId("attendance-score-bps").textContent).toBe("BPS—");
+    expect(
+      within(section).getByTestId("attendance-score-bps").querySelector("[data-band]"),
+    ).toBeNull();
+  });
+
+  it("colours each figure by band, as the board does (Brian, 5 October 2026)", async () => {
+    givenRecord({
+      attendance: EVENTS,
+      attendanceScore: { ...SCORE, all: { attended: 11, counted: 20 } },
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    const figure = (key: string) =>
+      within(section).getByTestId(`attendance-score-${key}`).querySelector("[data-band]");
+    expect(figure("mandatory")).toHaveAttribute("data-band", "green");
+    expect(figure("mandatory")).toHaveStyle({ color: SEMANTIC.success.main });
+    expect(figure("bps")).toHaveAttribute("data-band", "amber");
+    expect(figure("bps")).toHaveStyle({ color: SEMANTIC.warning.main });
+    expect(figure("all")).toHaveAttribute("data-band", "red");
+    expect(figure("all")).toHaveStyle({ color: SEMANTIC.error.main });
+  });
+
+  it('reads "8 attendants not recorded" beside the score (W2, Q-19)', async () => {
+    // 7 occurred mandatory events with a register mark, 8 more with none, and
+    // one that has not happened yet: the unrecorded count reads the second
+    // group only, and still reads the list the filters leave standing.
     const recorded = Array.from({ length: 7 }, (_, index) =>
       attendanceEvent({ id: `recorded-${index}`, attendance: "present" }),
     );
@@ -1115,15 +1174,11 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
       attendance: null,
       eventStatus: "upcoming",
     });
-    givenRecord({ attendance: [...recorded, ...unrecorded, future] });
+    givenRecord({ attendance: [...recorded, ...unrecorded, future], attendanceScore: SCORE });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
-
-    // The exact string (not a substring — this version's `toHaveTextContent`
-    // always does a contains match) so a later reword of either clause
-    // cannot pass silently.
-    expect(within(section).getByTestId("attendance-score").textContent).toBe(
-      "7 of 7 mandatory · 100% · 8 attendants not recorded",
+    expect(within(section).getByTestId("attendance-unrecorded").textContent).toBe(
+      "8 attendants not recorded",
     );
   });
 
@@ -1133,11 +1188,12 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
         attendanceEvent({ id: "recorded-1", attendance: "present" }),
         attendanceEvent({ id: "unrecorded-1", invitationStatus: "issued", attendance: null }),
       ],
+      attendanceScore: SCORE,
     });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
-    expect(within(section).getByTestId("attendance-score").textContent).toBe(
-      "1 of 1 mandatory · 100% · 1 attendant not recorded",
+    expect(within(section).getByTestId("attendance-unrecorded").textContent).toBe(
+      "1 attendant not recorded",
     );
   });
 
@@ -1147,49 +1203,18 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
         attendanceEvent({ id: "recorded-1", attendance: "present" }),
         attendanceEvent({ id: "recorded-2", attendance: "absent" }),
       ],
+      attendanceScore: SCORE,
     });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
-    // Absent rather than reading zero — a "0 attendants not recorded" clause
-    // would be noise on the common case where the register is up to date.
-    expect(within(section).getByTestId("attendance-score").textContent).toBe(
-      "1 of 2 mandatory · 50%",
-    );
-    expect(within(section).getByTestId("attendance-score")).not.toHaveTextContent("attendant");
+    expect(within(section).queryByTestId("attendance-unrecorded")).not.toBeInTheDocument();
+    expect(section).not.toHaveTextContent("attendant");
   });
 
-  it("counts present and late as attended; absent and excused do not", async () => {
-    givenRecord({
-      attendance: [
-        attendanceEvent({ id: "e1", attendance: "present" }),
-        attendanceEvent({ id: "e2", attendance: "late" }),
-        attendanceEvent({ id: "e3", attendance: "absent" }),
-        attendanceEvent({ id: "e4", attendance: "excused" }),
-      ],
-    });
+  it("keeps the score whole when the list is filtered (LAN-457)", async () => {
+    givenRecord({ attendance: EVENTS, attendanceScore: SCORE });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
-    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
-      "2 of 4 mandatory · 50%",
-    );
-  });
-
-  it("says not recorded when nothing scored has an attendance record yet", async () => {
-    givenRecord({
-      attendance: [attendanceEvent({ id: "e1", invitationStatus: "issued", attendance: null })],
-    });
-    render(await PlayerRecordPage(pageProps()));
-    const section = screen.getByTestId("section-attendance");
-    expect(within(section).getByTestId("attendance-score")).toHaveTextContent("not recorded");
-  });
-
-  it("recomputes the score against the filtered set, not the season", async () => {
-    givenRecord({ attendance: EVENTS });
-    render(await PlayerRecordPage(pageProps()));
-    const section = screen.getByTestId("section-attendance");
-    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
-      "3 of 5 mandatory · 60%",
-    );
 
     const { fireEvent, act } = await import("@testing-library/react");
     await act(async () => {
@@ -1199,15 +1224,13 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
       fireEvent.click(await screen.findByRole("menuitem", { name: "Present" }));
     });
 
-    // Filtered to Attendance: Present — ev-present, ev-no-rsvp and (non-
-    // mandatory) ev-social all read Present; only the two mandatory ones
-    // score, and both attended.
-    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
-      "2 of 2 mandatory · 100%",
-    );
     expect(within(section).getByTestId("attendance-filter-chips")).toHaveTextContent(
       "Attendance: Present",
     );
+    expect(within(section).getByTestId("attendance-score-mandatory")).toHaveTextContent(
+      "9/9 · 100%",
+    );
+    expect(within(section).getByTestId("attendance-score-all")).toHaveTextContent("18/25 · 72%");
   });
 
   it("states an absent RSVP or attendance value as not recorded, never blank", async () => {
@@ -1909,18 +1932,59 @@ describe("which groups are folded away, remembered on the account", () => {
       "season",
       // LAN-412: Availability's own section, between Membership and Coaching.
       "availability",
+      // LAN-457 (fix round 4): Attendance follows Availability, as on the board.
+      "attendance",
       "coaching",
       "offensive",
       "defensive",
       "special-teams",
       "warmup",
       "kit",
-      "attendance",
       "other-seasons",
       "status-history",
     ]) {
       expect(screen.getByTestId(`section-${testId}`).tagName).toBe("DETAILS");
     }
+  });
+
+  it("draws the record's sections in the board's order, Attendance after Availability (LAN-457)", async () => {
+    givenRecord();
+    const { container } = render(await PlayerRecordPage(pageProps()));
+
+    const order = Array.from(container.querySelectorAll('[data-testid^="section-"]'))
+      .map((element) => element.getAttribute("data-testid")!.replace("section-", ""))
+      .filter((id) =>
+        [
+          "person",
+          "onboarding",
+          "season",
+          "availability",
+          "attendance",
+          "coaching",
+          "offensive",
+          "defensive",
+          "special-teams",
+          "warmup",
+          "kit",
+          "other-seasons",
+          "status-history",
+        ].includes(id),
+      );
+    expect(order).toEqual([
+      "person",
+      "onboarding",
+      "season",
+      "availability",
+      "attendance",
+      "coaching",
+      "offensive",
+      "defensive",
+      "special-teams",
+      "warmup",
+      "kit",
+      "other-seasons",
+      "status-history",
+    ]);
   });
 
   it("arrives with Person, Onboarding and Membership open and the long tail closed", async () => {

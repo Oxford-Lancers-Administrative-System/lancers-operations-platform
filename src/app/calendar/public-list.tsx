@@ -136,7 +136,7 @@ export default function PublicList({
                   event.templateName,
                   coordinateOf(event),
                   whereItIs(event),
-                ]}
+                ].filter((line) => line !== null)}
               />
             ))}
           </RowCardList>
@@ -146,8 +146,13 @@ export default function PublicList({
   );
 }
 
-/** Where the event is, at the public tier (D21). The joining link is on the event's own page (LAN-284) — `PublicEventListEntry` has no field for one here. */
-function whereItIs(event: PublicEventListEntry): string {
+/**
+ * Where the event is, at the public tier (D21). The joining link is on the event's own page
+ * (LAN-284) — `PublicEventListEntry` has no field for one here. LAN-463: a draft says nothing
+ * about where, as the feed says nothing — not even In person or Online.
+ */
+function whereItIs(event: PublicEventListEntry): string | null {
+  if (event.isDraft) return null;
   if (event.deliveryMode === "online") {
     return event.venue ?? labelFor(DELIVERY_MODE_LABELS, "online");
   }

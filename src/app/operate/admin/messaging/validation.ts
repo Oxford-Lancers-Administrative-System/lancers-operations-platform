@@ -5,10 +5,10 @@ import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/
 // LAN-203 added two fields to MessagingScheduleChange for the Recruitment
 // row's Recruits group alone (see RECRUIT_SCHEDULE_FIELDS); excluded here
 // rather than widening SCHEDULE_FIELDS to a shape only one row has.
-type CoreScheduleField = Exclude<
-  keyof MessagingScheduleChange,
-  "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours"
->;
+type RecruitScheduleField =
+  "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours" | "recruitEventReminderHours";
+
+type CoreScheduleField = Exclude<keyof MessagingScheduleChange, RecruitScheduleField>;
 
 // helperText: OWNER-LAN171-08 round 3, Brian on the President field.
 export interface FieldBoundsShape {
@@ -26,7 +26,9 @@ export interface ScheduleFieldBounds extends FieldBoundsShape {
 }
 
 export interface RecruitScheduleFieldBounds extends FieldBoundsShape {
-  readonly field: "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours";
+  readonly field: RecruitScheduleField;
+  /** LAN-464: what a blank field saves as, where blank is allowed at all. */
+  readonly blankMeans?: number;
 }
 
 export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
@@ -114,6 +116,19 @@ export const RECRUIT_SCHEDULE_FIELDS: readonly RecruitScheduleFieldBounds[] = Ob
     min: 1,
     max: 720,
   },
+  {
+    // LAN-464. One field, as the two beside it: hours before the event, to
+    // recruits who answered Yes. Blank or 0 is off; the default is 1.
+    field: "recruitEventReminderHours",
+    key: "recruitEventReminderHours",
+    label: "Reminder",
+    unit: "h",
+    fullLabel: "Recruits' reminder",
+    helperText: "Before the event, to recruits who said Yes. 0 is off.",
+    min: 0,
+    max: 168,
+    blankMeans: 0,
+  },
 ]);
 
 export type ScheduleValidation =
@@ -163,12 +178,17 @@ export function readOneScheduleChange(
     };
   }
 
-  const recruitValues: Partial<
-    Record<"recruitInvitationLeadDays" | "recruitFollowUpCadenceHours", number>
-  > = {};
+  const recruitValues: Partial<Record<RecruitScheduleField, number>> = {};
   if (eventType === "recruitment") {
     for (const bound of RECRUIT_SCHEDULE_FIELDS) {
       const raw = formData.get(bound.key);
+      if (
+        (raw === null || (typeof raw === "string" && raw.trim() === "")) &&
+        bound.blankMeans !== undefined
+      ) {
+        recruitValues[bound.field] = bound.blankMeans;
+        continue;
+      }
       if (typeof raw !== "string" || raw.trim() === "") {
         return {
           ok: false,
@@ -203,6 +223,7 @@ export function readOneScheduleChange(
       escalationHours: change.escalationHours,
       recruitInvitationLeadDays: recruitValues.recruitInvitationLeadDays,
       recruitFollowUpCadenceHours: recruitValues.recruitFollowUpCadenceHours,
+      recruitEventReminderHours: recruitValues.recruitEventReminderHours,
     },
   };
 }
@@ -223,6 +244,8 @@ export function scheduleChanged(
     (proposed.recruitInvitationLeadDays !== undefined &&
       current.recruitInvitationLeadDays !== proposed.recruitInvitationLeadDays) ||
     (proposed.recruitFollowUpCadenceHours !== undefined &&
-      current.recruitFollowUpCadenceHours !== proposed.recruitFollowUpCadenceHours)
+      current.recruitFollowUpCadenceHours !== proposed.recruitFollowUpCadenceHours) ||
+    (proposed.recruitEventReminderHours !== undefined &&
+      current.recruitEventReminderHours !== proposed.recruitEventReminderHours)
   );
 }

@@ -20,6 +20,7 @@ const CURRENT: MessagingSchedule = {
   ...VALID,
   recruitInvitationLeadDays: null,
   recruitFollowUpCadenceHours: null,
+  recruitEventReminderHours: null,
   updatedAt: new Date("2026-08-25T00:00:00Z"),
 };
 
@@ -117,6 +118,31 @@ describe("readOneScheduleChange", () => {
     if (!result.ok) throw new Error("expected ok");
     expect(result.change.recruitInvitationLeadDays).toBe(5);
     expect(result.change.recruitFollowUpCadenceHours).toBe(72);
+  });
+
+  it("reads the Reminder in hours, and saves a blank Reminder as 0, off (LAN-464)", () => {
+    const data = rowFormData();
+    data.set("recruitInvitationLeadDays", "5");
+    data.set("recruitFollowUpCadenceHours", "72");
+    data.set("recruitEventReminderHours", "3");
+    const three = readOneScheduleChange("Recruitment", "recruitment", data);
+    expect(three.ok && three.change.recruitEventReminderHours).toBe(3);
+
+    data.set("recruitEventReminderHours", "");
+    const blank = readOneScheduleChange("Recruitment", "recruitment", data);
+    expect(blank.ok && blank.change.recruitEventReminderHours).toBe(0);
+
+    data.set("recruitEventReminderHours", "169");
+    const tooFar = readOneScheduleChange("Recruitment", "recruitment", data);
+    expect(tooFar.ok).toBe(false);
+    if (tooFar.ok) throw new Error("expected a refusal");
+    expect(tooFar.message).toMatch(/recruits' reminder has to be between 0 and 168/i);
+  });
+
+  it("notices a changed Reminder as a change", () => {
+    const current = { ...CURRENT, recruitEventReminderHours: 1 };
+    expect(scheduleChanged(current, { ...VALID, recruitEventReminderHours: 1 })).toBe(false);
+    expect(scheduleChanged(current, { ...VALID, recruitEventReminderHours: 0 })).toBe(true);
   });
 
   it("refuses the Recruitment row when the Recruits group is left blank", () => {

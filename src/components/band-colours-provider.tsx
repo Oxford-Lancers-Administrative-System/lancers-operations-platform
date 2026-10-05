@@ -40,12 +40,12 @@ export function BandColoursProvider({
   return <BandColoursContext.Provider value={value}>{children}</BandColoursContext.Provider>;
 }
 
-/** Every band's colours, the ten roster groups in the club's chosen colours. */
+/** Every band's colours, the eleven roster groups in the club's chosen colours. */
 export function useBandColours(): Readonly<Record<Band, BandColours>> {
   return useContext(BandColoursContext).bands;
 }
 
-/** The ten groups' palette keys, as stored — what the Roster categories dialog starts from. */
+/** The eleven groups' palette keys, as stored — what the Roster categories dialog starts from. */
 export function useRosterGroupColourKeys(): RosterGroupColourKeys {
   return useContext(BandColoursContext).keys;
 }

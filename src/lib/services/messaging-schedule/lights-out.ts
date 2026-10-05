@@ -15,23 +15,29 @@
  * moment something tries to send it. Pure — no database, no `server-only`.
  */
 import { CLUB_TIME_ZONE } from "@/lib/club-time";
-import type { MessageKind } from "@/lib/delivery/provider";
+import type { EmailOnlyMessageKind, MessageKind } from "@/lib/delivery/provider";
 
 /** The first hour held, inclusive. */
 const LIGHTS_OUT_START_HOUR = 22;
 /** The first hour released, inclusive — 07:00 sends. */
 const LIGHTS_OUT_END_HOUR = 7;
 
+/** Every kind lights-out decides for: the WhatsApp templates and the email-only kinds. */
+export type LightsOutMessageKind = MessageKind | EmailOnlyMessageKind;
+
 /**
- * Which message kinds go at any hour. Exactly three, because an operator
- * pressed Send on each of them and the news cannot wait for the morning: a
- * cancellation, a change notice and a question change. Every other kind waits,
- * the two office-facing escalations included (Brian: simplicity wins).
+ * Which message kinds go at any hour. Three because an operator pressed Send
+ * on each of them and the news cannot wait for the morning: a cancellation, a
+ * change notice and a question change. And the attendance sheet email
+ * (LAN-465; Brian, 2 October 2026), because it goes an hour before an event,
+ * and an event starting before 08:00 would otherwise never get one. Every other
+ * kind waits, the two office-facing escalations included (Brian: simplicity
+ * wins).
  *
  * A `Record` over every kind, so a new kind does not compile until somebody
  * has decided which side of this line it falls on.
  */
-export const LIGHTS_OUT_EXEMPT: Readonly<Record<MessageKind, boolean>> = Object.freeze({
+export const LIGHTS_OUT_EXEMPT: Readonly<Record<LightsOutMessageKind, boolean>> = Object.freeze({
   invitation: false,
   reminder: false,
   nudge: false,
@@ -40,6 +46,8 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<MessageKind, boolean>> = Object.
   cancellation: true,
   escalation: false,
   recruit_event_followup: false,
+  // LAN-464: held like every other recruit send; dropped if 07:00 is too late.
+  recruit_event_reminder: false,
   recruit_welcome: false,
   recruit_details_reminder: false,
   recruit_interest_ask: false,
@@ -47,6 +55,7 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<MessageKind, boolean>> = Object.
   onboarding_welcome: false,
   onboarding_chase: false,
   onboarding_chase_escalation: false,
+  attendance_sheet: true,
 });
 
 /**
@@ -55,7 +64,7 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<MessageKind, boolean>> = Object.
  * idempotency-key prefixes the sweep routes `other` by). A job type is exempt
  * only when every kind it can carry is.
  */
-export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly MessageKind[]>> =
+export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly LightsOutMessageKind[]>> =
   Object.freeze({
     invitation: ["invitation"],
     reminder: ["reminder", "recruit_event_followup"],
@@ -72,7 +81,21 @@ export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly MessageKin
       "onboarding_welcome",
       "onboarding_chase",
       "onboarding_chase_escalation",
+      "attendance_sheet",
+      "recruit_event_reminder",
     ],
+  });
+
+/**
+ * The `other` jobs whose idempotency-key prefix names exactly one kind, so
+ * lights-out decides for that kind on its own rather than for `other` as a
+ * whole. The prefix is the dispatchers' own routing key
+ * (`ATTENDANCE_SHEET_KEY_PREFIX` in `attendance-sheet-email.ts`).
+ */
+export const OTHER_JOB_KEY_PREFIX_KINDS: Readonly<Record<string, LightsOutMessageKind>> =
+  Object.freeze({
+    "attendance-sheet:": "attendance_sheet",
+    "recruit-event-reminder:": "recruit_event_reminder",
   });
 
 /** Whether lights-out lets this job type through. An unknown type waits. */
@@ -85,6 +108,26 @@ export function isJobTypeLightsOutExempt(jobType: string): boolean {
 export const LIGHTS_OUT_EXEMPT_JOB_TYPES: readonly string[] = Object.freeze(
   Object.keys(JOB_TYPE_MESSAGE_KINDS).filter(isJobTypeLightsOutExempt),
 );
+
+/** The `other` key prefixes that go at any hour, for the same SQL. */
+export const LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES: readonly string[] = Object.freeze(
+  Object.entries(OTHER_JOB_KEY_PREFIX_KINDS)
+    .filter(([, kind]) => LIGHTS_OUT_EXEMPT[kind])
+    .map(([prefix]) => prefix),
+);
+
+/**
+ * Whether lights-out lets this one job through: its whole job type is exempt,
+ * or it is an `other` job whose key prefix names an exempt kind.
+ */
+export function isJobLightsOutExempt(jobType: string, idempotencyKey: string | null): boolean {
+  if (isJobTypeLightsOutExempt(jobType)) return true;
+  return (
+    jobType === "other" &&
+    idempotencyKey !== null &&
+    LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES.some((prefix) => idempotencyKey.startsWith(prefix))
+  );
+}
 
 interface ClubWallClock {
   readonly year: number;

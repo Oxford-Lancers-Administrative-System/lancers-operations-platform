@@ -106,6 +106,32 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
   };
 }
 
+/** One current, preferred contact point. */
+function contactOf(
+  kind: "email" | "phone",
+  scope: "college" | "personal" | null,
+  rawValue: string,
+): PersonRecord["contacts"][number] {
+  return {
+    id: `${kind}-${scope ?? "none"}`,
+    kind,
+    scope,
+    rawValue,
+    normalisedValue: null,
+    isPreferred: true,
+    source: null,
+    validFrom: new Date(),
+    validUntil: null,
+  };
+}
+
+/** The record section under a heading. */
+function sectionHeaded(name: string): HTMLElement {
+  const section = screen.getByRole("heading", { name }).closest("section");
+  expect(section, name).not.toBeNull();
+  return section as HTMLElement;
+}
+
 function stubReads(
   overrides: {
     roles?: unknown[];
@@ -165,22 +191,27 @@ describe("the person record, for an authorized operator", () => {
   });
 
   /**
-   * LAN-365, Brian 2026-09-16: "no academic section." The two identifiers
-   * moved into the personal group first; the correction round folded college,
-   * matriculation year, expected graduation and degree field in beside them
-   * too — after the contact details, before the two identifiers, and BAFA
-   * last because the club fills it in.
+   * LAN-462, Brian 2026-10-02: Personal information, then Student
+   * information. Names and the two personal contacts in the first; college
+   * email, the academic facts and both identifiers in the second, BAFA last.
+   * No Academic heading, and no "Who they are" or "How to reach them" left.
    */
-  it("shows the academic facts and both identifiers in the personal group, none under a separate Academic heading", async () => {
+  it("splits the record into Personal information and Student information", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(
       baseRecord({
+        familyName: "Fielding",
         college: "Wadham",
         matriculationYear: 2024,
         expectedGraduationYear: 2028,
         degreeField: "Engineering Science",
         studentNumber: "1234567",
         bafaRegistrationNumber: "BAFA-99",
+        contacts: [
+          contactOf("phone", null, "+447700900233"),
+          contactOf("email", "personal", "bertram@example.invalid"),
+          contactOf("email", "college", "bertram.fielding@wadh.ox.ac.uk"),
+        ],
       }),
     );
     stubReads();
@@ -188,35 +219,88 @@ describe("the person record, for an authorized operator", () => {
     render(await PersonRecordPage(pageProps("p1")));
 
     expect(screen.queryByRole("heading", { name: "Academic" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Who they are" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "How to reach them" })).toBeNull();
 
-    const personal = screen.getByRole("heading", { name: "Who they are" }).closest("section");
-    expect(personal).not.toBeNull();
-    expect(within(personal as HTMLElement).getByText("Wadham")).toBeTruthy();
-    expect(within(personal as HTMLElement).getByText("2024")).toBeTruthy();
-    expect(within(personal as HTMLElement).getByText("2028")).toBeTruthy();
-    expect(within(personal as HTMLElement).getByText("Engineering Science")).toBeTruthy();
-    expect(within(personal as HTMLElement).getByText("1234567")).toBeTruthy();
-    expect(within(personal as HTMLElement).getByText("BAFA-99")).toBeTruthy();
+    const personal = sectionHeaded("Personal information");
+    const student = sectionHeaded("Student information");
 
-    // "Who they are" itself renders after the contact details.
-    const contact = screen.getByRole("heading", { name: "How to reach them" }).closest("section");
-    expect(contact).not.toBeNull();
+    for (const value of ["Bertram", "Fielding", "+447700900233", "bertram@example.invalid"]) {
+      expect(within(personal).getByText(value)).toBeTruthy();
+      expect(within(student).queryByText(value)).toBeNull();
+    }
+    for (const value of [
+      "bertram.fielding@wadh.ox.ac.uk",
+      "Wadham",
+      "2024",
+      "2028",
+      "Engineering Science",
+      "1234567",
+      "BAFA-99",
+    ]) {
+      expect(within(student).getByText(value)).toBeTruthy();
+      expect(within(personal).queryByText(value)).toBeNull();
+    }
+
+    // Personal information first.
     expect(
-      (personal!.compareDocumentPosition(contact!) & Node.DOCUMENT_POSITION_PRECEDING) !== 0,
+      (personal.compareDocumentPosition(student) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
     ).toBe(true);
 
-    // Ordered: the academic facts, then the identifiers, BAFA last.
-    const labels = within(personal as HTMLElement)
+    // College email first, the identifiers last, BAFA after the student number.
+    const labels = within(student)
       .getAllByText(
-        /^(First name|Last name|Known as|Aliases|College|Matriculation year|Expected graduation|Degree field|Student number|BAFA registration number)$/,
+        /^(College email|College|Matriculation year|Expected graduation|Degree field|Student number|BAFA registration number)$/,
       )
       .map((node) => node.textContent);
-    expect(labels.at(-1)).toBe("BAFA registration number");
-    expect(labels.at(-2)).toBe("Student number");
-    expect(labels.indexOf("College")).toBeGreaterThan(labels.indexOf("Aliases"));
-    expect(labels.indexOf("Student number")).toBeGreaterThan(labels.indexOf("Degree field"));
+    expect(labels).toEqual([
+      "College email",
+      "College",
+      "Matriculation year",
+      "Expected graduation",
+      "Degree field",
+      "Student number",
+      "BAFA registration number",
+    ]);
   });
 
+  it("shows no Student information for a coach who has never played and has no student fact", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({ status: null, missingRequiredFields: [] }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    expect(screen.getByRole("heading", { name: "Personal information" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Student information" })).toBeNull();
+    expect(screen.queryByText("BAFA registration number")).toBeNull();
+  });
+
+  it("shows Student information once a BAFA number is recorded for a non-playing coach", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({ status: null, bafaRegistrationNumber: "BAFA-12", missingRequiredFields: [] }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    expect(within(sectionHeaded("Student information")).getByText("BAFA-12")).toBeTruthy();
+  });
+
+  it("shows Student information for a recruit and for a departed player", async () => {
+    for (const status of ["recruit", "departed"] as const) {
+      signedInAs(["secretary"]);
+      vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ status }));
+      stubReads();
+
+      const { unmount } = render(await PersonRecordPage(pageProps("p1")));
+      expect(screen.getByRole("heading", { name: "Student information" }), status).toBeTruthy();
+      unmount();
+    }
+  });
   it("shows who supplied a contact value, from its own stored source", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(

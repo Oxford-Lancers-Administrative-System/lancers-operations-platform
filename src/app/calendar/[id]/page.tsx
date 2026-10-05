@@ -94,7 +94,10 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
         <Section title="Details">
           <FactGrid>
             <Fact testId="public-event-fact" label="Type" value={event.templateName} />
-            <Fact testId="public-event-fact" label="Where" value={whereItIs(event)} />
+            {/* LAN-463: a draft says nothing about where, as the feed says nothing. */}
+            {event.isDraft ? null : (
+              <Fact testId="public-event-fact" label="Where" value={whereItIs(event)} />
+            )}
             <Fact
               label="Term and week"
               value={year === null ? null : year.coordinateLabel(event.scheduledOn)}

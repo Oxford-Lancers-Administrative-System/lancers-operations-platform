@@ -24,6 +24,11 @@ import {
   startOperatorEmailRehome,
 } from "@/lib/services/operator-administration";
 import { operatorAccountState } from "@/lib/services/operator-account-state";
+import {
+  inviteOperatorWithoutEmail,
+  sendOperatorDetailsRequest,
+  type DetailsRequestOutcome,
+} from "@/lib/services/operator-details";
 import { knownAsOf, personDisplayName } from "@/lib/services/person-name";
 import type { AdminActionState, CandidateChoice } from "./action-state";
 
@@ -165,29 +170,43 @@ export async function inviteOperatorAction(
   let operatorAccountId: string;
   let delivery: { delivered: boolean; deliveryFailureReason: string | null };
 
-  try {
-    const result = await inviteOperator({
-      operator,
-      subject: personId
-        ? { kind: "existing", personId }
-        : {
-            kind: "new",
-            givenName: text(formData, "givenName"),
-            familyName: text(formData, "familyName"),
-            phone: optional(formData, "phone") ?? null,
-          },
-      email: text(formData, "email"),
-      roles: [
-        {
-          roleCode,
-          effectiveFrom: optional(formData, "effectiveFrom") ?? null,
-          reason: optional(formData, "reason") ?? null,
+  const invitation = {
+    operator,
+    subject: personId
+      ? { kind: "existing" as const, personId }
+      : {
+          kind: "new" as const,
+          givenName: text(formData, "givenName"),
+          familyName: text(formData, "familyName"),
+          phone: optional(formData, "phone") ?? null,
         },
-      ],
-      callbackUrl: callbacks.invitation,
-    });
-    operatorAccountId = result.operatorAccountId;
-    delivery = { delivered: result.delivered, deliveryFailureReason: result.deliveryFailureReason };
+    roles: [
+      {
+        roleCode,
+        effectiveFrom: optional(formData, "effectiveFrom") ?? null,
+        reason: optional(formData, "reason") ?? null,
+      },
+    ],
+    callbackUrl: callbacks.invitation,
+  };
+
+  try {
+    // LAN-459: a phone number or an email. With no email the person is seated
+    // and sent the WhatsApp details request; their invitation follows.
+    const email = text(formData, "email");
+    const result =
+      email === ""
+        ? await inviteOperatorWithoutEmail(invitation)
+        : { kind: "email" as const, result: await inviteOperator({ ...invitation, email }) };
+    if (result.kind === "details_request") {
+      refreshRoles();
+      return done(detailsRequestNotice("The role is assigned.", result.detailsRequest));
+    }
+    operatorAccountId = result.result.operatorAccountId;
+    delivery = {
+      delivered: result.result.delivered,
+      deliveryFailureReason: result.result.deliveryFailureReason,
+    };
   } catch (error) {
     return failure(error);
   }
@@ -351,7 +370,7 @@ export async function assignRoleAction(
       callbackUrl: callbacks.invitation,
     });
     refreshRoles(roleId);
-    return done(seatNotice("The role is assigned.", result.invitation));
+    return done(seatNotice("The role is assigned.", result.invitation, result.detailsRequest));
   } catch (error) {
     return failure(error);
   }
@@ -410,6 +429,7 @@ export async function replaceRoleHolderAction(
       seatNotice(
         "The role has changed hands. Both assignments stay in the club's history.",
         result.invitation,
+        result.detailsRequest,
       ),
     );
   } catch (error) {
@@ -442,7 +462,7 @@ export async function sendSeatInvitationAction(
   }
 }
 
-/** A seat change's notice, plus the invitation it sent when it opened an account (LAN-434). */
+/** A seat change's notice, plus the invitation it sent when it opened an account (LAN-434), or the details request (LAN-459). */
 function seatNotice(
   changed: string,
   invitation: {
@@ -450,7 +470,41 @@ function seatNotice(
     delivered: boolean;
     deliveryFailureReason: string | null;
   } | null,
+  detailsRequest: DetailsRequestOutcome | null = null,
 ): string {
+  if (detailsRequest !== null) return detailsRequestNotice(changed, detailsRequest);
   if (invitation === null) return changed;
   return `${changed} ${deliveryNotice(`Invitation sent to ${invitation.loginEmail}.`, invitation)}`;
+}
+
+/** LAN-459: what became of the WhatsApp details request, in one sentence after the change's own. */
+function detailsRequestNotice(changed: string, request: DetailsRequestOutcome): string {
+  if (request.outcome === "sent") return `${changed} Details request sent by WhatsApp.`;
+  if (request.outcome === "waiting") {
+    return `${changed} Details request queued for WhatsApp; it goes at 07:00.`;
+  }
+  return request.reason
+    ? `${changed} The details request was not sent: ${request.reason}`
+    : `${changed} The details request was not sent.`;
+}
+
+/** LAN-459: Send details request, from a seat's holder line, for a holder the club has only a phone number for. */
+export async function sendDetailsRequestAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
+  const roleId = text(formData, "roleId");
+
+  try {
+    const result = await sendOperatorDetailsRequest({
+      operator,
+      personId: text(formData, "personId"),
+    });
+    refreshRoles(roleId);
+    return done(detailsRequestNotice("", result).trim());
+  } catch (error) {
+    return failure(error);
+  }
 }

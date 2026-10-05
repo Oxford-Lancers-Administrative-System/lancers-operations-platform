@@ -1,11 +1,14 @@
 import { itemStateLabel } from "@/lib/services/onboarding-item-shapes";
+import { attendanceRatio, formatAttendanceTally } from "@/lib/services/attendance-score";
 import type { OnboardingItemStatus } from "@/lib/services/membership";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { isMultiValueKitItem, parseKitCellKey } from "@/lib/services/roster-board/vocabulary";
 import {
+  ATTENDANCE_COLUMN_TALLIES,
   AVAILABILITY_LABELS,
   ELIGIBILITY_LABELS,
   FORMALWEAR_LABELS,
+  isAttendanceColumnKey,
   type ColumnDef,
 } from "./board-columns";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
@@ -21,7 +24,15 @@ export interface BoardSort {
   direction: "asc" | "desc";
 }
 
+/** The text an empty derived cell shows — the Attendance group's "nothing counted". */
+export const NOTHING_COUNTED = "—";
+
 export function rawValue(row: RosterBoardRow, key: string): string | string[] | number | null {
+  // LAN-457: an Attendance column sorts on its fraction attended; nothing
+  // counted is `null`, which sorts last in either direction.
+  if (isAttendanceColumnKey(key)) {
+    return attendanceRatio(row.attendance[ATTENDANCE_COLUMN_TALLIES[key]]);
+  }
   // LAN-374: the twenty-four special-teams cells are one family, keyed
   // `st:<squad>:<slot>`, not twenty-four cases.
   if (key.startsWith("st:")) return row.specialTeams[key] ?? null;
@@ -264,6 +275,12 @@ export function applyBoard(
 
 /** Display text for a cell, `Not recorded` never a blank — `REQ-not-recorded`. */
 export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
+  if (isAttendanceColumnKey(column.key)) {
+    return (
+      formatAttendanceTally(row.attendance[ATTENDANCE_COLUMN_TALLIES[column.key]]) ??
+      NOTHING_COUNTED
+    );
+  }
   const value = rawValue(row, column.key);
   if (value === null) return NOT_RECORDED;
   if (Array.isArray(value)) {

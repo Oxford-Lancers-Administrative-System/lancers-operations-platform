@@ -1150,6 +1150,8 @@ export type Database = {
           invitation_lead_days: number
           late_approval: boolean
           recruit_dispatches_immediately: boolean | null
+          recruit_event_reminder_at: string | null
+          recruit_event_reminder_hours: number | null
           recruit_follow_up_at: string | null
           recruit_follow_up_cadence_hours: number | null
           recruit_invitation_at: string | null
@@ -1174,6 +1176,8 @@ export type Database = {
           invitation_lead_days: number
           late_approval: boolean
           recruit_dispatches_immediately?: boolean | null
+          recruit_event_reminder_at?: string | null
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_at?: string | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_at?: string | null
@@ -1198,6 +1202,8 @@ export type Database = {
           invitation_lead_days?: number
           late_approval?: boolean
           recruit_dispatches_immediately?: boolean | null
+          recruit_event_reminder_at?: string | null
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_at?: string | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_at?: string | null
@@ -1517,6 +1523,7 @@ export type Database = {
           description: string | null
           ends_at: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          home_away: Database["public"]["Enums"]["home_away"] | null
           id: string
           is_mandatory: boolean
           joining_url: string | null
@@ -1551,6 +1558,7 @@ export type Database = {
           description?: string | null
           ends_at?: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          home_away?: Database["public"]["Enums"]["home_away"] | null
           id?: string
           is_mandatory?: boolean
           joining_url?: string | null
@@ -1585,6 +1593,7 @@ export type Database = {
           description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          home_away?: Database["public"]["Enums"]["home_away"] | null
           id?: string
           is_mandatory?: boolean
           joining_url?: string | null
@@ -2301,6 +2310,7 @@ export type Database = {
           escalation_hours: number
           event_type: Database["public"]["Enums"]["event_type"]
           invitation_lead_days: number
+          recruit_event_reminder_hours: number | null
           recruit_follow_up_cadence_hours: number | null
           recruit_invitation_lead_days: number | null
           reminder_cadence_hours: number
@@ -2314,6 +2324,7 @@ export type Database = {
           escalation_hours?: number
           event_type: Database["public"]["Enums"]["event_type"]
           invitation_lead_days: number
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
@@ -2327,6 +2338,7 @@ export type Database = {
           escalation_hours?: number
           event_type?: Database["public"]["Enums"]["event_type"]
           invitation_lead_days?: number
+          recruit_event_reminder_hours?: number | null
           recruit_follow_up_cadence_hours?: number | null
           recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
@@ -5733,6 +5745,7 @@ export type Database = {
         | "other"
       follow_up_status: "open" | "in_progress" | "resolved" | "cancelled"
       formalwear_item: "tie" | "bowtie" | "socks"
+      home_away: "home" | "away"
       invitation_capacity:
         | "player"
         | "coach"
@@ -5813,6 +5826,7 @@ export type Database = {
         | "onboarding_details"
         | "recruit_signup"
         | "messaging_stop"
+        | "operator_details"
       person_fact_dispute_status:
         | "open"
         | "resolved_kept_club"
@@ -6041,6 +6055,7 @@ export const Constants = {
       ],
       follow_up_status: ["open", "in_progress", "resolved", "cancelled"],
       formalwear_item: ["tie", "bowtie", "socks"],
+      home_away: ["home", "away"],
       invitation_capacity: ["player", "coach", "committee", "guest", "recruit"],
       invitation_status: [
         "pending",
@@ -6125,6 +6140,7 @@ export const Constants = {
         "onboarding_details",
         "recruit_signup",
         "messaging_stop",
+        "operator_details",
       ],
       person_fact_dispute_status: [
         "open",

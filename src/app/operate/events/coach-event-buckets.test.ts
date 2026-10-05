@@ -40,6 +40,7 @@ function event(
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    homeAway: null,
     registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,

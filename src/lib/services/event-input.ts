@@ -14,6 +14,23 @@ export const EVENT_TYPES: readonly string[] = Object.freeze([
   "meeting",
 ]);
 
+/**
+ * LAN-475. The current seeded Game template — the fixed identifier
+ * `20260916090000_event_templates.sql` gave it. Home/Away belongs to this
+ * template alone (`events_home_away_is_game_template_only`); a game-class
+ * template an operator creates later is deliberately not included.
+ */
+export const GAME_TEMPLATE_ID = "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae";
+
+/** `public.home_away` — LAN-475. */
+export type HomeAway = "home" | "away";
+
+const HOME_AWAY_VALUES: readonly HomeAway[] = Object.freeze(["home", "away"]);
+
+export function isGameTemplate(templateId: string): boolean {
+  return templateId === GAME_TEMPLATE_ID;
+}
+
 export const OPERATOR_CREATED_ORIGIN = "club_controlled"; // an operator typing into the club's own calendar controls the event
 
 // The three stored statuses, and no others (D12, D30, LAN-151). See relocations.md.
@@ -70,6 +87,9 @@ export interface RawEventDraft {
   requiredEquipment?: string | null; // D17: its own field, separate from description
   joiningUrl?: string | null; // the online event's link; published on the public calendar (LAN-284)
   attendance?: string | null; // "mandatory" or "optional"; absent is unanswered, never a default
+  // LAN-475: "home", "away", or empty for unanswered. Absent (undefined) means the caller says
+  // nothing about it — an update then keeps what the event already holds.
+  homeAway?: string | null;
 }
 
 export interface EventDraftInput {
@@ -84,6 +104,12 @@ export interface EventDraftInput {
   requiredEquipment: string | null;
   joiningUrl: string | null;
   isMandatory: boolean;
+  /**
+   * LAN-475. Only ever non-null on the current Game template. `undefined` means
+   * "not about Home/Away" (a CSV import, an amendment): an update keeps the
+   * stored value, unless the event leaves the Game template, which clears it.
+   */
+  homeAway?: HomeAway | null;
 }
 
 export interface FieldIssue {
@@ -174,6 +200,17 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "joiningUrl", message: JOINING_URL_MESSAGE });
   }
 
+  // LAN-475: unanswered is legal on a draft — approval is the gate. Off the Game template the
+  // value is meaningless, so it is cleared rather than refused.
+  let homeAway: HomeAway | null | undefined;
+  if (raw.homeAway !== undefined) {
+    const side = trimmed(raw.homeAway);
+    if (side !== "" && !HOME_AWAY_VALUES.includes(side as HomeAway)) {
+      issues.push({ field: "homeAway", message: "Choose Home or Away." });
+    }
+    homeAway = isGameTemplate(templateId) && side !== "" ? (side as HomeAway) : null;
+  }
+
   if (issues.length > 0) return { ok: false, issues };
 
   return {
@@ -190,6 +227,7 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
       requiredEquipment: optional(raw.requiredEquipment),
       joiningUrl,
       isMandatory: attendance === "mandatory",
+      ...(homeAway === undefined ? {} : { homeAway }),
     },
   };
 }

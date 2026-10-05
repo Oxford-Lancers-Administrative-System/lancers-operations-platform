@@ -4,7 +4,7 @@ import { recordAdministrationEvent } from "../administration-audit";
 import type { AdministrationOperatingYear } from "../administration-events";
 import { InvitationDeliveryFailure, type OperatorIdentityPort } from "../operator-identity";
 import { readOperatorAccountIn } from "./account-read";
-import { administrationAuthority, requireOperator } from "./shared";
+import { administrationAuthority } from "./shared";
 
 // Delivery failure, shared by `invite.ts` and `resend.ts`.
 
@@ -59,8 +59,12 @@ export async function markDeliveryFailed(
 
   await recordAdministrationEvent(tx, {
     action: "administration.operator.invitation_delivery_failed",
-    actorPersonId: requireOperator(input.operator).personId,
-    authority: administrationAuthority(input.operator),
+    // LAN-459: `null` is the person's own details save opening their account.
+    actorPersonId: input.operator?.personId ?? input.personId,
+    authority:
+      input.operator === null
+        ? { kind: "self", roleCodes: [] }
+        : administrationAuthority(input.operator),
     target: { personId: input.personId, operatorAccountId: input.operatorAccountId },
     operatingYear: input.operatingYear,
     fromState: before.state,
