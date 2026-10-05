@@ -277,8 +277,11 @@ actions refuse without it.
 board (and a phone on its side) an **Attendance** group sits immediately right
 of Availability with three read-only columns: **Mandatory**, **BPS** and **All
 events**, each `attended/counted · percentage` (`9/9 · 100%`). Each sorts; a
-player with nothing counted shows a dash, last in either direction. There is
-no filter and no colour, the phone cards are unchanged, and the group shows
+player with nothing counted shows a dash, last in either direction. Each figure
+is coloured by its rounded percentage (Brian, 5 October 2026): 80–100 % green,
+60–79 % amber, below 60 % red, in the theme's success, warning and error
+colours; a dash stays uncoloured (`attendanceBand`, the same scorer). There is
+no filter, the phone cards are unchanged, and the group shows
 only to a seat with View on the Attendance line. Its **BPS** is strength and
 conditioning attendance (any event of type Strength and conditioning); the
 Membership group's BPS Yes/No is a different column and is untouched. The rule,
@@ -290,7 +293,7 @@ unexcused Absent counts against; an invitation never messaged (no WhatsApp
 consent, or the event started before the send) counts as excused; an event
 with no register mark is left out; availability excuses nobody. The player
 record's Attendance section heads with the same three figures from the same
-read and the same rule, over the whole season — they no longer follow the
+read, the same rule and the same colour bands, over the whole season — they no longer follow the
 list's filters, so the record and the board always agree; "N attendants not
 recorded" beside them still reads the filtered list. The list itself now shows
 every messaged invitation, including one still pending because the player never

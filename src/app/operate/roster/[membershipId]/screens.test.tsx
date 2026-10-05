@@ -22,6 +22,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { EMPTY_ATTENDANCE_SCORE, type AttendanceScore } from "@/lib/services/attendance-score";
+import { SEMANTIC } from "@/theme-tokens";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -1135,6 +1136,26 @@ describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () =
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
     expect(within(section).getByTestId("attendance-score-bps").textContent).toBe("BPS—");
+    expect(
+      within(section).getByTestId("attendance-score-bps").querySelector("[data-band]"),
+    ).toBeNull();
+  });
+
+  it("colours each figure by band, as the board does (Brian, 5 October 2026)", async () => {
+    givenRecord({
+      attendance: EVENTS,
+      attendanceScore: { ...SCORE, all: { attended: 11, counted: 20 } },
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    const figure = (key: string) =>
+      within(section).getByTestId(`attendance-score-${key}`).querySelector("[data-band]");
+    expect(figure("mandatory")).toHaveAttribute("data-band", "green");
+    expect(figure("mandatory")).toHaveStyle({ color: SEMANTIC.success.main });
+    expect(figure("bps")).toHaveAttribute("data-band", "amber");
+    expect(figure("bps")).toHaveStyle({ color: SEMANTIC.warning.main });
+    expect(figure("all")).toHaveAttribute("data-band", "red");
+    expect(figure("all")).toHaveStyle({ color: SEMANTIC.error.main });
   });
 
   it('reads "8 attendants not recorded" beside the score (W2, Q-19)', async () => {

@@ -79,7 +79,9 @@ traffic-light values the board has.
 
 **Attendance is its own band** (LAN-457, Brian 2026-10-02): three read-only
 columns, each `attended/counted · percentage`, sortable with a dash last, never
-filtered, shown only with View on the Attendance access line. It keeps the
+filtered, shown only with View on the Attendance access line. The figure's text
+is coloured by its rounded percentage (Brian, 2026-10-05): 80–100 % success
+green, 60–79 % warning amber, below 60 % error red; a dash is uncoloured. It keeps the
 record's Attendance colour (it is not one of the ten club-coloured groups) and
 shares its fold with the record's Attendance section.
 

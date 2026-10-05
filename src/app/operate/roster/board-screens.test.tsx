@@ -18,6 +18,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { EMPTY_ATTENDANCE_SCORE } from "@/lib/services/attendance-score";
+import { SEMANTIC } from "@/theme-tokens";
 
 const routerPush = vi.fn();
 vi.mock("server-only", () => ({}));
@@ -735,6 +736,45 @@ describe("the Attendance group — LAN-457", () => {
     for (const cell of cells.slice(at, at + 3)) {
       expect(cell).not.toHaveAttribute("data-testid", "editable-cell");
     }
+    // Brian, 5 October 2026: 80–100 % green, 60–79 % amber, below 60 % red.
+    expect(
+      cells
+        .slice(at, at + 3)
+        .map((cell) => cell.querySelector("[data-band]")?.getAttribute("data-band")),
+    ).toEqual(["green", "amber", "amber"]);
+    expect(cells[at].querySelector("[data-band]")).toHaveStyle({ color: SEMANTIC.success.main });
+    expect(cells[at + 1].querySelector("[data-band]")).toHaveStyle({
+      color: SEMANTIC.warning.main,
+    });
+  });
+
+  it("colours a figure below 60 % red and leaves a dash uncoloured", async () => {
+    signedInAs(["secretary"]);
+    givenBoard({
+      rows: [
+        row({
+          attendance: {
+            mandatory: { attended: 5, counted: 9 },
+            bps: { attended: 0, counted: 0 },
+            all: { attended: 6, counted: 10 },
+          },
+        }),
+      ],
+    });
+    render(await RosterPage(pageProps()));
+    const cells = within(
+      within(screen.getByTestId("roster-board")).getByTestId("roster-row"),
+    ).getAllByRole("cell");
+    const at = cells.findIndex((cell) => cell.textContent === "5/9 · 56%");
+    expect(cells.slice(at, at + 3).map((cell) => cell.textContent)).toEqual([
+      "5/9 · 56%",
+      "—",
+      "6/10 · 60%",
+    ]);
+    expect(cells[at].querySelector("[data-band]")).toHaveAttribute("data-band", "red");
+    expect(cells[at].querySelector("[data-band]")).toHaveStyle({ color: SEMANTIC.error.main });
+    expect(cells[at + 1].querySelector("[data-band]")).toBeNull();
+    expect(cells[at + 2].querySelector("[data-band]")).toHaveAttribute("data-band", "amber");
   });
 
   it("sorts on a column with a dash last in either direction", async () => {

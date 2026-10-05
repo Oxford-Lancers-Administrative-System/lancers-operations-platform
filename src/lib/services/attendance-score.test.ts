@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  attendanceBand,
   attendanceRatio,
   BPS_EVENT_TYPE,
   formatAttendanceTally,
@@ -131,5 +132,30 @@ describe("formatAttendanceTally", () => {
     expect(formatAttendanceTally({ attended: 9, counted: 9 })).toBe("9/9 · 100%");
     expect(formatAttendanceTally({ attended: 4, counted: 6 })).toBe("4/6 · 67%");
     expect(formatAttendanceTally({ attended: 18, counted: 25 })).toBe("18/25 · 72%");
+  });
+});
+
+describe("attendanceBand — Brian, 5 October 2026", () => {
+  it.each([
+    [100, "green"],
+    [80, "green"],
+    [79, "amber"],
+    [60, "amber"],
+    [59, "red"],
+    [0, "red"],
+  ] as const)("%i%% is %s", (attended, band) => {
+    expect(attendanceBand({ attended, counted: 100 })).toBe(band);
+  });
+
+  it("is null for the empty tally, which is drawn as an uncoloured dash", () => {
+    expect(attendanceBand({ attended: 0, counted: 0 })).toBeNull();
+  });
+
+  it("bands the rounded percentage the figure prints", () => {
+    // 159/200 is 79.5%, printed as 80%: green, never an amber 80%.
+    expect(formatAttendanceTally({ attended: 159, counted: 200 })).toBe("159/200 · 80%");
+    expect(attendanceBand({ attended: 159, counted: 200 })).toBe("green");
+    // 4/6 prints 67%: amber.
+    expect(attendanceBand({ attended: 4, counted: 6 })).toBe("amber");
   });
 });

@@ -23,12 +23,13 @@ import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 
 import {
+  attendanceBand,
   formatAttendanceTally,
   type AttendanceScore,
   type AttendanceTally,
 } from "@/lib/services/attendance-score";
 import type { AttendanceEvent } from "@/lib/services/player-record";
-import { formatDay } from "../presentation";
+import { ATTENDANCE_BAND_COLOUR, formatDay } from "../presentation";
 import {
   ATTENDANCE_LABEL,
   COLUMNS,
@@ -53,9 +54,21 @@ const SCORE_FACTS: readonly { key: keyof AttendanceScore; label: string }[] = Ob
   { key: "all", label: "All events" },
 ]);
 
-/** What a tally prints: `9/9 · 100%`, or a dash when nothing is counted — the board's own cell. */
-function tallyText(tally: AttendanceTally): string {
-  return formatAttendanceTally(tally) ?? "—";
+/**
+ * What a tally prints: `9/9 · 100%` in its band's colour, or an uncoloured
+ * dash when nothing is counted — the board's own cell (LAN-457).
+ */
+function TallyFigure({ tally }: { tally: AttendanceTally }) {
+  const band = attendanceBand(tally);
+  return (
+    <Typography
+      variant="body1"
+      data-band={band ?? undefined}
+      sx={{ fontWeight: 600, color: band ? ATTENDANCE_BAND_COLOUR[band] : "text.primary" }}
+    >
+      {formatAttendanceTally(tally) ?? "—"}
+    </Typography>
+  );
 }
 
 /**
@@ -170,7 +183,7 @@ export default function AttendanceSection({
             <Fact
               key={fact.key}
               label={fact.label}
-              value={tallyText(score[fact.key])}
+              value={<TallyFigure tally={score[fact.key]} />}
               emphasis
               testId={`attendance-score-${fact.key}`}
             />

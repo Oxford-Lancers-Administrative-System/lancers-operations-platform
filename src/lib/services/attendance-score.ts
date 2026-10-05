@@ -111,9 +111,29 @@ export function attendanceRatio(tally: AttendanceTally): number | null {
   return tally.counted === 0 ? null : tally.attended / tally.counted;
 }
 
+/** The whole percentage the figure prints, or `null` when nothing is counted. */
+function attendancePercent(tally: AttendanceTally): number | null {
+  return tally.counted === 0 ? null : Math.round((tally.attended / tally.counted) * 100);
+}
+
 /** `9/9 · 100%`, or `null` when nothing is counted (drawn as a dash). */
 export function formatAttendanceTally(tally: AttendanceTally): string | null {
-  if (tally.counted === 0) return null;
-  const pct = Math.round((tally.attended / tally.counted) * 100);
+  const pct = attendancePercent(tally);
+  if (pct === null) return null;
   return `${tally.attended}/${tally.counted} · ${pct}%`;
+}
+
+export type AttendanceBand = "green" | "amber" | "red";
+
+/**
+ * The figure's colour band (Brian, 5 October 2026): 80–100 % green, 60–79 %
+ * amber, below 60 % red; `null` for a dash. Judged on the rounded percentage
+ * the figure prints, so the colour and the number never disagree.
+ */
+export function attendanceBand(tally: AttendanceTally): AttendanceBand | null {
+  const pct = attendancePercent(tally);
+  if (pct === null) return null;
+  if (pct >= 80) return "green";
+  if (pct >= 60) return "amber";
+  return "red";
 }

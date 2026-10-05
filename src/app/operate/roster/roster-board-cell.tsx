@@ -10,10 +10,13 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useBandColours } from "@/components/band-colours-provider";
 import { StatusPill } from "../board-filter-controls";
+import { attendanceBand } from "@/lib/services/attendance-score";
 import {
+  ATTENDANCE_COLUMN_TALLIES,
   BOARD_CELL_CONTROL_HEIGHT,
   BOARD_ROW_HEIGHT,
   bandOf,
+  isAttendanceColumnKey,
   SQUAD_BOUNDARY_BORDER,
   type ColumnDef,
 } from "./board-columns";
@@ -26,7 +29,7 @@ import {
   rawValue,
 } from "./board-data";
 import JerseyPicker from "./jersey-picker";
-import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
+import { ATTENDANCE_BAND_COLOUR, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 
 const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
@@ -294,6 +297,20 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
         />
         <Typography variant="body2">{displayOf(row, column)}</Typography>
       </Stack>
+    );
+  }
+
+  if (isAttendanceColumnKey(column.key)) {
+    // LAN-457: the figure's text in its band's colour; a dash stays uncoloured.
+    const band = attendanceBand(row.attendance[ATTENDANCE_COLUMN_TALLIES[column.key]]);
+    return (
+      <Typography
+        variant="body2"
+        data-band={band ?? undefined}
+        sx={{ color: band ? ATTENDANCE_BAND_COLOUR[band] : "text.disabled" }}
+      >
+        {displayOf(row, column)}
+      </Typography>
     );
   }
 

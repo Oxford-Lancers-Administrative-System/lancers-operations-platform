@@ -229,7 +229,10 @@ Mandatory, BPS and All events, each `attended/counted · percentage` — compute
 over the whole season by `scoreAttendance` (`src/lib/services/attendance-score.ts`),
 the same function and read as the roster board's Attendance group. Excused and
 never-messaged invitations are left out of both numbers, and the score no
-longer follows the filters. The paragraphs below record the earlier rule.
+longer follows the filters. Each figure wears the board's colour band
+(Brian, 2026-10-05: 80–100 % green, 60–79 % amber, below 60 % red, a dash
+uncoloured), from the same `attendanceBand`. The paragraphs below record the
+earlier rule.
 
 **One score** — mandatory events only, attended ÷ mandatory events carrying a
 recorded attendance, shown with the raw counts. `present` and `late` count as
