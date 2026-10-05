@@ -5,6 +5,7 @@ import { RowCard, RowCardList } from "@/components/row-card";
 import { gateShellPage } from "../../../gate";
 import {
   ADMINISTRATION_GUIDE_LINK,
+  COMPLIANCE_GUIDE_LINK,
   PLAYBOOK_PAGES,
   PLAYBOOK_SUBTITLE,
   PLAYBOOK_TITLE,
@@ -55,6 +56,17 @@ export default async function PlaybookIndexPage() {
           </Link>
         }
         sublines={[ADMINISTRATION_GUIDE_LINK.summary]}
+      />
+
+      {/* LAN-467: listed last, directly after How administration works. */}
+      <RowCard
+        testId="playbook-index-compliance"
+        title={
+          <Link href={COMPLIANCE_GUIDE_LINK.href} underline="hover">
+            {COMPLIANCE_GUIDE_LINK.label}
+          </Link>
+        }
+        sublines={[COMPLIANCE_GUIDE_LINK.summary]}
       />
     </Stack>
   );

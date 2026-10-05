@@ -410,119 +410,140 @@ export const ADMINISTRATION_GUIDE: readonly GuideEntry[] = Object.freeze([
 ]);
 
 /**
- * Compliance and user protections — LAN-467 (Stu, 2 October 2026; narrowed by
- * Brian the same day to one section at the foot of this page).
+ * Compliance and user protections — LAN-467 (Stu, 2 October 2026). Built as
+ * one section at the foot of How administration works; since Brian's visual
+ * review of 5 October 2026 it is its own guide page,
+ * `/operate/admin/guide/compliance`, listed last in the guide, with the same
+ * text: the page's title, then one section per heading below.
  *
  * A plain account of what the application does, for a reader at the club or
- * the university. It is an entry like the ones above, but it is not in
- * `ADMINISTRATION_GUIDE`: it is a title rather than a question, and it has to
- * name WhatsApp, which that list's prohibitions exist to keep out of the
+ * the university. It is not in `ADMINISTRATION_GUIDE`: it has to name
+ * WhatsApp, which that list's prohibitions exist to keep out of the
  * administration answers. Every sentence is checked against the code it
  * describes; `content.test.ts` names each source. It deliberately states no
  * limit, threshold or address that would help somebody attack the public
  * pages, and it leaves who is responsible for the data, and for how long it is
  * kept, to the privacy notice that already says so.
  */
-export const COMPLIANCE_SECTION: GuideEntry = Object.freeze({
-  id: "compliance",
-  question: "Compliance and user protections",
-  answer: [
-    paragraph(s("Personal data")),
-    points(
-      [
-        "The public ",
-        s("Privacy notice"),
-        " says what the platform holds and why, who is responsible for it, which services " +
-          "it uses, how long information is kept, and how to make a request.",
-      ],
-      [
-        "Each person has one record. Date of birth and emergency contact are restricted: " +
-          "they are shown only to operators whose seat is given them, and never on a list.",
-      ],
-      [
-        "When somebody asks for a copy of what the club holds about them, ",
-        s("Export everything held about this person"),
-        " on their record produces it as a file.",
-      ],
-      [
-        "When somebody asks to be removed, ",
-        s("Anonymise this person"),
-        " takes their name, contact details and date of birth off the record, withdraws " +
-          "their links and cancels their queued messages. It needs two confirmations from two " +
-          "different people among the President, General Manager, Vice-President and " +
-          "Secretary, and it cannot be undone.",
-      ],
-    ),
-    paragraph(s("Messages")),
-    points(
-      [
-        "WhatsApp messages are sent only as templates Meta has approved, in Meta's Utility " +
-          "category: messages about the club's own business, not marketing.",
-      ],
-      [
-        "A recruit is messaged only while they have given consent for that season. Consent " +
-          "is recorded per person, per season: by the recruit on the sign-up form, or by an " +
-          "operator who has their agreement, and an operator's record never overrides a " +
-          "withdrawal. A recruit can withdraw it with the ",
-        s("Stop messages"),
-        " link in their messages, and an operator can record a withdrawal for them.",
-      ],
-      [
-        "When a recruit leaves the recruitment process or joins the roster, every message " +
-          "still queued for them as a recruit is cancelled.",
-      ],
-      [
-        "Reminders about an event stop as soon as the person has answered. The one exception " +
-          "is the recruit reminder: a recruit who answered Yes to a recruitment event gets one " +
-          "WhatsApp reminder before it, set in hours on the messaging schedule.",
-      ],
-    ),
-    paragraph(s("People's time")),
-    points(
-      [
-        "No automated message is sent between 22:00 and 07:00 UK time. A message due in " +
-          "those hours waits until 07:00; it is held, not dropped. A recruit reminder that " +
-          "07:00 would deliver after its event has started is not sent at all.",
-      ],
-      [
-        "Only an event's cancellation, a change to an event, and a change to its questions " +
-          "are sent at any hour, because the news cannot wait for the morning, and so is the " +
-          "attendance sheet email an hour before an event, because an early event needs it " +
-          "before 07:00.",
-      ],
-    ),
-    paragraph(s("Access and security")),
-    points(
-      [
-        "Every operator has their own account. They are invited by email and choose their " +
-          "own password; nobody sets a password for somebody else, and there is no public " +
-          "sign-up for operators.",
-      ],
-      [
-        "What an operator may see and change comes from the club seats they hold, and each " +
-          "seat's access is set area by area. Changes to who holds a seat are kept in a " +
-          "history that cannot be edited.",
-      ],
-      [
-        "An event response link opens one invitation for one person and carries nothing " +
-          "that identifies them. Only a fingerprint of it is stored, so an issued link cannot " +
-          "be read back by anybody. It stops working when the event starts, or when a newer " +
-          "one replaces it.",
-      ],
-      ["The event link a coach shares with the team stops working seven days after the event."],
-      [
-        "The pages a personal link opens limit how many requests they accept, and an " +
-          "unknown, expired or withdrawn response link gets the same reply as any other, so " +
-          "trying links reveals nothing.",
-      ],
-      [
-        "Every table the database exposes has row-level security switched on and refuses " +
-          "access by default. The application checks permission itself before it reads or " +
-          "changes anything; the database rule is the second line.",
-      ],
-    ),
-  ],
-});
+export const COMPLIANCE_TITLE = "Compliance and user protections";
+
+/** The page's sections, in order; each `question` is its heading. */
+export const COMPLIANCE_SECTIONS: readonly GuideEntry[] = Object.freeze([
+  {
+    id: "compliance-personal-data",
+    question: "Personal data",
+    answer: [
+      points(
+        [
+          "The public ",
+          s("Privacy notice"),
+          " says what the platform holds and why, who is responsible for it, which services " +
+            "it uses, how long information is kept, and how to make a request.",
+        ],
+        [
+          "Each person has one record. Date of birth and emergency contact are restricted: " +
+            "they are shown only to operators whose seat is given them, and never on a list.",
+        ],
+        [
+          "When somebody asks for a copy of what the club holds about them, ",
+          s("Export everything held about this person"),
+          " on their record produces it as a file.",
+        ],
+        [
+          "When somebody asks to be removed, ",
+          s("Anonymise this person"),
+          " takes their name, contact details and date of birth off the record, withdraws " +
+            "their links and cancels their queued messages. It needs two confirmations from two " +
+            "different people among the President, General Manager, Vice-President and " +
+            "Secretary, and it cannot be undone.",
+        ],
+      ),
+    ],
+  },
+  {
+    id: "compliance-messages",
+    question: "Messages",
+    answer: [
+      points(
+        [
+          "WhatsApp messages are sent only as templates Meta has approved, in Meta's Utility " +
+            "category: messages about the club's own business, not marketing.",
+        ],
+        [
+          "A recruit is messaged only while they have given consent for that season. Consent " +
+            "is recorded per person, per season: by the recruit on the sign-up form, or by an " +
+            "operator who has their agreement, and an operator's record never overrides a " +
+            "withdrawal. A recruit can withdraw it with the ",
+          s("Stop messages"),
+          " link in their messages, and an operator can record a withdrawal for them.",
+        ],
+        [
+          "When a recruit leaves the recruitment process or joins the roster, every message " +
+            "still queued for them as a recruit is cancelled.",
+        ],
+        [
+          "Reminders about an event stop as soon as the person has answered. The one exception " +
+            "is the recruit reminder: a recruit who answered Yes to a recruitment event gets one " +
+            "WhatsApp reminder before it, set in hours on the messaging schedule.",
+        ],
+      ),
+    ],
+  },
+  {
+    id: "compliance-time",
+    question: "People's time",
+    answer: [
+      points(
+        [
+          "No automated message is sent between 22:00 and 07:00 UK time. A message due in " +
+            "those hours waits until 07:00; it is held, not dropped. A recruit reminder that " +
+            "07:00 would deliver after its event has started is not sent at all.",
+        ],
+        [
+          "Only an event's cancellation, a change to an event, and a change to its questions " +
+            "are sent at any hour, because the news cannot wait for the morning, and so is the " +
+            "attendance sheet email an hour before an event, because an early event needs it " +
+            "before 07:00.",
+        ],
+      ),
+    ],
+  },
+  {
+    id: "compliance-access",
+    question: "Access and security",
+    answer: [
+      points(
+        [
+          "Every operator has their own account. They are invited by email and choose their " +
+            "own password; nobody sets a password for somebody else, and there is no public " +
+            "sign-up for operators.",
+        ],
+        [
+          "What an operator may see and change comes from the club seats they hold, and each " +
+            "seat's access is set area by area. Changes to who holds a seat are kept in a " +
+            "history that cannot be edited.",
+        ],
+        [
+          "An event response link opens one invitation for one person and carries nothing " +
+            "that identifies them. Only a fingerprint of it is stored, so an issued link cannot " +
+            "be read back by anybody. It stops working when the event starts, or when a newer " +
+            "one replaces it.",
+        ],
+        ["The event link a coach shares with the team stops working seven days after the event."],
+        [
+          "The pages a personal link opens limit how many requests they accept, and an " +
+            "unknown, expired or withdrawn response link gets the same reply as any other, so " +
+            "trying links reveals nothing.",
+        ],
+        [
+          "Every table the database exposes has row-level security switched on and refuses " +
+            "access by default. The application checks permission itself before it reads or " +
+            "changes anything; the database rule is the second line.",
+        ],
+      ),
+    ],
+  },
+]);
 
 /** One run as plain text. */
 function guideRunText(run: GuideRun): string {

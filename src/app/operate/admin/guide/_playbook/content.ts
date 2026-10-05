@@ -38,6 +38,18 @@ export const ADMINISTRATION_GUIDE_LINK = Object.freeze({
     "The step-by-step answers for each administrative act, and what each account state means.",
 });
 
+/**
+ * LAN-467: Compliance and user protections, its own page since Brian's visual
+ * review of 5 October 2026, listed last — directly after How administration
+ * works. Gated like that page, on `role_management`, the audience it had as
+ * that page's last section.
+ */
+export const COMPLIANCE_GUIDE_LINK = Object.freeze({
+  href: "/operate/admin/guide/compliance",
+  label: "Compliance and user protections",
+  summary: "What the application does for personal data, messages, people's time and access.",
+});
+
 export const PLAYBOOK_PAGES: readonly PlaybookPage[] = Object.freeze([
   RECRUITMENT_PAGE,
   ONBOARDING_PAGE,

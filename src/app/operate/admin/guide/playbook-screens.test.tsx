@@ -40,6 +40,8 @@ import {
   seededGrantsFor,
 } from "@/lib/auth/capabilities";
 import { PLAYBOOK_PAGES, PLAYBOOK_TITLE } from "./_playbook/content";
+import { COMPLIANCE_SECTIONS, COMPLIANCE_TITLE } from "./content";
+import ComplianceGuidePage from "./compliance/page";
 import PlaybookIndexPage from "./workflows/page";
 import PlaybookWorkflowPage, { generateStaticParams } from "./[slug]/page";
 
@@ -187,6 +189,19 @@ describe("the index", () => {
     expect(screen.queryByRole("link", { name: /^Open / })).toBeNull();
   });
 
+  it("lists Compliance and user protections last, directly after How administration works", async () => {
+    const { container } = await renderIndex();
+
+    expect(screen.getByRole("link", { name: COMPLIANCE_TITLE })).toHaveAttribute(
+      "href",
+      "/operate/admin/guide/compliance",
+    );
+    const cards = [...container.querySelectorAll('[data-testid^="playbook-index-"]')].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+    expect(cards.slice(-2)).toEqual(["playbook-index-administration", "playbook-index-compliance"]);
+  });
+
   it("pre-renders exactly the eight slugs", () => {
     expect(generateStaticParams()).toEqual(PLAYBOOK_PAGES.map((page) => ({ slug: page.slug })));
   });
@@ -260,5 +275,40 @@ describe("the seat table", () => {
 
     expect(screen.getByTestId("capability-row-president")).toBeVisible();
     expect(screen.queryByTestId("capability-row-kit_manager")).toBeNull();
+  });
+});
+
+// LAN-467: its own page since Brian's visual review of 5 October 2026, the
+// same text it had at the foot of How administration works, on that page's
+// gate (role_management).
+describe("the Compliance and user protections page", () => {
+  it.each(["president", "general_manager", "it_officer"])(
+    "opens for %s with the guide's page shell and every section open",
+    async (roleCode) => {
+      signedInAs(roleCode);
+
+      const { container } = render(await ComplianceGuidePage());
+
+      expect(screen.getByRole("heading", { level: 1, name: COMPLIANCE_TITLE })).toBeVisible();
+      expect(screen.getByRole("link", { name: /Back to the guide/ })).toHaveAttribute(
+        "href",
+        "/operate/admin/guide/workflows",
+      );
+      for (const entry of COMPLIANCE_SECTIONS) {
+        expect(screen.getByRole("heading", { level: 2, name: entry.question })).toBeVisible();
+      }
+      expect(container.querySelector("details")).toBeNull();
+      expect(container.textContent).toContain("between 22:00 and 07:00 UK time");
+      expect(container.textContent).toContain("row-level security");
+    },
+  );
+
+  it.each(["secretary", "head_coach"])("refuses %s, and renders none of it", async (roleCode) => {
+    signedInAs(roleCode);
+
+    const { container } = render(await ComplianceGuidePage());
+
+    expect(screen.queryByRole("heading", { level: 1, name: COMPLIANCE_TITLE })).toBeNull();
+    expect(container.textContent).not.toContain("row-level security");
   });
 });

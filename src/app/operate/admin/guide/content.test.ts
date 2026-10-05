@@ -13,7 +13,8 @@ import { OPERATOR_ACCOUNT_STATE_DEFINITIONS } from "@/lib/services/operator-acco
 import {
   ADMINISTRATION_ACTION_LABELS,
   ADMINISTRATION_GUIDE,
-  COMPLIANCE_SECTION,
+  COMPLIANCE_SECTIONS,
+  COMPLIANCE_TITLE,
   guideText,
   HOLDER_HISTORY,
   OPERATOR_AUDIT_HISTORY,
@@ -256,7 +257,19 @@ describe("the rules an administrator will otherwise get wrong", () => {
  * pinned here, and every label it quotes is checked against `src/`.
  */
 describe("Compliance and user protections", () => {
-  const compliance = guideText([COMPLIANCE_SECTION]);
+  const compliance = [COMPLIANCE_TITLE, guideText(COMPLIANCE_SECTIONS)].join("\n");
+
+  it("is its own page: the title, then Personal data, Messages, People's time, Access and security", () => {
+    expect(COMPLIANCE_TITLE).toBe("Compliance and user protections");
+    expect(COMPLIANCE_SECTIONS.map((entry) => entry.question)).toEqual([
+      "Personal data",
+      "Messages",
+      "People's time",
+      "Access and security",
+    ]);
+    // Moved, not copied: How administration works no longer carries it.
+    expect(guideText()).not.toContain("row-level security");
+  });
 
   const SRC = path.resolve(import.meta.dirname, "../../../../..");
   const SELF = import.meta.dirname;

@@ -1358,13 +1358,17 @@ Vice-President, Secretary or General Manager — open **Guide** in the sidebar,
 under Administration.
 
 **Expected.** An index of eight workflows: Recruitment, Onboarding, Events,
-Messaging, Roster, People and data, Operators and roles, and Reports, plus a
-link to the existing **How administration works** page.
+Messaging, Roster, People and data, Operators and roles, and Reports, then a
+link to the existing **How administration works** page and, last, **Compliance
+and user protections**.
 
-**How administration works** ends with one more collapsed section, **Compliance
-and user protections** (LAN-467, Stu and Brian, 2026-10-02): a plain account of
-personal data, messages, quiet hours, and access and security, for a reader at
-the club or the university. Each statement is pinned by
+**Compliance and user protections** (LAN-467, Stu and Brian, 2026-10-02; its
+own page at `/operate/admin/guide/compliance` since Brian's visual review of
+2026-10-05, no longer a section of How administration works) is a plain
+account of personal data, messages, people's time, and access and security,
+for a reader at the club or the university: the guide's page shell, then one
+open section per heading. It keeps the audience it had on How administration
+works (President, General Manager, IT Officer). Each statement is pinned by
 `src/app/operate/admin/guide/content.test.ts` to the code it describes. It
 leaves who is responsible for the data, and retention, to the privacy notice.
 
