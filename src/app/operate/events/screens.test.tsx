@@ -3413,6 +3413,38 @@ describe("the participation table on the event page", () => {
           );
         expect(order).toEqual(["response-progress", "response-names", "audience-fact"]);
       });
+
+      // Brian's visual review, 5 October 2026: one collapsible "Attendance"
+      // section, open on arrival, the counts card above and outside it.
+      it("holds the three lists in one open Attendance section, the counts card outside it", async () => {
+        await renderNamed(1280);
+
+        const section = screen.getByTestId("section-response-names");
+        expect(section.tagName).toBe("DETAILS");
+        expect(section).toHaveAttribute("open");
+        expect(section.querySelector("summary")?.textContent).toBe("Attendance");
+        expect(section).toContainElement(screen.getByTestId("response-names-yes"));
+        expect(section).toContainElement(screen.getByTestId("response-names-no"));
+        expect(section).toContainElement(screen.getByTestId("response-names-none"));
+
+        const progress = screen.getByTestId("response-progress");
+        expect(section.contains(progress)).toBe(false);
+        expect(
+          progress.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+
+        // Yes and No are the first two cells of the grid; No response spans it.
+        const grid = screen.getByTestId("response-names");
+        expect([...grid.children].map((node) => node.getAttribute("data-testid"))).toEqual([
+          "response-names-yes",
+          "response-names-no",
+          "response-names-none",
+        ]);
+        expect(
+          getComputedStyle(screen.getByTestId("response-names-none")).gridColumn.replace(/\s/g, ""),
+        ).toBe("1/-1");
+        expect(getComputedStyle(screen.getByTestId("response-names-yes")).gridColumn).toBe("");
+      });
     });
 
     it("shows no block at all before approval, when nobody is invited", async () => {

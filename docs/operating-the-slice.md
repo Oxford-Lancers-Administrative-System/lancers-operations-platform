@@ -1070,13 +1070,16 @@ the link was sent to are reading the same numbers.
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.
 
-**Directly under the blocks, one more card names everybody invited** (LAN-458,
-Stu, 2026-09-30; Brian, 2026-10-01): three groups, **Yes**, **No** and **No
-response**, each headed with its count (`Yes · 12`) and listing every invitee's
-full name alphabetically. Every name is shown — nothing collapses and there is
-no "show more" — and a walk-up, who was never invited, is not listed. At 375px
-the three groups stack; on a desktop they sit side by side as three columns,
-each name wrapping inside its column. The card groups by answer, not capacity,
+**Directly under the blocks, one collapsible section headed Attendance names
+everybody invited** (LAN-458, Stu, 2026-09-30; Brian, 2026-10-01 and his visual
+review of 2026-10-05): three groups, **Yes**, **No** and **No response**, each
+headed with its count (`Yes · 12`) and listing every invitee's full name
+alphabetically. The section is open on arrival and can be closed; the blocks
+with the counts sit above and outside it, so they stay when it is closed. Every
+name is shown — there is no "show more" — and a walk-up, who was never invited,
+is not listed. Yes and No sit side by side as two equal columns where there is
+room, with No response full width below them (its names in the same two
+columns); at 375px the groups stack, Yes first. The section groups by answer, not capacity,
 so the LAN-440 and LAN-466 folds do not touch it. It is on the operator's event
 page only: the public **Event info link** page has the blocks but not the names.
 
