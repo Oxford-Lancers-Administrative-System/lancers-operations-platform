@@ -1911,18 +1911,59 @@ describe("which groups are folded away, remembered on the account", () => {
       "season",
       // LAN-412: Availability's own section, between Membership and Coaching.
       "availability",
+      // LAN-457 (fix round 4): Attendance follows Availability, as on the board.
+      "attendance",
       "coaching",
       "offensive",
       "defensive",
       "special-teams",
       "warmup",
       "kit",
-      "attendance",
       "other-seasons",
       "status-history",
     ]) {
       expect(screen.getByTestId(`section-${testId}`).tagName).toBe("DETAILS");
     }
+  });
+
+  it("draws the record's sections in the board's order, Attendance after Availability (LAN-457)", async () => {
+    givenRecord();
+    const { container } = render(await PlayerRecordPage(pageProps()));
+
+    const order = Array.from(container.querySelectorAll('[data-testid^="section-"]'))
+      .map((element) => element.getAttribute("data-testid")!.replace("section-", ""))
+      .filter((id) =>
+        [
+          "person",
+          "onboarding",
+          "season",
+          "availability",
+          "attendance",
+          "coaching",
+          "offensive",
+          "defensive",
+          "special-teams",
+          "warmup",
+          "kit",
+          "other-seasons",
+          "status-history",
+        ].includes(id),
+      );
+    expect(order).toEqual([
+      "person",
+      "onboarding",
+      "season",
+      "availability",
+      "attendance",
+      "coaching",
+      "offensive",
+      "defensive",
+      "special-teams",
+      "warmup",
+      "kit",
+      "other-seasons",
+      "status-history",
+    ]);
   });
 
   it("arrives with Person, Onboarding and Membership open and the long tail closed", async () => {

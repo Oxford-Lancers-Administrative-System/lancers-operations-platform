@@ -294,7 +294,11 @@ read and the same rule, over the whole season — they no longer follow the
 list's filters, so the record and the board always agree; "N attendants not
 recorded" beside them still reads the filtered list. The list itself now shows
 every messaged invitation, including one still pending because the player never
-answered; an invitation never messaged is not listed.
+answered; an invitation never messaged is not listed. Since Brian's visual
+review (5 October 2026) the group wears its own stored colour (Slate unless
+changed in **Edit categories**), its columns carry no "view" caption (there is
+no Edit level for attendance anywhere), and the record's Attendance section
+sits directly after Availability, in the board's order.
 
 **The sign-up code page (LAN-428, Brian 2026-09-26).** Recruitment → **QR
 code** opens with three numbers for the live code: **Visits** (times
