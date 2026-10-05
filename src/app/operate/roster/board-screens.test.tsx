@@ -777,6 +777,41 @@ describe("the Attendance group — LAN-457", () => {
     expect(within(board).getAllByText("—").length).toBeGreaterThan(0);
   });
 
+  it('prints no "view" caption under its columns, and still does under a view-only group', async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        ...operator([]),
+        grants: mergeGrantRows(
+          (
+            [
+              ["person", "view"],
+              ["availability", "edit"],
+              ["attendance", "view"],
+            ] as const
+          ).map(([key, level]) => ({
+            subject_kind: "roster_category",
+            subject_key: key,
+            template_id: null,
+            level,
+          })),
+        ),
+      },
+    });
+    givenBoard({ rows: [row({ attendance: SCORE })] });
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    const headerOf = (label: string) =>
+      within(board).getByRole("button", { name: label }).closest("th") as HTMLElement;
+    for (const label of ["Mandatory", "All events"]) {
+      expect(within(headerOf(label)).queryByTestId("column-view-caption")).toBeNull();
+      expect(headerOf(label).textContent).not.toContain("view");
+    }
+    // Person is held at view: its columns keep the caption.
+    expect(within(board).getAllByTestId("column-view-caption").length).toBeGreaterThan(0);
+  });
+
   it("is absent, with its figures, for a seat without Attendance view", async () => {
     vi.mocked(resolveOperatorAccess).mockResolvedValue({
       state: "active",

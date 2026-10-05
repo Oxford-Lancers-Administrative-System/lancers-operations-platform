@@ -276,8 +276,9 @@ export default function BoardTableHead({
                 >
                   {filterOptionLabel(column, filters[column.key])}
                 </Typography>
-              ) : column.viewOnly ? (
-                // LAN-432: the category is held at view.
+              ) : column.viewOnly && column.band !== "attendance" ? (
+                // LAN-432: the category is held at view. Attendance has no Edit
+                // level anywhere (LAN-457, fix round 4), so it says nothing.
                 <Typography
                   variant="caption"
                   sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
