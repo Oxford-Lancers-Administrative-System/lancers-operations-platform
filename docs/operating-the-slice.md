@@ -148,7 +148,7 @@ every changed line. On the three fixed seats every line prints its value with
 no control. At 375px each group folds to its summary. A template added later
 arrives at Manage for the fixed seats and None for every other. An operator
 holding several seats holds the highest level any of them grants, from their
-next request. The ten roster group colours are edited from **Edit categories**,
+next request. The eleven roster group colours (Attendance, Slate by default, since LAN-457) are edited from **Edit categories**,
 beside Add players on the roster, by the same three seats; the board, the
 player and prospect records and the recruitment board draw from them. The
 sidebar follows: Roster, People and Missing data with any roster category at

@@ -163,11 +163,12 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     }
   });
 
-  it("seeds the roster group colours from the packet", async () => {
+  it("seeds the roster group colours from the packet, Attendance at Slate (LAN-457)", async () => {
     const colours = await client.query<{ group_key: string; colour_key: string }>(
       "select group_key, colour_key from public.roster_group_colours order by group_key",
     );
     expect(Object.fromEntries(colours.rows.map((row) => [row.group_key, row.colour_key]))).toEqual({
+      attendance: "slate",
       availability: "slate",
       coaching: "indigo",
       defensive: "purple",

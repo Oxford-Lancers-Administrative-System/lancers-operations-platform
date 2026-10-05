@@ -15,6 +15,37 @@ import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
 import EditCategories from "./edit-categories";
 import { saveRosterGroupColoursAction } from "./group-colour-actions";
 
+describe("Edit categories lists the board's eleven groups — LAN-457", () => {
+  it("puts Attendance after Availability, in Slate by default", async () => {
+    render(<EditCategories />);
+    fireEvent.click(screen.getByTestId("edit-categories"));
+
+    const dialog = await screen.findByTestId("roster-categories-dialog");
+    const rows = within(dialog)
+      .getAllByTestId(/^roster-category-[a-z_]+$/)
+      .map((row) => row.getAttribute("data-testid")!.replace("roster-category-", ""));
+    expect(rows).toEqual([
+      "person",
+      "onboarding",
+      "membership",
+      "availability",
+      "attendance",
+      "coaching",
+      "offensive",
+      "defensive",
+      "special_teams",
+      "warmup",
+      "kit",
+    ]);
+    expect(
+      within(dialog).getByTestId("roster-category-preview-attendance").getAttribute("data-colour"),
+    ).toBe("slate");
+    expect(within(dialog).getByTestId("roster-category-preview-attendance").textContent).toBe(
+      "Attendance",
+    );
+  });
+});
+
 describe("Edit categories offers the shared palette — LAN-474", () => {
   it("lists Blue and Oxford Blue as two options, and saves Blue on a group", async () => {
     render(<EditCategories />);

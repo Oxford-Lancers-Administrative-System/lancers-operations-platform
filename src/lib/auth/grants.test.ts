@@ -64,10 +64,10 @@ describe("the vocabulary", () => {
     expect([...ACCESS_SWITCHES]).toEqual(["add_to_roster", "add_recruits"]);
   });
 
-  it("colours the ten board groups — every roster category but Contact & emergency and Attendance", () => {
-    expect(ROSTER_GROUP_KEYS).toHaveLength(10);
+  it("colours the eleven board groups — every roster category but Contact & emergency", () => {
+    expect(ROSTER_GROUP_KEYS).toHaveLength(11);
     expect(ROSTER_GROUP_KEYS).not.toContain("contact_emergency");
-    expect(ROSTER_GROUP_KEYS).not.toContain("attendance");
+    expect(ROSTER_GROUP_KEYS).toContain("attendance");
   });
 
   it("stops Event details at View and every other line at its own maximum", () => {

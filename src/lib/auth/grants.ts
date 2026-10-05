@@ -83,18 +83,17 @@ export const ROSTER_CATEGORIES = Object.freeze([
 
 export type RosterCategory = (typeof ROSTER_CATEGORIES)[number];
 
-/** The roster categories without a club colour. Attendance keeps its code colour, on the record and on the board (LAN-457). */
-type NonGroupCategory = "contact_emergency" | "attendance";
+/** The roster category without a club colour of its own: Contact & emergency wears Person's. */
+type NonGroupCategory = "contact_emergency";
 
 /**
- * The ten roster groups that carry a colour (`public.roster_group_colours`):
+ * The eleven roster groups that carry a colour (`public.roster_group_colours`):
  * every roster category except Contact & emergency, whose record section
- * wears Person's colour, and Attendance, whose section keeps its own.
+ * wears Person's colour. Attendance joined the ten in LAN-457's fix round 4
+ * (`20261014090000_attendance_group_colour.sql`).
  */
 export const ROSTER_GROUP_KEYS = Object.freeze(
-  ROSTER_CATEGORIES.filter(
-    (category) => category !== "contact_emergency" && category !== "attendance",
-  ),
+  ROSTER_CATEGORIES.filter((category) => category !== "contact_emergency"),
 ) as readonly Exclude<RosterCategory, NonGroupCategory>[];
 
 export type RosterGroupKey = Exclude<RosterCategory, NonGroupCategory>;

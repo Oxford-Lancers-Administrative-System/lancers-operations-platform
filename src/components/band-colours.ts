@@ -6,11 +6,12 @@ import { CLUB, SEMANTIC } from "@/theme-tokens";
  * Where a band's colour comes from — LAN-430, W2 of mission
  * M-GRANULAR-ROLES-AND-PERMISSIONS (LAN-423).
  *
- * The ten roster groups wear the colour the club chose for them
+ * The eleven roster groups wear the colour the club chose for them
  * (`public.roster_group_colours`, a palette key each), resolved on the server
  * by the `/operate` layout and handed to every band through
- * `BandColoursProvider` (`./band-colours-provider.tsx`). The record-only bands
- * — season, recruitment, attendance, history — keep their code colours. Pure:
+ * `BandColoursProvider` (`./band-colours-provider.tsx`). Attendance joined
+ * them in LAN-457's fix round 4. The record-only bands — season, recruitment,
+ * history — keep their code colours. Pure:
  * no database, no React, safe in a client bundle.
  *
  * A band is a place, not a verdict: nothing here gives a group a meaning.
@@ -40,16 +41,17 @@ export interface BandColours {
   readonly solid: string;
 }
 
-/** A roster group's colour, as a palette key. The ten groups of `ROSTER_GROUP_KEYS`. */
+/** A roster group's colour, as a palette key. The eleven groups of `ROSTER_GROUP_KEYS`. */
 export type RosterGroupColourKeys = Readonly<Record<RosterGroupKey, string>>;
 
-/** The seeded colours (`20261006090000_granular_access.sql`) — what a band wears before the layout says otherwise. */
+/** The seeded colours (`20261006090000_granular_access.sql`; Attendance `20261014090000_attendance_group_colour.sql`) — what a band wears before the layout says otherwise. */
 export const DEFAULT_ROSTER_GROUP_COLOURS: RosterGroupColourKeys = Object.freeze({
   person: "blue",
   membership: "blue",
   onboarding: "lancer_gold",
   kit: "lancer_gold",
   availability: "slate",
+  attendance: "slate",
   coaching: "indigo",
   offensive: "teal",
   defensive: "purple",
@@ -57,7 +59,7 @@ export const DEFAULT_ROSTER_GROUP_COLOURS: RosterGroupColourKeys = Object.freeze
   warmup: "cyan",
 });
 
-/** The ten bands a roster group owns. */
+/** The eleven bands a roster group owns. */
 type RosterBand = Exclude<RosterGroupKey, "special_teams"> | "specialTeams";
 
 /** The band a roster group draws as. Only Special teams is spelled differently. */
@@ -110,12 +112,6 @@ const RECORD_ONLY_BANDS = Object.freeze({
     tint: "rgba(29, 66, 166, 0.045)",
     solid: "#F4F6FB",
   },
-  attendance: {
-    header: SEMANTIC.neutral.main,
-    text: WHITE_TEXT,
-    tint: "rgba(90, 87, 84, 0.05)",
-    solid: "#F5F5F4",
-  },
   history: {
     header: SEMANTIC.neutral.main,
     text: WHITE_TEXT,
@@ -124,7 +120,7 @@ const RECORD_ONLY_BANDS = Object.freeze({
   },
 }) satisfies Readonly<Record<Exclude<Band, RosterBand>, BandColours>>;
 
-/** Every band's colours, the ten roster groups drawn from `colours` (a missing group falls back to its seeded colour). */
+/** Every band's colours, the eleven roster groups drawn from `colours` (a missing group falls back to its seeded colour). */
 export function bandColoursFrom(
   colours: Partial<Record<string, string>> = DEFAULT_ROSTER_GROUP_COLOURS,
 ): Readonly<Record<Band, BandColours>> {

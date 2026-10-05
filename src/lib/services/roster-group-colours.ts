@@ -11,7 +11,8 @@ import { TEMPLATE_COLOUR_KEYS } from "./event-template-input";
  * The roster group colours — LAN-429, W2 of mission
  * M-GRANULAR-ROLES-AND-PERMISSIONS (LAN-423).
  *
- * Ten rows in `public.roster_group_colours`, one per board group, each a
+ * Eleven rows in `public.roster_group_colours`, one per board group
+ * (Attendance since LAN-457's fix round 4), each a
  * palette key from `TEMPLATE_COLOUR_PALETTE`. Read by every roster surface
  * (the board, the record, the recruitment board and the prospect record draw
  * their bands from it — LAN-430); written only by `role_management` holders
@@ -28,6 +29,11 @@ export const ROSTER_GROUP_COLOURS_CHANGED = "roster.group_colours.changed";
 /** The one colour a group falls back to if its row names a key the palette no longer holds. */
 const FALLBACK_COLOUR_KEY = "blue";
 
+/** A group with no row at all wears its seeded colour (Attendance: Slate, Brian 5 October 2026). */
+const SEEDED_COLOUR_KEYS: Readonly<Partial<Record<RosterGroupKey, string>>> = Object.freeze({
+  attendance: "slate",
+});
+
 const ENTITY_TABLE = "roster_group_colours";
 const ENTITY_ID = deriveEntityIdFromNaturalKey(ENTITY_TABLE, "club");
 
@@ -39,7 +45,7 @@ async function readIn(tx: Tx): Promise<RosterGroupColours> {
   return Object.freeze(
     Object.fromEntries(
       ROSTER_GROUP_KEYS.map((group) => {
-        const key = stored.get(group);
+        const key = stored.get(group) ?? SEEDED_COLOUR_KEYS[group];
         return [group, key && TEMPLATE_COLOUR_KEYS.includes(key) ? key : FALLBACK_COLOUR_KEY];
       }),
     ) as Record<RosterGroupKey, string>,
@@ -63,7 +69,7 @@ export interface RosterGroupColourChange {
 }
 
 /**
- * Save the Roster categories dialog. `colours` may name any subset of the ten
+ * Save the Roster categories dialog. `colours` may name any subset of the eleven
  * groups; groups it leaves out are unchanged. Refuses a group or a colour
  * outside the vocabulary before writing anything. One audit row listing every
  * changed group; none, and no write, when nothing changed.

@@ -19,12 +19,13 @@ import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
 import { bandOf, type Band } from "./board-columns";
 import { saveRosterGroupColoursAction } from "./group-colour-actions";
 
-/** The ten groups in the board's own order, each with the name its band prints. */
+/** The eleven groups in the board's own order, each with the name its band prints. */
 const BOARD_ORDER: readonly RosterGroupKey[] = Object.freeze([
   "person",
   "onboarding",
   "membership",
   "availability",
+  "attendance",
   "coaching",
   "offensive",
   "defensive",
@@ -67,7 +68,7 @@ function colourLabel(colourKey: string): string {
  * Edit categories — LAN-430, W2-01 and W2-02. The roster's own Add players
  * Button, re-labelled, beside it; it opens the Roster categories dialog: one
  * row per board group, a band preview in the chosen colour and a Select over
- * the palette. Save colours writes all ten at once; a failure keeps the dialog
+ * the palette. Save colours writes all eleven at once; a failure keeps the dialog
  * open with the error.
  */
 export default function EditCategories() {

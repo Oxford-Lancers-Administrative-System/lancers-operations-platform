@@ -46,6 +46,7 @@ const SEEDED_COLOURS: Record<string, string> = {
   onboarding: "lancer_gold",
   kit: "lancer_gold",
   availability: "slate",
+  attendance: "slate",
   coaching: "indigo",
   offensive: "teal",
   defensive: "purple",
@@ -499,6 +500,12 @@ describe("setRosterGroupColours — one audit row, a line per changed group", ()
     const colours = await readRosterGroupColours();
     expect(colours.coaching).toBe("royal_blue");
     expect(colours.person).toBe("blue");
+  });
+
+  it("saves a colour on Attendance, the eleventh group — LAN-457", async () => {
+    const result = await setRosterGroupColours(administrator(), { attendance: "green" });
+    expect(result.changes).toEqual([{ group: "attendance", from: "slate", to: "green" }]);
+    expect((await readRosterGroupColours()).attendance).toBe("green");
   });
 
   it("refuses an unknown colour or group, and a seat without role_management", async () => {

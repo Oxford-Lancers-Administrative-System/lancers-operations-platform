@@ -29,8 +29,8 @@ describe("Section", () => {
     expect(BAND_COLOURS.season.header).toBe(CLUB.royalBlue);
     // LAN-430 (W2, round 4): the Old Gold groups moved to Lancer Gold.
     expect(BAND_COLOURS.onboarding.header).toBe(CLUB.gold);
-    // The purple attendance band is gone: attendance and history read neutral.
-    expect(BAND_COLOURS.attendance.header).toBe(BAND_COLOURS.history.header);
+    // LAN-457 (fix round 4): Attendance is a stored group now, seeded at Slate.
+    expect(BAND_COLOURS.attendance.header).toBe(bandColoursForSwatch("slate").header);
   });
 
   it("prints charcoal band text on Lancer Gold and Orange, white elsewhere", () => {
@@ -43,8 +43,13 @@ describe("Section", () => {
 
   it("draws a roster group in the colour the club chose, and leaves a record-only band alone", () => {
     render(
-      <BandColoursProvider groupColours={{ ...DEFAULT_ROSTER_GROUP_COLOURS, kit: "red" }}>
+      <BandColoursProvider
+        groupColours={{ ...DEFAULT_ROSTER_GROUP_COLOURS, kit: "red", attendance: "red" }}
+      >
         <Section title="Kit" variant="banded" band="kit" testId="kit">
+          body
+        </Section>
+        <Section title="Attendance" variant="banded" band="attendance" testId="attendance">
           body
         </Section>
         <Section title="History" variant="banded" band="history" testId="history">
@@ -56,6 +61,7 @@ describe("Section", () => {
       screen.getByTestId(id).querySelector("h2")!.parentElement as HTMLElement;
     expect(getComputedStyle(head("section-kit")).backgroundColor).toBe("rgb(198, 40, 40)");
     expect(getComputedStyle(head("section-kit")).color).toBe("rgb(255, 255, 255)");
+    expect(getComputedStyle(head("section-attendance")).backgroundColor).toBe("rgb(198, 40, 40)");
     expect(getComputedStyle(head("section-history")).backgroundColor).not.toBe("rgb(198, 40, 40)");
   });
 

@@ -14,7 +14,7 @@ export { BAND_COLOURS, type Band } from "./band-colours";
  * outlined card, `h3` heading) and `banded` (a filled overline band over a
  * tinted body). `collapsible` makes `plain` a disclosure (`<details>`),
  * closed unless `defaultOpen` (player-surfaces finding P8). A band is a
- * place, not a verdict. LAN-430: the ten roster groups wear the colour the
+ * place, not a verdict. LAN-430: the eleven roster groups (Attendance since LAN-457) wear the colour the
  * club chose (`./band-colours.ts`); the banded variant renders on the client
  * (`./banded-section.tsx`) so it can read them.
  */
