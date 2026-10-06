@@ -5,6 +5,9 @@
  * than re-deriving anything. Pure — no database, no `server-only`.
  */
 
+import { getCountries, getCountryCallingCode, type CountryCode } from "libphonenumber-js/min";
+import metadata from "libphonenumber-js/min/metadata";
+
 import { validatePhoneNumber, type PhoneValidation } from "./person-validation";
 
 /** The club's own country and default dropdown value. */
@@ -19,57 +22,68 @@ export interface CallingCountry {
 }
 
 /**
- * The menu, in the order it renders (`src/components/phone-field.tsx`): the
- * United States, then the United Kingdom, then everything else alphabetically
- * (Brian, LAN-355). `DEFAULT_CALLING_CODE` is still 44 — this is the order the
- * list is read in, not what an empty field starts on. Canada shares +1 and
- * stays in the alphabetical tail; the code alone cannot tell the two apart, and
- * `trunkPrefixFor` answers from the code, so both give the same answer anyway.
+ * Metadata layout of `libphonenumber-js/min`: a country is
+ * `[callingCode, idd, pattern, lengths, formats, nationalPrefix, …]`, and
+ * `country_calling_codes[code]` lists the countries sharing a code, the main one
+ * first. The test file pins the positions this reads.
  */
-export const CALLING_COUNTRIES: readonly CallingCountry[] = Object.freeze([
-  { iso: "US", name: "United States", callingCode: "1", trunkPrefix: "" },
-  { iso: "GB", name: "United Kingdom", callingCode: "44", trunkPrefix: "0" },
-  { iso: "AU", name: "Australia", callingCode: "61", trunkPrefix: "0" },
-  { iso: "AT", name: "Austria", callingCode: "43", trunkPrefix: "0" },
-  { iso: "BE", name: "Belgium", callingCode: "32", trunkPrefix: "0" },
-  { iso: "BR", name: "Brazil", callingCode: "55", trunkPrefix: "0" },
-  { iso: "CA", name: "Canada", callingCode: "1", trunkPrefix: "" },
-  { iso: "CN", name: "China", callingCode: "86", trunkPrefix: "0" },
-  { iso: "CZ", name: "Czechia", callingCode: "420", trunkPrefix: "" },
-  { iso: "DK", name: "Denmark", callingCode: "45", trunkPrefix: "" },
-  { iso: "FI", name: "Finland", callingCode: "358", trunkPrefix: "0" },
-  { iso: "FR", name: "France", callingCode: "33", trunkPrefix: "0" },
-  { iso: "DE", name: "Germany", callingCode: "49", trunkPrefix: "0" },
-  { iso: "GR", name: "Greece", callingCode: "30", trunkPrefix: "" },
-  { iso: "HK", name: "Hong Kong", callingCode: "852", trunkPrefix: "" },
-  { iso: "HU", name: "Hungary", callingCode: "36", trunkPrefix: "0" },
-  { iso: "IN", name: "India", callingCode: "91", trunkPrefix: "0" },
-  { iso: "IE", name: "Ireland", callingCode: "353", trunkPrefix: "0" },
-  { iso: "IL", name: "Israel", callingCode: "972", trunkPrefix: "0" },
-  { iso: "IT", name: "Italy", callingCode: "39", trunkPrefix: "" },
-  { iso: "JP", name: "Japan", callingCode: "81", trunkPrefix: "0" },
-  { iso: "MY", name: "Malaysia", callingCode: "60", trunkPrefix: "0" },
-  { iso: "MX", name: "Mexico", callingCode: "52", trunkPrefix: "" },
-  { iso: "NL", name: "Netherlands", callingCode: "31", trunkPrefix: "0" },
-  { iso: "NZ", name: "New Zealand", callingCode: "64", trunkPrefix: "0" },
-  { iso: "NG", name: "Nigeria", callingCode: "234", trunkPrefix: "0" },
-  { iso: "NO", name: "Norway", callingCode: "47", trunkPrefix: "" },
-  { iso: "PL", name: "Poland", callingCode: "48", trunkPrefix: "" },
-  { iso: "PT", name: "Portugal", callingCode: "351", trunkPrefix: "" },
-  { iso: "RO", name: "Romania", callingCode: "40", trunkPrefix: "0" },
-  { iso: "SG", name: "Singapore", callingCode: "65", trunkPrefix: "" },
-  { iso: "ZA", name: "South Africa", callingCode: "27", trunkPrefix: "0" },
-  { iso: "KR", name: "South Korea", callingCode: "82", trunkPrefix: "0" },
-  { iso: "ES", name: "Spain", callingCode: "34", trunkPrefix: "" },
-  { iso: "SE", name: "Sweden", callingCode: "46", trunkPrefix: "0" },
-  { iso: "CH", name: "Switzerland", callingCode: "41", trunkPrefix: "0" },
-  { iso: "TR", name: "Türkiye", callingCode: "90", trunkPrefix: "0" },
-  { iso: "AE", name: "United Arab Emirates", callingCode: "971", trunkPrefix: "0" },
-]);
+const NATIONAL_PREFIX_AT = 5;
 
-/** The trunk prefix for a calling code, or `"0"` for a code the list does not carry (the common case). */
+/** The first-listed country sharing +1; its prefix `"1"` is the dialling digit of the North American plan, never part of a national number (area codes cannot start with 1). */
+const NORTH_AMERICA_CALLING_CODE = "1";
+
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+function trunkPrefixOf(iso: string, callingCode: string): string {
+  if (callingCode === NORTH_AMERICA_CALLING_CODE) return "";
+  const prefix = (metadata.countries as Record<string, readonly unknown[]>)[iso]?.[
+    NATIONAL_PREFIX_AT
+  ];
+  // Only a leading-zero prefix (`0`, Hungary's `06`) is safe to strip: `8` (Russia,
+  // Kazakhstan, Belarus, Turkmenistan) and `1` (Marshall Islands) can start a real
+  // national number, such as an 8-800 toll-free line, and stripping would corrupt it.
+  return typeof prefix === "string" && /^0[0-9]*$/.test(prefix) ? prefix : "";
+}
+
+function callingCountryFor(iso: CountryCode): CallingCountry | null {
+  const name = regionNames.of(iso);
+  if (name === undefined || name === iso) return null; // no English name — not a country a person can pick
+  const callingCode = getCountryCallingCode(iso);
+  return { iso, name, callingCode, trunkPrefix: trunkPrefixOf(iso, callingCode) };
+}
+
+/**
+ * The menu, in the order it renders (`src/components/phone-field.tsx`): the
+ * United States, then the United Kingdom, then every other country and
+ * territory libphonenumber-js carries, alphabetically (Brian, LAN-355, LAN-485).
+ * `DEFAULT_CALLING_CODE` is still 44 — this is the order the list is read in,
+ * not what an empty field starts on. Countries sharing a calling code (Canada
+ * and the Caribbean on +1, Jersey and Guernsey on +44) each keep their own
+ * entry; `trunkPrefixFor` answers from the code, using the code's main country.
+ */
+export const CALLING_COUNTRIES: readonly CallingCountry[] = Object.freeze(
+  (() => {
+    const all = getCountries()
+      .map(callingCountryFor)
+      .filter((country): country is CallingCountry => country !== null);
+    const first = ["US", "GB"].map((iso) => all.find((country) => country.iso === iso)!);
+    const rest = all
+      .filter((country) => !first.includes(country))
+      .sort((left, right) => left.name.localeCompare(right.name, "en"));
+    return [...first, ...rest];
+  })(),
+);
+
+const TRUNK_PREFIX_BY_CALLING_CODE: ReadonlyMap<string, string> = new Map(
+  Object.entries(metadata.country_calling_codes).map(([code, countries]) => [
+    code,
+    trunkPrefixOf(countries[0]!, code),
+  ]),
+);
+
+/** The trunk prefix for a calling code, or `"0"` for a code the dataset does not carry (the common case). */
 function trunkPrefixFor(callingCode: string): string {
-  return CALLING_COUNTRIES.find((c) => c.callingCode === callingCode)?.trunkPrefix ?? "0";
+  return TRUNK_PREFIX_BY_CALLING_CODE.get(callingCode) ?? "0";
 }
 
 export interface PhoneParts {

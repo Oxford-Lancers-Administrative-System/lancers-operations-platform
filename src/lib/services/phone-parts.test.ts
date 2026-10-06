@@ -60,6 +60,63 @@ describe("CALLING_COUNTRIES", () => {
   });
 });
 
+describe("CALLING_COUNTRIES — every ordinary country (LAN-485)", () => {
+  const find = (iso: string) => CALLING_COUNTRIES.find((country) => country.iso === iso);
+
+  it("offers Saudi Arabia +966", () => {
+    expect(find("SA")).toMatchObject({ name: "Saudi Arabia", callingCode: "966" });
+  });
+
+  it("carries the full dataset, not a curated shortlist", () => {
+    expect(CALLING_COUNTRIES.length).toBeGreaterThan(220);
+  });
+
+  it("keeps every country sharing +1 as its own entry", () => {
+    const shared = CALLING_COUNTRIES.filter((country) => country.callingCode === "1");
+    expect(shared.map((country) => country.iso)).toEqual(
+      expect.arrayContaining(["US", "CA", "JM", "PR"]),
+    );
+  });
+
+  it("derives the trunk prefix from the dataset's national prefix", () => {
+    expect(find("SA")?.trunkPrefix).toBe("0"); // a trunk zero
+    expect(find("GB")?.trunkPrefix).toBe("0");
+    expect(find("US")?.trunkPrefix).toBe(""); // the North American plan has none
+    expect(find("JM")?.trunkPrefix).toBe("");
+    expect(find("ES")?.trunkPrefix).toBe(""); // none, outside North America
+    expect(find("HU")?.trunkPrefix).toBe("06");
+    // A prefix that can start a real national number is never stripped.
+    for (const iso of ["RU", "KZ", "BY", "TM", "MH"]) expect(find(iso)?.trunkPrefix).toBe("");
+  });
+
+  it("carries no special-service prefix", () => {
+    for (const code of ["800", "808", "870", "878", "881", "882", "883", "888"]) {
+      expect(CALLING_COUNTRIES.some((country) => country.callingCode === code)).toBe(false);
+    }
+  });
+});
+
+describe("Saudi Arabia end to end (LAN-485)", () => {
+  it("joins with or without the trunk zero to the same number", () => {
+    expect(joinPhoneParts("966", "512345678")).toBe("+966512345678");
+    expect(joinPhoneParts("966", "0512345678")).toBe("+966512345678");
+  });
+
+  it("validates, saves, reopens and saves again unchanged", () => {
+    const first = validatePhoneParts("966", "0512345678");
+    expect(first.valid).toBe(true);
+    expect(first.e164).toBe("966512345678");
+
+    const reopened = splitPhoneNumber(first.e164);
+    expect(reopened).toEqual({ callingCode: "966", nationalNumber: "512345678" });
+
+    const second = validatePhoneNumber(
+      joinPhoneParts(reopened.callingCode, reopened.nationalNumber),
+    );
+    expect(second.e164).toBe("966512345678");
+  });
+});
+
 describe("splitPhoneNumber", () => {
   it("splits a stored E.164 value into the dropdown and the number box", () => {
     expect(splitPhoneNumber(UK_E164)).toEqual({
@@ -121,11 +178,22 @@ describe("splitPhoneNumber", () => {
     });
   });
 
-  it("keeps a real country the dropdown does not carry whole", () => {
-    // +260 (Zambia) is not in the list. Splitting it would put digits in the
+  it("keeps a code the dataset does not carry whole", () => {
+    // +999 is assigned to no country. Splitting it would put digits in the
     // wrong box; showing it whole tells the truth about what is on file.
-    const parts = splitPhoneNumber("+260971234567");
-    expect(parts.nationalNumber).toBe("+260971234567");
+    const parts = splitPhoneNumber("+999123456789");
+    expect(parts.nationalNumber).toBe("+999123456789");
+  });
+
+  it("splits a Saudi Arabian number (LAN-485)", () => {
+    expect(splitPhoneNumber("966512345678")).toEqual({
+      callingCode: "966",
+      nationalNumber: "512345678",
+    });
+    expect(splitPhoneNumber("+966 51 234 5678")).toEqual({
+      callingCode: "966",
+      nationalNumber: "512345678",
+    });
   });
 });
 
@@ -158,7 +226,21 @@ describe("joinPhoneParts", () => {
 });
 
 describe("round trip — LAN-211: an existing stored number is never corrupted", () => {
-  const storedValues = [UK_E164, "447700900456", "447911123456", "353851234567", "12025550143"];
+  const storedValues = [
+    UK_E164,
+    "447700900456",
+    "447911123456",
+    "353851234567",
+    "12025550143",
+    "966512345678",
+    "447781123456", // +44 shared with Jersey, Guernsey and the Isle of Man
+    "18765551234", // Jamaica, on +1
+    "79123456789", // Russia
+    "78005553535", // Russia 8-800: the dataset's trunk prefix 8 must not eat it
+    "77012345678", // Kazakhstan
+    "6927241234", // Marshall Islands, whose dataset prefix is 1
+    "36201234567", // Hungary, trunk 06
+  ];
 
   it.each(storedValues)("%s survives split → join → normalise unchanged", (stored) => {
     const parts = splitPhoneNumber(stored);
