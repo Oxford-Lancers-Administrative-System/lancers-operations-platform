@@ -39,7 +39,10 @@ function trunkPrefixOf(iso: string, callingCode: string): string {
   const prefix = (metadata.countries as Record<string, readonly unknown[]>)[iso]?.[
     NATIONAL_PREFIX_AT
   ];
-  return typeof prefix === "string" && /^[0-9]+$/.test(prefix) ? prefix : "";
+  // Only a leading-zero prefix (`0`, Hungary's `06`) is safe to strip: `8` (Russia,
+  // Kazakhstan, Belarus, Turkmenistan) and `1` (Marshall Islands) can start a real
+  // national number, such as an 8-800 toll-free line, and stripping would corrupt it.
+  return typeof prefix === "string" && /^0[0-9]*$/.test(prefix) ? prefix : "";
 }
 
 function callingCountryFor(iso: CountryCode): CallingCountry | null {

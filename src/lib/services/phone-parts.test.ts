@@ -84,7 +84,9 @@ describe("CALLING_COUNTRIES — every ordinary country (LAN-485)", () => {
     expect(find("US")?.trunkPrefix).toBe(""); // the North American plan has none
     expect(find("JM")?.trunkPrefix).toBe("");
     expect(find("ES")?.trunkPrefix).toBe(""); // none, outside North America
-    expect(find("RU")?.trunkPrefix).toBe("8");
+    expect(find("HU")?.trunkPrefix).toBe("06");
+    // A prefix that can start a real national number is never stripped.
+    for (const iso of ["RU", "KZ", "BY", "TM", "MH"]) expect(find(iso)?.trunkPrefix).toBe("");
   });
 
   it("carries no special-service prefix", () => {
@@ -233,7 +235,11 @@ describe("round trip — LAN-211: an existing stored number is never corrupted",
     "966512345678",
     "447781123456", // +44 shared with Jersey, Guernsey and the Isle of Man
     "18765551234", // Jamaica, on +1
-    "79123456789", // Russia, whose trunk prefix is 8
+    "79123456789", // Russia
+    "78005553535", // Russia 8-800: the dataset's trunk prefix 8 must not eat it
+    "77012345678", // Kazakhstan
+    "6927241234", // Marshall Islands, whose dataset prefix is 1
+    "36201234567", // Hungary, trunk 06
   ];
 
   it.each(storedValues)("%s survives split → join → normalise unchanged", (stored) => {
