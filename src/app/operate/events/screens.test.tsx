@@ -3329,17 +3329,19 @@ describe("the participation table on the event page", () => {
     });
 
     /**
-     * LAN-458 (Stu, 30 September; Brian, 1 October 2026): a fourth box under
-     * the three blocks, every invitee's full name under Yes, No or No
-     * response, each group with its count, every name in the page.
+     * LAN-458 (Stu, 30 September; Brian, 1 October 2026): every invitee's
+     * full name under Yes, No or No response, each group with its count,
+     * every name in the page.
      *
-     * LAN-481 (Brian, 6 and 7 October 2026) splits it into one disclosure per
-     * capacity the blocks show — Recruits, Players, Coaches — classified by
-     * the blocks' own function, so the GM / IT Officer fold (LAN-466) moves a
-     * name exactly as it moves a count. Inside each, Yes and No sit side by
+     * LAN-481 (Brian, 6 and 7 October 2026) splits it by the capacity the
+     * blocks show — Recruits, Players, Coaches — classified by the blocks' own
+     * function, so the GM / IT Officer fold (LAN-466) moves a name exactly as
+     * it moves a count. After his walk of d3ecfb64 there is no separate
+     * Attendance card: each response block is itself the dropdown, closed on
+     * arrival, opening in place below its bar. Inside, Yes and No sit side by
      * side at every width and No response runs full width below.
      */
-    describe("LAN-458 / LAN-481 — the name-and-response box by capacity", () => {
+    describe("LAN-458 / LAN-481 — each response block opens onto its names", () => {
       const person = PARTICIPATION.people[0];
       const NAMED: OperatorParticipation = {
         ...PARTICIPATION,
@@ -3395,6 +3397,8 @@ describe("the participation table on the event page", () => {
         ],
       };
 
+      const CAPACITIES = ["recruit", "player", "coach"] as const;
+
       const jsdomWidth = window.innerWidth;
       afterEach(() => {
         Object.defineProperty(window, "innerWidth", { configurable: true, value: jsdomWidth });
@@ -3409,6 +3413,12 @@ describe("the participation table on the event page", () => {
         return render(await EventDetailPage(detailProps()));
       }
 
+      const toggleOf = (capacity: string) => screen.getByTestId(`response-toggle-${capacity}`);
+
+      function openAll() {
+        for (const capacity of CAPACITIES) fireEvent.click(toggleOf(capacity));
+      }
+
       const names = (group: Element) =>
         [...group.querySelectorAll("li")].map((item) => item.textContent);
 
@@ -3421,20 +3431,23 @@ describe("the participation table on the event page", () => {
         it(`lists every invitee under their capacity, Yes, No, then No response, at ${width}px`, async () => {
           await renderNamed(width);
 
-          const box = screen.getByTestId("response-names");
-          const sections = [...box.querySelectorAll("details")];
-          expect(sections.map((node) => node.getAttribute("data-testid"))).toEqual([
-            "section-response-names-recruit",
-            "section-response-names-player",
-            "section-response-names-coach",
+          // The blocks are the toggles, in the blocks' own order.
+          const progress = screen.getByTestId("response-progress");
+          const toggles = [...progress.querySelectorAll('[data-testid^="response-toggle-"]')];
+          expect(toggles.map((node) => node.getAttribute("data-testid"))).toEqual([
+            "response-toggle-recruit",
+            "response-toggle-player",
+            "response-toggle-coach",
           ]);
-          expect(sections.map((node) => node.querySelector("summary")?.textContent)).toEqual([
+          expect(toggles.map((node) => node.querySelector("p")?.textContent)).toEqual([
             "Recruits",
             "Players",
             "Coaches",
           ]);
 
-          for (const capacity of ["recruit", "player", "coach"]) {
+          openAll();
+
+          for (const capacity of CAPACITIES) {
             expect(groupsOf(capacity).map((node) => node.getAttribute("data-testid"))).toEqual([
               `response-names-${capacity}-yes`,
               `response-names-${capacity}-no`,
@@ -3466,21 +3479,25 @@ describe("the participation table on the event page", () => {
           expect(coachNone.textContent).toContain("No response · 0");
 
           // The walk-up, who was never invited, is nowhere.
-          expect(box.textContent).not.toContain("Edwin Walkup");
-          expect(within(box).queryByRole("button")).toBeNull();
+          expect(progress.textContent).not.toContain("Edwin Walkup");
+          for (const capacity of CAPACITIES) {
+            const grid = screen.getByTestId(`response-names-${capacity}-grid`);
+            expect(within(grid).queryByRole("button")).toBeNull();
+          }
         });
       }
 
-      it("lists each invitee once, and agrees with the counts in the blocks above", async () => {
+      it("lists each invitee once, and agrees with the counts in the same block", async () => {
         await renderNamed(1280);
+        openAll();
 
-        const listed = [...screen.getByTestId("response-names").querySelectorAll("li")].map(
+        const listed = [...screen.getByTestId("response-progress").querySelectorAll("li")].map(
           (item) => item.textContent,
         );
         expect(new Set(listed).size).toBe(listed.length);
         expect(listed).toHaveLength(NAMED.people.filter((one) => !one.isWalkUp).length);
 
-        for (const capacity of ["recruit", "player", "coach"]) {
+        for (const capacity of CAPACITIES) {
           const [yes, no, none] = groupsOf(capacity).map((group) =>
             Number(group.getAttribute("data-count")),
           );
@@ -3492,66 +3509,94 @@ describe("the participation table on the event page", () => {
         }
       });
 
-      it("shows a section only for a capacity in the audience", async () => {
+      it("makes a block a toggle only for a capacity in the audience", async () => {
         await renderNamed(1280, {
           ...NAMED,
           people: NAMED.people.filter((one) => one.capacity === "player"),
         });
 
-        expect(screen.getByTestId("section-response-names-player")).toBeInTheDocument();
-        expect(screen.queryByTestId("section-response-names-recruit")).toBeNull();
-        expect(screen.queryByTestId("section-response-names-coach")).toBeNull();
+        expect(toggleOf("player")).toBeInTheDocument();
+        expect(screen.queryByTestId("response-toggle-recruit")).toBeNull();
+        expect(screen.queryByTestId("response-toggle-coach")).toBeNull();
+        expect(screen.queryByTestId("response-progress-recruit")).toBeNull();
+        expect(screen.queryByTestId("response-progress-coach")).toBeNull();
       });
 
-      it("sits directly under the response blocks", async () => {
+      it("opens the names in place, inside the block, below its bar", async () => {
         const { container } = await renderNamed(1280);
+        openAll();
+
+        for (const capacity of CAPACITIES) {
+          const block = screen.getByTestId(`response-progress-${capacity}`);
+          const toggle = toggleOf(capacity);
+          const grid = screen.getByTestId(`response-names-${capacity}-grid`);
+          expect(block).toContainElement(toggle);
+          expect(block).toContainElement(grid);
+          // The bar is part of the toggle; the names are not, and follow it.
+          expect(toggle).toContainElement(within(block).getByTestId("response-bar"));
+          expect(toggle.contains(grid)).toBe(false);
+          expect(
+            toggle.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING,
+          ).toBeTruthy();
+        }
 
         const order = [...container.querySelectorAll("[data-testid]")]
           .map((node) => node.getAttribute("data-testid"))
           .filter((id): id is string =>
-            ["response-progress", "response-names", "audience-fact"].includes(id ?? ""),
+            ["response-progress", "response-names-coach-grid", "audience-fact"].includes(id ?? ""),
           );
-        expect(order).toEqual(["response-progress", "response-names", "audience-fact"]);
+        expect(order).toEqual(["response-progress", "response-names-coach-grid", "audience-fact"]);
       });
 
-      // Brian's visual review, 5 October 2026: one collapsible "Attendance"
-      // section, open on arrival, the counts card above and outside it.
-      // LAN-481: a closed disclosure per capacity inside it.
-      it("holds the capacity sections, closed, in one open Attendance section, the counts card outside it", async () => {
+      // Brian's walk of d3ecfb64, 7 October 2026: "Attendance should literally
+      // be a dropdown in the box itself." No separate card, every box closed.
+      it("has no separate Attendance card, and every box is closed on arrival", async () => {
         await renderNamed(1280);
 
-        const section = screen.getByTestId("section-response-names");
-        expect(section.tagName).toBe("DETAILS");
-        expect(section).toHaveAttribute("open");
-        expect(section.querySelector("summary")?.textContent).toBe("Attendance");
-
-        for (const capacity of ["recruit", "player", "coach"]) {
-          const inner = screen.getByTestId(`section-response-names-${capacity}`);
-          expect(inner.tagName).toBe("DETAILS");
-          expect(inner).not.toHaveAttribute("open");
-          expect(section).toContainElement(inner);
-          expect(inner).toContainElement(screen.getByTestId(`response-names-${capacity}-yes`));
-          expect(inner).toContainElement(screen.getByTestId(`response-names-${capacity}-no`));
-          expect(inner).toContainElement(screen.getByTestId(`response-names-${capacity}-none`));
+        expect(screen.queryByTestId("section-response-names")).toBeNull();
+        expect(screen.queryByTestId("response-names")).toBeNull();
+        for (const capacity of CAPACITIES) {
+          expect(screen.queryByTestId(`section-response-names-${capacity}`)).toBeNull();
+          const toggle = toggleOf(capacity);
+          expect(toggle).toHaveAttribute("role", "button");
+          expect(toggle).toHaveAttribute("aria-expanded", "false");
+          expect(toggle).toHaveAttribute("tabindex", "0");
+          expect(toggle.querySelector("[data-disclosure-chevron]")).not.toBeNull();
+          expect(screen.queryByTestId(`response-names-${capacity}-grid`)).toBeNull();
         }
-
-        const progress = screen.getByTestId("response-progress");
-        expect(section.contains(progress)).toBe(false);
-        expect(
-          progress.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
-        ).toBeTruthy();
       });
 
-      it("opens a capacity section when its heading is clicked", async () => {
+      it("opens and closes one box on click, leaving the others closed", async () => {
         await renderNamed(1280);
 
-        const players = screen.getByTestId("section-response-names-player") as HTMLDetailsElement;
-        expect(players.open).toBe(false);
-        fireEvent.click(within(players).getByText("Players"));
-        expect(players.open).toBe(true);
-        expect(
-          (screen.getByTestId("section-response-names-coach") as HTMLDetailsElement).open,
-        ).toBe(false);
+        const players = toggleOf("player");
+        fireEvent.click(players);
+        expect(players).toHaveAttribute("aria-expanded", "true");
+        const grid = screen.getByTestId("response-names-player-grid");
+        expect(players.getAttribute("aria-controls")).toBe(grid.parentElement?.id);
+        expect(toggleOf("coach")).toHaveAttribute("aria-expanded", "false");
+        expect(screen.queryByTestId("response-names-coach-grid")).toBeNull();
+
+        fireEvent.click(players);
+        expect(players).toHaveAttribute("aria-expanded", "false");
+      });
+
+      it("opens from the keyboard", async () => {
+        await renderNamed(375);
+        const user = userEvent.setup();
+
+        const coaches = toggleOf("coach");
+        coaches.focus();
+        await user.keyboard("{Enter}");
+        expect(coaches).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByTestId("response-names-coach-grid")).toBeInTheDocument();
+        await user.keyboard(" ");
+        expect(coaches).toHaveAttribute("aria-expanded", "false");
+      });
+
+      it("keeps an opened box's neighbours at their own height", async () => {
+        await renderNamed(1280);
+        expect(getComputedStyle(screen.getByTestId("response-progress")).alignItems).toBe("start");
       });
 
       // LAN-481, mobile (Brian, 7 October 2026): Yes and No side by side in
@@ -3560,8 +3605,9 @@ describe("the participation table on the event page", () => {
       for (const width of [1280, 375]) {
         it(`sets Yes and No side by side and No response full width below at ${width}px`, async () => {
           await renderNamed(width);
+          openAll();
 
-          for (const capacity of ["recruit", "player", "coach"]) {
+          for (const capacity of CAPACITIES) {
             const grid = screen.getByTestId(`response-names-${capacity}-grid`);
             const style = getComputedStyle(grid);
             expect(style.display).toBe("grid");

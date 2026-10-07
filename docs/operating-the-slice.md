@@ -1073,24 +1073,25 @@ the link was sent to are reading the same numbers.
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.
 
-**Directly under the blocks, one collapsible section headed Attendance names
-everybody invited** (LAN-458, Stu, 2026-09-30; Brian, 2026-10-01 and his visual
-review of 2026-10-05; LAN-481, Brian, 2026-10-06 and 2026-10-07). The section is
-open on arrival and can be closed; the blocks with the counts sit above and
-outside it, so they stay when it is closed. Inside it, **Recruits**, **Players**
-and **Coaches** are each a disclosure of their own, closed on arrival, shown
-only for a capacity that has a block above. A person sits under the capacity
-the blocks count them under — the same function decides both, so a General
-Manager or IT Officer invited only for that seat is under Coaches (LAN-466) and
-any other committee-only invitee under Players (LAN-440) — and the names in a
-section always add up to its block's numbers. Each section holds three groups,
+**Each block is itself a dropdown that names everybody it counts** (LAN-458,
+Stu, 2026-09-30; Brian, 2026-10-01 and his visual review of 2026-10-05; LAN-481,
+Brian, 2026-10-06 and his walk of 2026-10-07). There is no separate Attendance
+card: clicking or tapping a **Recruits**, **Players** or **Coaches** block, or
+pressing Enter or Space on it, opens it in place, inside the same card below its
+bar, and the chevron turns down; clicking it again closes it. Every block is
+closed on arrival, and each opens on its own. Where the blocks sit side by side
+an opened one grows downward and its neighbours keep their own height. A person
+sits under the capacity the blocks count them under — the same function decides
+both, so a General Manager or IT Officer invited only for that seat is under
+Coaches (LAN-466) and any other committee-only invitee under Players (LAN-440) —
+and the names in a block always add up to its numbers. Each block holds three groups,
 **Yes**, **No** and **No response**, each headed with its count (`Yes · 12`) and
 listing every invitee's full name alphabetically. Every name is shown — there
 is no "show more" — and a walk-up, who was never invited, is not listed. Yes
 and No sit side by side as two equal columns at every width, a phone included,
-with No response full width below them (its names in the same two columns). It
-is on the operator's event page only: the public **Event info link** page has
-the blocks but not the names.
+with No response full width below them (its names in the same two columns). The
+dropdown is on the operator's event page only: on the public **Event info link**
+page the blocks do not open and carry no names.
 
 **The audience is grouped Yes, then No, then No response** (LAN-439, client
 QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort

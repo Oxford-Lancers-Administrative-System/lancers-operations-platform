@@ -1,8 +1,8 @@
+import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
-import { Section } from "@/components/section";
+import type { DisplayCapacity } from "@/lib/services/event-response-progress";
 import type { ParticipationPerson } from "@/lib/services/participation-view";
 import { responseNamesByCapacity, type ResponseNameSection } from "@/lib/services/response-names";
 
@@ -11,38 +11,22 @@ import { responseNamesByCapacity, type ResponseNameSection } from "@/lib/service
  * only — the Event info link page renders the response blocks but not this.
  * Every name is shown.
  *
- * Brian's visual review (5 October 2026): the lists sit in one collapsible
- * section headed "Attendance", open on arrival — the same plain disclosure
- * the event page and the player record already use. The response blocks with
- * the counts stay above and outside the section, so they still show when it
- * is closed.
- *
- * LAN-481 (Brian, 6 and 7 October 2026): inside it, one closed disclosure per
- * capacity the blocks show — Recruits, Players, Coaches — each holding that
- * capacity's names under Yes, No and No response. Yes and No sit side by
- * side at every width, a phone included; No response runs full width below
- * them, its names in the same two columns.
+ * LAN-481 (Brian, 6 and 7 October 2026): split by the capacity the blocks
+ * show — Recruits, Players, Coaches — and, after his walk of d3ecfb64, held by
+ * the block itself rather than a separate "Attendance" card: each block is a
+ * dropdown, closed on arrival, that opens in place onto these names. This
+ * builds one panel per capacity; `ResponseProgress` hangs each on its block.
+ * Yes and No sit side by side at every width, a phone included; No response
+ * runs full width below them, its names in the same two columns.
  */
-export function ResponseNames({ people }: { people: readonly ParticipationPerson[] }) {
-  const sections = responseNamesByCapacity(people);
-  if (sections.length === 0) return null;
-
-  return (
-    <Section title="Attendance" testId="response-names" collapsible defaultOpen>
-      <Stack spacing={1.5} data-testid="response-names">
-        {sections.map((section) => (
-          <Section
-            key={section.capacity}
-            title={section.label}
-            testId={`response-names-${section.capacity}`}
-            collapsible
-            headingLevel={3}
-          >
-            <CapacityNames section={section} />
-          </Section>
-        ))}
-      </Stack>
-    </Section>
+export function responseNamePanels(
+  people: readonly ParticipationPerson[],
+): Partial<Record<DisplayCapacity, ReactNode>> {
+  return Object.fromEntries(
+    responseNamesByCapacity(people).map((section) => [
+      section.capacity,
+      <CapacityNames key={section.capacity} section={section} />,
+    ]),
   );
 }
 

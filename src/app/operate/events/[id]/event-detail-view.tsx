@@ -38,7 +38,7 @@ import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
 import { ResponseProgress } from "../../../participation/response-progress";
 import { AudienceList } from "./audience-list";
-import { ResponseNames } from "./response-names";
+import { responseNamePanels } from "./response-names";
 import { QuestionList } from "./question-list";
 import {
   APPROVED_HEADLINE,
@@ -256,9 +256,13 @@ export function EventDetailView({
             (Stewart, 2026-09-22). One block per capacity in the audience, and
             nothing at all before approval, when there is no invitation to
             count. */}
-        {participation ? <ResponseProgress people={participation.people} /> : null}
-        {/* LAN-458 / LAN-481: every invitee's name, by capacity then answer, operator page only. */}
-        {participation ? <ResponseNames people={participation.people} /> : null}
+        {/* LAN-458 / LAN-481: each block opens onto its capacity's names, operator page only. */}
+        {participation ? (
+          <ResponseProgress
+            people={participation.people}
+            panels={responseNamePanels(participation.people)}
+          />
+        ) : null}
 
         {mayApprove && changeWentOutSilently && lastAmendment ? (
           <RenotifyPanel

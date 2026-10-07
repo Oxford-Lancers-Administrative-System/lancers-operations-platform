@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import LinearProgress from "@mui/material/LinearProgress";
 import Paper from "@mui/material/Paper";
@@ -5,9 +6,12 @@ import Typography from "@mui/material/Typography";
 
 import {
   responseProgressByCapacity,
+  type DisplayCapacity,
   type ResponseProgressBlock,
   type ResponseProgressRow,
 } from "@/lib/services/event-response-progress";
+
+import { ResponseBlockToggle } from "./response-block-toggle";
 
 import {
   HEADLINE_INVITED_LABEL,
@@ -106,7 +110,48 @@ function ResponseBar({ block }: { block: ResponseProgressBlock }) {
   );
 }
 
-export function ResponseProgress({ people }: { people: readonly ResponseProgressRow[] }) {
+function BlockBody({ block }: { block: ResponseProgressBlock }) {
+  return (
+    <>
+      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        {block.label}
+      </Typography>
+
+      {/*
+        One value line, not two metrics — LAN-420, Brian's walk of
+        573bb9d4: value `16 yes · 6 no / 39`, label `Said yes · Said no /
+        Invited`. Round 2 stacked Said yes / Invited above Said no as two
+        metrics of equal weight, which read as two separate facts about two
+        separate populations; they are one sentence about one population,
+        and the denominator belongs to both. The word after each number is
+        what lets the line be read without its label, and the label under
+        it is what names the parts in the club's own words.
+      */}
+      <Typography variant="h2" component="p" sx={{ mt: 0.5 }} data-testid="response-counts">
+        {`${block.yes} yes · ${block.no} no / ${block.invited}`}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {`${HEADLINE_SAID_YES_LABEL} · ${HEADLINE_SAID_NO_LABEL} / ${HEADLINE_INVITED_LABEL}`}
+      </Typography>
+
+      <ResponseBar block={block} />
+    </>
+  );
+}
+
+/**
+ * `panels` — LAN-481 (Brian, 7 October 2026): on the operator's page each
+ * block is itself a dropdown, closed on arrival, opening in place below its
+ * bar onto what the caller hands it for that capacity (the names). The Event
+ * info link page passes none, so its blocks are not buttons and carry no names.
+ */
+export function ResponseProgress({
+  people,
+  panels,
+}: {
+  people: readonly ResponseProgressRow[];
+  panels?: Partial<Record<DisplayCapacity, ReactNode>>;
+}) {
   const blocks = responseProgressByCapacity(people);
   if (blocks.length === 0) return null;
 
@@ -116,6 +161,8 @@ export function ResponseProgress({ people }: { people: readonly ResponseProgress
       sx={{
         display: "grid",
         gap: 2,
+        // An opened block grows downward on its own; its neighbours keep their height.
+        alignItems: "start",
         gridTemplateColumns: {
           xs: "minmax(0, 1fr)",
           sm: "repeat(2, minmax(0, 1fr))",
@@ -123,37 +170,25 @@ export function ResponseProgress({ people }: { people: readonly ResponseProgress
         },
       }}
     >
-      {blocks.map((block) => (
-        <Paper
-          key={block.capacity}
-          variant="outlined"
-          sx={{ p: 2, minWidth: 0 }}
-          data-testid={`response-progress-${block.capacity}`}
-        >
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            {block.label}
-          </Typography>
-
-          {/*
-            One value line, not two metrics — LAN-420, Brian's walk of
-            573bb9d4: value `16 yes · 6 no / 39`, label `Said yes · Said no /
-            Invited`. Round 2 stacked Said yes / Invited above Said no as two
-            metrics of equal weight, which read as two separate facts about two
-            separate populations; they are one sentence about one population,
-            and the denominator belongs to both. The word after each number is
-            what lets the line be read without its label, and the label under
-            it is what names the parts in the club's own words.
-          */}
-          <Typography variant="h2" component="p" sx={{ mt: 0.5 }} data-testid="response-counts">
-            {`${block.yes} yes · ${block.no} no / ${block.invited}`}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {`${HEADLINE_SAID_YES_LABEL} · ${HEADLINE_SAID_NO_LABEL} / ${HEADLINE_INVITED_LABEL}`}
-          </Typography>
-
-          <ResponseBar block={block} />
-        </Paper>
-      ))}
+      {blocks.map((block) => {
+        const panel = panels?.[block.capacity];
+        return (
+          <Paper
+            key={block.capacity}
+            variant="outlined"
+            sx={{ p: panel ? 0 : 2, minWidth: 0 }}
+            data-testid={`response-progress-${block.capacity}`}
+          >
+            {panel ? (
+              <ResponseBlockToggle capacity={block.capacity} panel={panel}>
+                <BlockBody block={block} />
+              </ResponseBlockToggle>
+            ) : (
+              <BlockBody block={block} />
+            )}
+          </Paper>
+        );
+      })}
     </Box>
   );
 }
