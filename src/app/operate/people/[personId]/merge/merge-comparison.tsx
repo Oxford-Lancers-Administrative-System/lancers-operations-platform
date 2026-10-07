@@ -15,6 +15,7 @@ import { NotRecorded } from "@/components/fact";
 import Typography from "@mui/material/Typography";
 
 import type { MergeChoice, PersonMergePreview } from "@/lib/services/person-merge";
+import { formatWhen } from "@/app/operate/roster/presentation";
 import { submitMerge } from "./actions";
 import { INITIAL_MERGE_STATE } from "./merge-state";
 
@@ -191,10 +192,32 @@ export default function MergeComparison({
               <Section
                 title={`Two prospect records for ${preview.prospectCombinations[0].seasonLabel}`}
               >
-                <Typography variant="body2" color="text.secondary">
-                  Combined onto the survivor: earliest first contact, furthest-along status. One
-                  prospect record per person per season.
-                </Typography>
+                <Stack spacing={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Combined onto the survivor: earliest first contact, furthest-along status. One
+                    prospect record per person per season.
+                  </Typography>
+                  {/* LAN-486: both first-contact times, so the earlier one the merge keeps is visible. */}
+                  {preview.prospectCombinations.map((combo) => (
+                    <CompareRow
+                      key={combo.seasonId}
+                      row={{
+                        name: `first_contact_${combo.seasonId}`,
+                        label: "First contact",
+                        differs: combo.survivorFirstContact !== combo.loserFirstContact,
+                        // Never a choice: the earlier of the two is kept.
+                        needsChoice: false,
+                        survivorValue: combo.survivorFirstContact
+                          ? formatWhen(new Date(combo.survivorFirstContact))
+                          : null,
+                        loserValue: combo.loserFirstContact
+                          ? formatWhen(new Date(combo.loserFirstContact))
+                          : null,
+                      }}
+                      bothSidesAlways
+                    />
+                  ))}
+                </Stack>
               </Section>
             ) : null}
 

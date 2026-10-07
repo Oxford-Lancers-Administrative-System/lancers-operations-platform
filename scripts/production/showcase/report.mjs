@@ -249,11 +249,13 @@ export async function computeReportContent(client, season, reportOn) {
     };
   });
   const recruitment = await client.query(
-    `select ${P} as display_name, r.status::text as status, r.source, r.first_contact_on
+    // LAN-486: the Europe/London day of the first-contact instant, as compute.ts reads it.
+    `select ${P} as display_name, r.status::text as status, r.source,
+            to_char(r.first_contact_on at time zone 'Europe/London', 'YYYY-MM-DD') as first_contact_on
        from public.recruitment_prospects r
        join public.people p on p.id = r.person_id
       where r.season_id = $1 and r.converted_membership_id is null
-      order by r.first_contact_on desc nulls last, display_name`,
+      order by (r.first_contact_on at time zone 'Europe/London')::date desc nulls last, display_name`,
     [season.id],
   );
   const onboardingItems = await client.query(

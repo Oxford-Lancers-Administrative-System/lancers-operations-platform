@@ -758,6 +758,48 @@ describe("walk-ons", () => {
     expect(Number(memberships.rows[0].count), "no membership is created").toBe(0);
   });
 
+  // LAN-486: first contact is an instant. A walk-up's is the event's start on
+  // the club's clock; an event with no start time falls back to the moment the
+  // walk-up is recorded.
+  it("LAN-486 — records the event's start, Europe/London, as first contact", async () => {
+    const event = await occurredEvent();
+    await recordWalkUpAttendance(actorPersonId, event.id, WALK_ON);
+
+    const person = (await mintedPerson())[0];
+    const prospect = await observer.query<{ london: string; matches: boolean }>(
+      `select to_char(first_contact_on at time zone 'Europe/London', 'YYYY-MM-DD HH24:MI') as london,
+              first_contact_on = ($2::date + '20:00'::time) at time zone 'Europe/London' as matches
+         from public.recruitment_prospects where person_id = $1`,
+      [person.id, event.scheduledOn],
+    );
+
+    expect(prospect.rows[0].london).toBe(`${event.scheduledOn} 20:00`);
+    expect(prospect.rows[0].matches).toBe(true);
+  });
+
+  it("LAN-486 — records the time of entry when the event has no start time", async () => {
+    // Approval needs a start time (D16), so the event is approved first and
+    // its times cleared afterwards: the walk-up then meets an event with none.
+    const event = await occurredEvent();
+    await observer.query(
+      "update public.events set starts_at = null, ends_at = null where id = $1::uuid",
+      [event.id],
+    );
+    const before = await observer.query<{ at: Date }>("select now() as at");
+
+    await recordWalkUpAttendance(actorPersonId, event.id, WALK_ON);
+
+    const after = await observer.query<{ at: Date }>("select now() as at");
+    const person = (await mintedPerson())[0];
+    const prospect = await observer.query<{ first_contact_on: Date }>(
+      "select first_contact_on from public.recruitment_prospects where person_id = $1",
+      [person.id],
+    );
+    const at = prospect.rows[0].first_contact_on.getTime();
+    expect(at).toBeGreaterThanOrEqual(before.rows[0].at.getTime());
+    expect(at).toBeLessThanOrEqual(after.rows[0].at.getTime());
+  });
+
   it("stores both contact points exactly as they were given", async () => {
     const event = await occurredEvent();
     await recordWalkUpAttendance(actorPersonId, event.id, {

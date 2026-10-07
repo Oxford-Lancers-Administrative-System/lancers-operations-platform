@@ -20,16 +20,6 @@ import type { PersonRecord } from "@/lib/services/person-record";
  */
 export type VisiblePersonRecord = Partial<PersonRecord>;
 
-/** Provenance is shown only when the record supplies an actor. */
-function By({ who }: { who: string | null | undefined }) {
-  return who ? (
-    <Typography component="span" variant="caption" color="text.secondary">
-      {" "}
-      {who}
-    </Typography>
-  ) : null;
-}
-
 /** The preferred current contact of one kind (and scope), for a labelled row. */
 function currentContact(
   record: VisiblePersonRecord,
@@ -53,14 +43,12 @@ function currentContact(
 function NameRows({ record }: { record: VisiblePersonRecord }) {
   return (
     <>
-      <Fact label="First name" note={record.givenNameSource ?? undefined}>
-        {record.givenName ? <>{record.givenName}</> : <NotRecorded />}
-      </Fact>
+      <Fact label="First name">{record.givenName ? <>{record.givenName}</> : <NotRecorded />}</Fact>
       {/* LAN-366: optional, between the two names it sits between. */}
-      <Fact label="Middle name" note={record.middleNameSource ?? undefined}>
+      <Fact label="Middle name">
         {record.middleName ? <>{record.middleName}</> : <NotRecorded />}
       </Fact>
-      <Fact label="Last name" note={record.familyNameSource ?? undefined}>
+      <Fact label="Last name">
         {record.familyName ? <>{record.familyName}</> : <NotRecorded />}
       </Fact>
       {/* LAN-306: its own labelled value, never spliced into the name above. */}
@@ -81,7 +69,6 @@ function NameRows({ record }: { record: VisiblePersonRecord }) {
                     · known as
                   </Typography>
                 ) : null}
-                <By who={alias.source} />
               </Box>
             ))}
           </Stack>
@@ -103,13 +90,11 @@ function PersonalContactRows({
   const personalEmail = currentContact(record, "email", "personal");
   return (
     <>
-      <Fact label="Mobile phone" note={mobile?.source ?? undefined}>
-        {mobile ? <>{mobile.rawValue}</> : <NotRecorded />}
-      </Fact>
+      <Fact label="Mobile phone">{mobile ? <>{mobile.rawValue}</> : <NotRecorded />}</Fact>
       <Fact label={`On WhatsApp${currentSeasonLabel ? ` · ${currentSeasonLabel}` : ""}`}>
         <NotRecorded />
       </Fact>
-      <Fact label="Personal email" note={personalEmail?.source ?? undefined}>
+      <Fact label="Personal email">
         {personalEmail ? <>{personalEmail.rawValue}</> : <NotRecorded />}
       </Fact>
     </>
@@ -119,7 +104,7 @@ function PersonalContactRows({
 function CollegeEmailRow({ record }: { record: VisiblePersonRecord }) {
   const collegeEmail = currentContact(record, "email", "college");
   return (
-    <Fact label="College email" note={collegeEmail?.source ?? undefined}>
+    <Fact label="College email">
       {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
     </Fact>
   );
@@ -133,9 +118,7 @@ function CollegeEmailRow({ record }: { record: VisiblePersonRecord }) {
 function UnclassifiedEmailRow({ record }: { record: VisiblePersonRecord }) {
   const unclassifiedEmail = currentContact(record, "email", null);
   return unclassifiedEmail ? (
-    <Fact label="Email · not classified" note={unclassifiedEmail.source ?? undefined}>
-      {unclassifiedEmail.rawValue}
-    </Fact>
+    <Fact label="Email · not classified">{unclassifiedEmail.rawValue}</Fact>
   ) : null;
 }
 
@@ -151,17 +134,17 @@ function StudentFactRows({ record }: { record: VisiblePersonRecord }) {
   return (
     <>
       {record.college !== undefined ? (
-        <Fact label="College" note={record.collegeSource ?? undefined}>
+        <Fact label="College">
           {record.college != null ? <>{record.college}</> : <NotRecorded />}
         </Fact>
       ) : null}
       {record.matriculationYear !== undefined ? (
-        <Fact label="Matriculation year" note={record.matriculationYearSource ?? undefined}>
+        <Fact label="Matriculation year">
           {record.matriculationYear != null ? <>{record.matriculationYear}</> : <NotRecorded />}
         </Fact>
       ) : null}
       {record.expectedGraduationYear !== undefined ? (
-        <Fact label="Expected graduation" note={record.expectedGraduationYearSource ?? undefined}>
+        <Fact label="Expected graduation">
           {record.expectedGraduationYear != null ? (
             <>{record.expectedGraduationYear}</>
           ) : (
@@ -170,20 +153,17 @@ function StudentFactRows({ record }: { record: VisiblePersonRecord }) {
         </Fact>
       ) : null}
       {record.degreeField !== undefined ? (
-        <Fact label="Degree field" note={record.degreeFieldSource ?? undefined}>
+        <Fact label="Degree field">
           {record.degreeField != null ? <>{record.degreeField}</> : <NotRecorded />}
         </Fact>
       ) : null}
       {record.studentNumber !== undefined ? (
-        <Fact label="Student number" note={record.studentNumberSource ?? undefined}>
+        <Fact label="Student number">
           {record.studentNumber != null ? <>{record.studentNumber}</> : <NotRecorded />}
         </Fact>
       ) : null}
       {record.bafaRegistrationNumber !== undefined ? (
-        <Fact
-          label="BAFA registration number"
-          note={record.bafaRegistrationNumberSource ?? undefined}
-        >
+        <Fact label="BAFA registration number">
           {record.bafaRegistrationNumber != null ? (
             <>{record.bafaRegistrationNumber}</>
           ) : (

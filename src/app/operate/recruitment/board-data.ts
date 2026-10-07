@@ -69,9 +69,10 @@ const STATUS_LADDER_RANK: Readonly<Record<string, number>> = Object.freeze({
 function defaultCompare(a: RecruitmentBoardRow, b: RecruitmentBoardRow): number {
   const rankDiff = (STATUS_LADDER_RANK[a.status] ?? 99) - (STATUS_LADDER_RANK[b.status] ?? 99);
   if (rankDiff !== 0) return rankDiff;
-  const aDate = a.firstContactOn ?? "";
-  const bDate = b.firstContactOn ?? "";
-  return bDate.localeCompare(aDate);
+  // LAN-486: ISO instants, so string order is time order, to the minute and beyond.
+  const aAt = a.firstContactOn ?? "";
+  const bAt = b.firstContactOn ?? "";
+  return bAt.localeCompare(aAt);
 }
 
 export function applyBoard(

@@ -1027,6 +1027,43 @@ describe("walk-ups and availability", () => {
   });
 });
 
+// LAN-486: `first_contact_on` became a timestamptz. The report keeps printing a
+// day — the Europe/London day of that instant — so nothing it shows changes.
+describe("the recruitment list's first-contact day", () => {
+  it("is unchanged for the seed data: each recruit's first-contact day as it was stored", async () => {
+    const content = await compute();
+    // The seed's first-contact days were always the London day of the row's
+    // creation (seed-local.mjs), so that is the day the report printed before.
+    const expected = await observer.query<{ day: string }>(
+      `select to_char(r.created_at at time zone 'Europe/London', 'YYYY-MM-DD') as day
+         from public.recruitment_prospects r
+        where r.season_id = $1 and r.converted_membership_id is null
+        order by 1 desc`,
+      [seasonId],
+    );
+    expect(expected.rows.length).toBeGreaterThan(5);
+    expect(content.recruitment.map((entry) => entry.firstContactOn)).toEqual(
+      expected.rows.map((row) => row.day),
+    );
+  });
+
+  it("takes the London day of a late summer evening, not the UTC one", async () => {
+    // 23:30 UTC on 16 June is 00:30 on 17 June in London (BST).
+    const person = await observer.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ('Late', $1) returning id",
+      [NAME_MARKER],
+    );
+    await observer.query(
+      `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
+       values ($1::uuid, $2::uuid, 'QR sign-up', '2027-06-16T23:30:00Z'::timestamptz)`,
+      [person.rows[0].id, seasonId],
+    );
+
+    const entry = (await compute()).recruitment.find((row) => row.person.includes(NAME_MARKER));
+    expect(entry?.firstContactOn).toBe("2027-06-17");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The rest of the stored content
 // ---------------------------------------------------------------------------

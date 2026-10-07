@@ -423,11 +423,15 @@ async function mintWalkUpProspect(
 
   // 'identified' is the honest status — nothing here says engaged or committed. source is the
   // club's own word for it (Brian locked "walk-up", 2026-08-31), matching the board's Source column.
+  // LAN-486: first contact is the event's start, read on the club's clock. An
+  // event with no start time (or no date) has no such instant, so the time the
+  // operator records the walk-up stands in for it.
   await tx.query(
     `insert into public.recruitment_prospects
        (person_id, season_id, status, source, first_contact_on)
-     values ($1::uuid, $2::uuid, 'identified', $3, $4::date)`,
-    [personId, event.seasonId, `Walk-up at ${event.name}`, event.scheduledOn],
+     values ($1::uuid, $2::uuid, 'identified', $3,
+             coalesce(($4::date + $5::time) at time zone 'Europe/London', now()))`,
+    [personId, event.seasonId, `Walk-up at ${event.name}`, event.scheduledOn, event.startsAt],
   );
 
   // LAN-392, Brian's decision 8: the walk-up form creates a recruit, so it is a

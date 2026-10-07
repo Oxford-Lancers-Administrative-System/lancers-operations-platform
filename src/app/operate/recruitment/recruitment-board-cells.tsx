@@ -16,6 +16,7 @@ import {
 import { bandColour, rawValue, type ColumnDef } from "./board-columns";
 import { displayOf, NOT_RECORDED, optionListLabel } from "./board-data";
 import StatusCell from "./status-cell";
+import { formatWhen } from "../roster/presentation";
 import { StatusPill } from "../board-filter-controls";
 import { PROSPECT_STATUS_LABELS } from "@/lib/services/recruitment-vocabulary";
 
@@ -45,6 +46,10 @@ function displayText(row: RecruitmentBoardRow, column: ColumnDef): string {
       byOperator: row.consentByOperator,
       changedAt: row.consentChangedAt,
     });
+  }
+  // LAN-486: first contact is an instant; the board shows its date and time on the club's clock.
+  if (column.key === "firstContact") {
+    return row.firstContactOn ? formatWhen(new Date(row.firstContactOn)) : NOT_RECORDED;
   }
   if (column.key === "playedBefore") {
     return row.playedBefore ? RSVP_LABEL[row.playedBefore] : NOT_RECORDED;

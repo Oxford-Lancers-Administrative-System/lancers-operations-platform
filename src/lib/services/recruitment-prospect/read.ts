@@ -80,6 +80,7 @@ export interface RecruitmentProspectRecord {
   readonly displayName: string;
   readonly status: ProspectStatus;
   readonly source: string | null;
+  /** LAN-486: the instant of first contact, as an ISO string (`Date.toISOString()`, UTC). Sorts as time. */
   readonly firstContactOn: string | null;
   readonly committedOn: string | null;
   readonly convertedMembershipId: string | null;
@@ -207,14 +208,14 @@ export async function readRecruitmentProspectIn(
     season_id: string;
     status: string;
     source: string | null;
-    first_contact_on: string | null;
+    first_contact_on: Date | null;
     committed_on: string | null;
     converted_membership_id: string | null;
     given_name: string;
     family_name: string | null;
   }>(
     `select rp.id, rp.person_id, rp.season_id, rp.status::text as status, rp.source,
-            to_char(rp.first_contact_on, 'YYYY-MM-DD') as first_contact_on,
+            rp.first_contact_on,
             to_char(rp.committed_on, 'YYYY-MM-DD') as committed_on,
             rp.converted_membership_id, p.given_name, p.family_name
        from public.recruitment_prospects rp
@@ -313,7 +314,7 @@ export async function readRecruitmentProspectIn(
     displayName: personDisplayName(row.given_name, row.family_name),
     status: row.status as ProspectStatus,
     source: row.source,
-    firstContactOn: row.first_contact_on,
+    firstContactOn: row.first_contact_on?.toISOString() ?? null,
     committedOn: row.committed_on,
     convertedMembershipId: row.converted_membership_id,
     consent: consent?.state ?? "never_asked",

@@ -43,14 +43,42 @@ describe("applyBoard", () => {
   it("defaults to ladder order, then most recent first contact — W1", () => {
     const rows = [
       row({ prospectId: "declined", status: "declined" }),
-      row({ prospectId: "identified-older", status: "identified", firstContactOn: "2026-01-01" }),
-      row({ prospectId: "identified-newer", status: "identified", firstContactOn: "2026-06-01" }),
+      row({
+        prospectId: "identified-older",
+        status: "identified",
+        firstContactOn: "2026-01-01T10:00:00.000Z",
+      }),
+      row({
+        prospectId: "identified-newer",
+        status: "identified",
+        firstContactOn: "2026-06-01T10:00:00.000Z",
+      }),
       row({ prospectId: "joined", status: "joined" }),
     ];
     const sorted = applyBoard(rows, { search: "", filters: {}, sort: null }).map(
       (r) => r.prospectId,
     );
     expect(sorted).toEqual(["identified-newer", "identified-older", "joined", "declined"]);
+  });
+
+  it("LAN-486 — sorts First contact chronologically to the minute, within one day", () => {
+    const rows = [
+      row({ prospectId: "evening", firstContactOn: "2026-10-07T18:31:00.000Z" }),
+      row({ prospectId: "morning", firstContactOn: "2026-10-07T08:05:00.000Z" }),
+      row({ prospectId: "a-minute-later", firstContactOn: "2026-10-07T18:32:00.000Z" }),
+      row({ prospectId: "never", firstContactOn: null }),
+    ];
+    const ascending = applyBoard(rows, {
+      search: "",
+      filters: {},
+      sort: { key: "firstContact", direction: "asc" },
+    }).map((r) => r.prospectId);
+    expect(ascending).toEqual(["morning", "evening", "a-minute-later", "never"]);
+
+    const byDefault = applyBoard(rows, { search: "", filters: {}, sort: null }).map(
+      (r) => r.prospectId,
+    );
+    expect(byDefault).toEqual(["a-minute-later", "evening", "morning", "never"]);
   });
 
   it("finds a recruit by name or alias", () => {

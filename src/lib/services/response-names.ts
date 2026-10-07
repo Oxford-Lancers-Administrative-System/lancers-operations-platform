@@ -4,11 +4,22 @@
  *
  * Every invited person's full name, grouped by their current answer: Yes,
  * then No, then No response. Nonresponders are included; a walk-up was never
- * invited, so they are not. The box groups by answer, not by capacity, so the
- * LAN-440 / LAN-466 folds do not touch it.
+ * invited, so they are not.
+ *
+ * LAN-481 (Brian, 6 and 7 October 2026) splits the box by Recruits, Players
+ * and Coaches before it groups by answer. The split is the response blocks'
+ * own — `responseCapacityOf`, the classifier that tallies them, with the
+ * LAN-440 / LAN-466 folds — so a name sits in the section whose count it is.
  *
  * Pure. No database, no React — the rows are the participation view's people.
  */
+import {
+  DISPLAY_ORDER,
+  RESPONSE_CAPACITY_LABELS,
+  responseCapacityOf,
+  type DisplayCapacity,
+  type ResponseProgressRow,
+} from "./event-response-progress";
 import { answerGroupOf, type AnswerGroup, type ParticipationPerson } from "./participation-view";
 
 export interface ResponseNameGroup {
@@ -36,4 +47,35 @@ export function responseNamesByAnswer(people: readonly NameRow[]): ResponseNameG
       .map((person) => person.displayName)
       .sort((left, right) => left.localeCompare(right, "en-GB")),
   }));
+}
+
+/** One capacity's section: its label and its three answer groups. */
+export interface ResponseNameSection {
+  readonly capacity: DisplayCapacity;
+  readonly label: string;
+  readonly groups: readonly ResponseNameGroup[];
+}
+
+type SectionRow = NameRow & ResponseProgressRow;
+
+/**
+ * LAN-481: one section per capacity the response blocks show, in their order,
+ * each with the three answer groups. A capacity nobody is tallied under has no
+ * section, exactly as it has no block; a row the blocks do not count (a
+ * walk-up, an unknown capacity) is in no section.
+ */
+export function responseNamesByCapacity(people: readonly SectionRow[]): ResponseNameSection[] {
+  const byCapacity = new Map<DisplayCapacity, SectionRow[]>();
+  for (const person of people) {
+    const capacity = responseCapacityOf(person);
+    if (capacity === null) continue;
+    byCapacity.set(capacity, [...(byCapacity.get(capacity) ?? []), person]);
+  }
+  return DISPLAY_ORDER.flatMap((capacity) => {
+    const rows = byCapacity.get(capacity);
+    if (rows === undefined) return [];
+    return [
+      { capacity, label: RESPONSE_CAPACITY_LABELS[capacity], groups: responseNamesByAnswer(rows) },
+    ];
+  });
 }

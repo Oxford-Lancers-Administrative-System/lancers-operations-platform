@@ -338,6 +338,7 @@ describe("linking onto an existing person", () => {
       prospectId: "55555555-5555-4555-8555-555555555555",
       prospectCreated: true,
       cycleDeclared: true,
+      audienceAdded: 0,
     });
 
     await expect(
@@ -370,6 +371,7 @@ describe("creating a new recruit", () => {
       prospectId: "77777777-7777-4777-8777-777777777777",
       prospectCreated: true,
       cycleDeclared: false,
+      audienceAdded: 0,
     });
 
     await expect(

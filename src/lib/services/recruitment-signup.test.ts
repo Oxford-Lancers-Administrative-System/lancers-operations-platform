@@ -296,8 +296,9 @@ describe("signUpAnonymouslyIn — the QR door", () => {
     expect(prospect.rows[0].status).toBe("identified");
   });
 
-  it("LAN-247 — records today as the recruit's first contact", async () => {
+  it("LAN-247, LAN-486 — records the moment of sign-up as the recruit's first contact", async () => {
     const code = await mintCode();
+    const before = await observer.query<{ at: Date }>("select now() as at");
     const result = await withTransaction((tx) =>
       signUpAnonymouslyIn(tx, {
         seasonId,
@@ -306,12 +307,18 @@ describe("signUpAnonymouslyIn — the QR door", () => {
       }),
     );
 
-    const prospect = await observer.query<{ first_contact_on: string | null }>(
-      `select to_char(first_contact_on, 'YYYY-MM-DD') as first_contact_on
+    const after = await observer.query<{ at: Date }>("select now() as at");
+    const prospect = await observer.query<{ first_contact_on: Date; london_day: string }>(
+      `select first_contact_on,
+              to_char(first_contact_on at time zone 'Europe/London', 'YYYY-MM-DD') as london_day
          from public.recruitment_prospects where id = $1::uuid`,
       [result.prospectId],
     );
-    expect(prospect.rows[0].first_contact_on).toBe(todayInClubZone());
+    // LAN-486: an exact instant, taken inside the writing transaction.
+    const at = prospect.rows[0].first_contact_on.getTime();
+    expect(at).toBeGreaterThanOrEqual(before.rows[0].at.getTime());
+    expect(at).toBeLessThanOrEqual(after.rows[0].at.getTime());
+    expect(prospect.rows[0].london_day).toBe(todayInClubZone(prospect.rows[0].first_contact_on));
   });
 
   // LAN-305: every capture door reaches the same declarer. This one's grant
@@ -1401,5 +1408,67 @@ describe("the partial on the first typed mobile — LAN-428, 2026-09-28", () => 
     // The QR page's Partial figure counts it.
     const figures = await withTransaction((tx) => readRecruitmentSignupFiguresIn(tx, seasonId));
     expect(figures?.partial).toBe(1);
+  });
+});
+
+/**
+ * LAN-486's deploy window. The migration changes `first_contact_on` from `date`
+ * to `timestamptz` before the new revision is deployed, so for a few minutes
+ * the previous revision's SQL runs against the new column. These are that
+ * revision's exact statements; each must still succeed, so the window cannot
+ * refuse a sign-up, a hand-add, a merge or a board read.
+ */
+describe("LAN-486 — the previous revision's SQL against the timestamptz column", () => {
+  it("accepts the pre-change insert shape ($4::date) and the pre-change reads", async () => {
+    await observer.query("begin");
+    try {
+      const column = await observer.query<{ data_type: string }>(
+        `select data_type from information_schema.columns
+          where table_schema = 'public' and table_name = 'recruitment_prospects'
+            and column_name = 'first_contact_on'`,
+      );
+      expect(column.rows[0].data_type).toBe("timestamp with time zone");
+
+      const person = await observer.query<{ id: string }>(
+        `insert into public.people (given_name, family_name) values ($1, 'DeployWindow') returning id`,
+        [MARKER],
+      );
+      const personId = person.rows[0].id;
+
+      // recruitment-signup.ts and recruitment-add.ts before LAN-486.
+      const inserted = await observer.query<{ id: string }>(
+        `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
+         values ($1::uuid, $2::uuid, $3, $4::date)
+         on conflict (person_id, season_id) do nothing
+         returning id`,
+        [personId, seasonId, "QR sign-up", "2026-10-07"],
+      );
+      expect(inserted.rows).toHaveLength(1);
+      const prospectId = inserted.rows[0].id;
+
+      // recruitment-board.ts and recruitment-prospect/read.ts before LAN-486.
+      const board = await observer.query<{ first_contact_on: string }>(
+        `select to_char(rp.first_contact_on, 'YYYY-MM-DD') as first_contact_on
+           from public.recruitment_prospects rp where rp.id = $1::uuid`,
+        [prospectId],
+      );
+      expect(board.rows[0].first_contact_on).toBe("2026-10-07");
+
+      // person-merge/write.ts before LAN-486.
+      await observer.query(
+        `update public.recruitment_prospects
+            set first_contact_on = coalesce($2::date, first_contact_on)
+          where id = $1::uuid`,
+        [prospectId, "2026-10-06"],
+      );
+      const merged = await observer.query<{ first_contact_on: string }>(
+        `select to_char(first_contact_on, 'YYYY-MM-DD') as first_contact_on
+           from public.recruitment_prospects where id = $1::uuid`,
+        [prospectId],
+      );
+      expect(merged.rows[0].first_contact_on).toBe("2026-10-06");
+    } finally {
+      await observer.query("rollback");
+    }
   });
 });

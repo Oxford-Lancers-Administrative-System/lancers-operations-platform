@@ -1,6 +1,5 @@
 import "server-only";
 
-import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { applyAudienceGroupRuleIn } from "./event-audience-rule";
@@ -336,13 +335,13 @@ async function ensureProspectIn(
   seasonId: string,
   source: string,
 ): Promise<EnsuredProspect> {
-  // first_contact_on is today — the recruit filling this in is the contact (LAN-247).
+  // first_contact_on is now — the recruit filling this in is the contact (LAN-247, LAN-486).
   const inserted = await tx.query<{ id: string }>(
     `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
-     values ($1::uuid, $2::uuid, $3, $4::date)
+     values ($1::uuid, $2::uuid, $3, now())
      on conflict (person_id, season_id) do nothing
      returning id`,
-    [personId, seasonId, source, todayInClubZone()],
+    [personId, seasonId, source],
   );
   if (inserted.rows[0]) return { id: inserted.rows[0].id, created: true };
 

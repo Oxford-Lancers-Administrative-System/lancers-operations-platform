@@ -270,8 +270,8 @@ Notes, What changed and Status history as Recruit details; Recruitment events
 as Event details. The record header's status is text, not a pill. Every write
 re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
-**Add recruit** and **QR code** only with "May add recruits"; their pages and
-actions refuse without it.
+**Add recruits** (Add one recruit, Bulk import recruits) and **QR code** only with "May
+add recruits"; their pages and actions refuse without it.
 
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
 board (and a phone on its side) an **Attendance** group sits immediately right
@@ -323,6 +323,27 @@ recorded from their record's **Record consent** (LAN-371): the required **How
 consent was given** note says it was verbal, and the consent row keeps who
 recorded it and when, audited to that operator. It never grants anything on its
 own.
+
+**Bulk import recruits (LAN-487, Brian 2026-10-07).** Recruitment → **Add recruits**
+is a menu of **Add one recruit** and **Bulk import recruits**. The import is the
+roster import's door for recruits: download the empty template, upload,
+read the proposal, answer possible duplicates, confirm, read the result. It
+only adds. The template's columns are the hand-add's fields; first name, last
+name and mobile are required; `opt_in` takes `gave_it`, `passed_on`, `public`
+or `other` or their full labels, any case, or blank, and anything else refuses
+the row. Each row is checked with the roster's duplicate check on first name,
+last name, known as, college email, personal email and mobile (last nine
+digits); one person holding the mobile is that person, any other match asks
+the roster's Same person / Different person question, and an unanswered row is
+refused. A current player is refused; a recruit already in this season is
+reported as already there with nothing written. Every other row is written by
+the hand-add's own write, so it gets the recruit record (source `CSV import`,
+or `CSV import · <opt-in label>`), opt-in evidence and note, the welcome cycle
+and the audience group rule; the proposal shows how many will be added to
+event audiences. "Different person" over a matching contact records the
+reason `Confirmed different in recruit import, line N`. A later line repeating
+an earlier line's person, mobile or email is refused naming the earlier line.
+The file is never stored; the digest, size and row limits are the roster's.
 
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.
@@ -1073,18 +1094,25 @@ the link was sent to are reading the same numbers.
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.
 
-**Directly under the blocks, one collapsible section headed Attendance names
-everybody invited** (LAN-458, Stu, 2026-09-30; Brian, 2026-10-01 and his visual
-review of 2026-10-05): three groups, **Yes**, **No** and **No response**, each
-headed with its count (`Yes · 12`) and listing every invitee's full name
-alphabetically. The section is open on arrival and can be closed; the blocks
-with the counts sit above and outside it, so they stay when it is closed. Every
-name is shown — there is no "show more" — and a walk-up, who was never invited,
-is not listed. Yes and No sit side by side as two equal columns where there is
-room, with No response full width below them (its names in the same two
-columns); at 375px the groups stack, Yes first. The section groups by answer, not capacity,
-so the LAN-440 and LAN-466 folds do not touch it. It is on the operator's event
-page only: the public **Event info link** page has the blocks but not the names.
+**Each block is itself a dropdown that names everybody it counts** (LAN-458,
+Stu, 2026-09-30; Brian, 2026-10-01 and his visual review of 2026-10-05; LAN-481,
+Brian, 2026-10-06 and his walk of 2026-10-07). There is no separate Attendance
+card: clicking or tapping a **Recruits**, **Players** or **Coaches** block, or
+pressing Enter or Space on it, opens it in place, inside the same card below its
+bar, and the chevron turns down; clicking it again closes it. Every block is
+closed on arrival, and each opens on its own. Where the blocks sit side by side
+an opened one grows downward and its neighbours keep their own height. A person
+sits under the capacity the blocks count them under — the same function decides
+both, so a General Manager or IT Officer invited only for that seat is under
+Coaches (LAN-466) and any other committee-only invitee under Players (LAN-440) —
+and the names in a block always add up to its numbers. Each block holds three groups,
+**Yes**, **No** and **No response**, each headed with its count (`Yes · 12`) and
+listing every invitee's full name alphabetically. Every name is shown — there
+is no "show more" — and a walk-up, who was never invited, is not listed. Yes
+and No sit side by side as two equal columns at every width, a phone included,
+with No response full width below them (its names in the same two columns). The
+dropdown is on the operator's event page only: on the public **Event info link**
+page the blocks do not open and carry no names.
 
 **The audience is grouped Yes, then No, then No response** (LAN-439, client
 QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort

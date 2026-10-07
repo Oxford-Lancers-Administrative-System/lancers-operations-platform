@@ -485,13 +485,14 @@ describe("finishRecruitmentAddIn", () => {
     expect(second.prospectCreated).toBe(false);
   });
 
-  it("LAN-247 — records today as the recruit's first contact", async () => {
+  it("LAN-247, LAN-486 — records the moment of the hand-add as the recruit's first contact", async () => {
     const created = await createPerson({
       actorPersonId: operatorPersonId,
       input: { givenName: MARKER, familyName: "FirstContact", mobile: uniquePhone() },
       decision: { kind: "create_new" },
     });
 
+    const before = await observer.query<{ at: Date }>("select now() as at");
     const result = await withTransaction((tx) =>
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
@@ -502,12 +503,18 @@ describe("finishRecruitmentAddIn", () => {
       }),
     );
 
-    const prospect = await observer.query<{ first_contact_on: string | null }>(
-      `select to_char(first_contact_on, 'YYYY-MM-DD') as first_contact_on
+    const after = await observer.query<{ at: Date }>("select now() as at");
+    const prospect = await observer.query<{ first_contact_on: Date; london_day: string }>(
+      `select first_contact_on,
+              to_char(first_contact_on at time zone 'Europe/London', 'YYYY-MM-DD') as london_day
          from public.recruitment_prospects where id = $1::uuid`,
       [result.prospectId],
     );
-    expect(prospect.rows[0].first_contact_on).toBe(todayInClubZone());
+    // LAN-486: an exact instant, taken inside the writing transaction.
+    const at = prospect.rows[0].first_contact_on.getTime();
+    expect(at).toBeGreaterThanOrEqual(before.rows[0].at.getTime());
+    expect(at).toBeLessThanOrEqual(after.rows[0].at.getTime());
+    expect(prospect.rows[0].london_day).toBe(todayInClubZone(prospect.rows[0].first_contact_on));
   });
 
   it("LAN-247 — a second add keeps the day the club first met them", async () => {

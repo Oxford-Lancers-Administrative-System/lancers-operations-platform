@@ -65,10 +65,20 @@ export interface MergeProspectCombination {
   loserStatus: string;
   combinedStatus: string;
   combinedCommittedOn: string | null;
+  /**
+   * LAN-486: each side's first contact as an exact UTC instant,
+   * `YYYY-MM-DDTHH:MM:SS.ffffffZ` — microseconds kept so the merge writes the
+   * earlier timestamp back unchanged. A fixed-width UTC string, so string order
+   * is time order.
+   */
   survivorFirstContact: string | null;
   loserFirstContact: string | null;
+  /** The earlier of the two, or whichever side has one. */
   combinedFirstContact: string | null;
 }
+
+/** LAN-486: a timestamptz as a fixed-width UTC ISO string, microseconds kept. */
+const FIRST_CONTACT_INSTANT = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 interface MergeMovementLine {
   label: string;
@@ -170,8 +180,10 @@ export async function readProspectCombinations(
   }>(
     `select s.id as season_id, s.label as season_label,
             a.status::text as survivor_status, b.status::text as loser_status,
-            to_char(a.first_contact_on, 'YYYY-MM-DD') as survivor_first_contact,
-            to_char(b.first_contact_on, 'YYYY-MM-DD') as loser_first_contact,
+            to_char(a.first_contact_on at time zone 'UTC', ${FIRST_CONTACT_INSTANT})
+              as survivor_first_contact,
+            to_char(b.first_contact_on at time zone 'UTC', ${FIRST_CONTACT_INSTANT})
+              as loser_first_contact,
             to_char(a.committed_on, 'YYYY-MM-DD') as survivor_committed_on,
             to_char(b.committed_on, 'YYYY-MM-DD') as loser_committed_on
        from public.recruitment_prospects a

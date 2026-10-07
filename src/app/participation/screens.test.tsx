@@ -621,6 +621,9 @@ describe("the club-link page", () => {
 
     // LAN-458: the name-and-response box is the operator page's only.
     expect(screen.queryByTestId("response-names")).toBeNull();
+    // LAN-481: nor is a block a dropdown here — it opens onto nothing.
+    expect(within(screen.getByTestId("response-progress")).queryByRole("button")).toBeNull();
+    expect(screen.queryByTestId("response-toggle-player")).toBeNull();
 
     // Nobody was invited as a coach or a recruit, so neither block is there.
     expect(screen.queryByTestId("response-progress-coach")).toBeNull();

@@ -79,16 +79,28 @@ async function insertProspect(
   personId: string,
   season: string,
   status: string,
-  firstContactOn: string,
+  /** LAN-486: an ISO instant — `first_contact_on` is a timestamptz. */
+  firstContactAt: string,
 ): Promise<void> {
   // `recruitment_prospects_commitment_is_dated`: 'committed' and 'joined'
   // require `committed_on`.
-  const committedOn = status === "committed" || status === "joined" ? firstContactOn : null;
+  const committedOn =
+    status === "committed" || status === "joined" ? firstContactAt.slice(0, 10) : null;
   await observer.query(
     `insert into public.recruitment_prospects (person_id, season_id, status, first_contact_on, committed_on)
-     values ($1::uuid, $2::uuid, $3::public.prospect_status, $4::date, $5::date)`,
-    [personId, season, status, firstContactOn, committedOn],
+     values ($1::uuid, $2::uuid, $3::public.prospect_status, $4::timestamptz, $5::date)`,
+    [personId, season, status, firstContactAt, committedOn],
   );
+}
+
+/** A prospect's stored first contact as a fixed-width UTC ISO string, microseconds kept. */
+async function firstContactOf(personId: string, season: string): Promise<string | null> {
+  const result = await observer.query<{ at: string | null }>(
+    `select to_char(first_contact_on at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as at
+       from public.recruitment_prospects where person_id = $1::uuid and season_id = $2::uuid`,
+    [personId, season],
+  );
+  return result.rows[0]?.at ?? null;
 }
 
 async function insertConsent(
@@ -563,13 +575,20 @@ describe("mergePersons — the successful merge", () => {
   it("combines a duplicate prospect pair onto the survivor: earliest contact, furthest-along status", async () => {
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });
-    await insertProspect(survivorId, seasonId, "engaged", "2024-10-09");
-    await insertProspect(loserId, seasonId, "committed", "2024-10-02");
+    // LAN-486: the same day, hours apart — the merge keeps the earlier instant exactly.
+    await insertProspect(survivorId, seasonId, "engaged", "2024-10-02T18:45:00.123456Z");
+    await insertProspect(loserId, seasonId, "committed", "2024-10-02T09:15:00.654321Z");
 
     const preview = await previewPersonMerge(survivorId, loserId);
     expect(preview.prospectCombinations).toHaveLength(1);
     expect(preview.prospectCombinations[0].combinedStatus).toBe("committed");
-    expect(preview.prospectCombinations[0].combinedFirstContact).toBe("2024-10-02");
+    expect(preview.prospectCombinations[0].survivorFirstContact).toBe(
+      "2024-10-02T18:45:00.123456Z",
+    );
+    expect(preview.prospectCombinations[0].loserFirstContact).toBe("2024-10-02T09:15:00.654321Z");
+    expect(preview.prospectCombinations[0].combinedFirstContact).toBe(
+      "2024-10-02T09:15:00.654321Z",
+    );
 
     await mergePersons({
       actorPersonId,
@@ -592,6 +611,29 @@ describe("mergePersons — the successful merge", () => {
     expect(prospects.rows[0].person_id).toBe(survivorId);
     expect(prospects.rows[0].status).toBe("committed");
     expect(prospects.rows[0].first_contact_on).toBe("2024-10-02");
+    expect(await firstContactOf(survivorId, seasonId)).toBe("2024-10-02T09:15:00.654321Z");
+  });
+
+  it("LAN-486: keeps the survivor's first contact when it is the earlier instant", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertProspect(survivorId, seasonId, "engaged", "2024-10-02T08:00:00.000001Z");
+    await insertProspect(loserId, seasonId, "identified", "2024-10-02T08:00:00.000002Z");
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.prospectCombinations[0].combinedFirstContact).toBe(
+      "2024-10-02T08:00:00.000001Z",
+    );
+
+    await mergePersons({
+      actorPersonId,
+      survivorPersonId: survivorId,
+      loserPersonId: loserId,
+      reason: "Duplicate prospect",
+      fieldChoices: { given_name: "survivor" },
+    });
+
+    expect(await firstContactOf(survivorId, seasonId)).toBe("2024-10-02T08:00:00.000001Z");
   });
 
   // B-003 (correction round 2, Q-10, Brian: "If it is a merge, they obviously

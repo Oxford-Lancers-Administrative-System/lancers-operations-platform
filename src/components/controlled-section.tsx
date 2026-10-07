@@ -50,21 +50,7 @@ export function ControlledSection({
           justifyContent: "flex-start",
         }}
       >
-        <Box
-          component="svg"
-          aria-hidden
-          viewBox="0 0 24 24"
-          sx={{ width: 22, height: 22, flexShrink: 0, transform: open ? "rotate(90deg)" : "none" }}
-        >
-          <path
-            d="M9 5l7 7-7 7"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Box>
+        <DisclosureChevron open={open} />
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="h3" component="h3">
             {title}
@@ -92,5 +78,30 @@ export function ControlledSection({
         </Box>
       </Collapse>
     </Paper>
+  );
+}
+
+/**
+ * The expand chevron: right when closed, down when open. Shared by this
+ * section and the event page's response blocks (LAN-481).
+ */
+export function DisclosureChevron({ open }: { open: boolean }) {
+  return (
+    <Box
+      component="svg"
+      aria-hidden
+      viewBox="0 0 24 24"
+      data-disclosure-chevron
+      sx={{ width: 22, height: 22, flexShrink: 0, transform: open ? "rotate(90deg)" : "none" }}
+    >
+      <path
+        d="M9 5l7 7-7 7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Box>
   );
 }

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { applyAudienceGroupRuleIn } from "./event-audience-rule";
@@ -181,7 +180,25 @@ export interface FinishRecruitmentAddResult {
   readonly prospectCreated: boolean;
   /** The cycle declaration ran and was not refused — LAN-305. Never a promise that this call minted a job; a rerun mints none. */
   readonly cycleDeclared: boolean;
+  /** LAN-487: how many approved events' audiences the group rule added this recruit to. */
+  readonly audienceAdded: number;
 }
+
+/**
+ * Which door an operator-added recruit came through — LAN-487. The hand-add
+ * and the CSV import write the same recruit; only the `source` they record and
+ * the audit's `door` say which.
+ */
+export interface RecruitmentAddDoor {
+  /** `Operator add` or `CSV import`; the opt-in label follows a ` · ` when one was given. */
+  readonly source: string;
+  readonly door: "operator_add" | "csv_import";
+}
+
+const OPERATOR_ADD_DOOR: RecruitmentAddDoor = Object.freeze({
+  source: "Operator add",
+  door: "operator_add",
+});
 
 /**
  * Everything after `createPerson`: Academic fields, the prospect row, opt-in
@@ -205,9 +222,12 @@ export async function finishRecruitmentAddIn(
     givenName: string;
     seasonId: string;
     academic: RecruitmentAddAcademic;
+    /** LAN-487: absent for the hand-add, which is `Operator add`. */
+    door?: RecruitmentAddDoor;
   },
 ): Promise<FinishRecruitmentAddResult> {
   const { actorPersonId, personId, givenName, seasonId, academic } = params;
+  const door = params.door ?? OPERATOR_ADD_DOOR;
 
   const college = academic.college?.trim() || null;
   const matriculationYear = academic.matriculationYear?.trim() || null;
@@ -241,18 +261,13 @@ export async function finishRecruitmentAddIn(
   const evidenceValue = academic.optInEvidence?.trim() || null;
   const evidenceLabel = evidenceValue ? (OPT_IN_LABEL.get(evidenceValue) ?? null) : null;
 
-  // first_contact_on is today: the operator is typing this recruit in because the club just met them (LAN-247).
+  // first_contact_on is now: the operator is typing this recruit in because the club just met them (LAN-247, LAN-486).
   const inserted = await tx.query<{ id: string }>(
     `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
-     values ($1::uuid, $2::uuid, $3, $4::date)
+     values ($1::uuid, $2::uuid, $3, now())
      on conflict (person_id, season_id) do nothing
      returning id`,
-    [
-      personId,
-      seasonId,
-      evidenceLabel ? `Operator add · ${evidenceLabel}` : "Operator add",
-      todayInClubZone(),
-    ],
+    [personId, seasonId, evidenceLabel ? `${door.source} · ${evidenceLabel}` : door.source],
   );
   let prospectId: string;
   let prospectCreated: boolean;
@@ -284,8 +299,8 @@ export async function finishRecruitmentAddIn(
     entityTable: "recruitment_prospects",
     entityId: prospectId,
     context: {
-      issue: "LAN-206",
-      door: "operator_add",
+      issue: door.door === "csv_import" ? "LAN-487" : "LAN-206",
+      door: door.door,
       prospectCreated,
       optInEvidence: evidenceValue,
       optInNoteRecorded: Boolean(optInNote),
@@ -317,7 +332,7 @@ export async function finishRecruitmentAddIn(
   // the consent branch above, so a recruit whose opt-in evidence was left blank
   // gets the audience row and the invitation and no declared job — Brian's
   // decision 7, checked where `scheduleEventLadderIn` checks the same thing.
-  await applyAudienceGroupRuleIn(tx, {
+  const audience = await applyAudienceGroupRuleIn(tx, {
     personId,
     seasonId,
     trigger: "recruit_added_by_operator",
@@ -328,5 +343,6 @@ export async function finishRecruitmentAddIn(
     prospectId,
     prospectCreated,
     cycleDeclared: declared.created.length > 0 || declared.reason === "already_complete",
+    audienceAdded: audience.added,
   };
 }

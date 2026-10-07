@@ -409,7 +409,8 @@ export function buildRecruitment(ctx, reference, people) {
         season_id: seasonId,
         status,
         source,
-        first_contact_on: day(firstOffset),
+        // LAN-486: an instant — the recruit's creation is their first contact.
+        first_contact_on: at(firstOffset, "12:00"),
         committed_on: committedOn,
         converted_membership_id:
           status === "joined"

@@ -817,6 +817,22 @@ differently. Still no seventh status: a waiting job is `pending`.
   keep. `WP-recruitment-messaging` builds the behaviour these columns
   configure.
 
+**First contact is an instant (LAN-486).**
+`20261015090000_first_contact_timestamp.sql` changes
+`recruitment_prospects.first_contact_on` from `date` to `timestamptz` in place,
+keeping its name (Brian, 2026-10-07: no rename, no second column, no
+expand/contract). The backfill takes `created_at` where its Europe/London date
+equals the stored date (every hosted row at the time, all QR sign-ups) and
+00:00 Europe/London on the stored date otherwise. QR sign-up and hand-add write
+`now()`; walk-up writes the event's `scheduled_on + starts_at` read as
+Europe/London, or `now()` when the event has no start time; a person merge
+keeps the earlier of the two instants. The board and the recruit record show
+date and time; the weekly report shows the Europe/London date of the instant.
+The previous revision's SQL (`$n::date` inserts, `to_char(…, 'YYYY-MM-DD')`
+reads, the merge's `coalesce($n::date, …)`) still runs against the new type,
+which is what lets the migration precede the deploy; a database test keeps that
+true.
+
 #### Recruitment messaging (LAN-203)
 
 `WP-recruitment-messaging`, mission `M-RECRUITMENT`, packet amendment 2. Two
