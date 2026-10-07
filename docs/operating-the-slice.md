@@ -1075,16 +1075,22 @@ says both and their totals are the whole event's.
 
 **Directly under the blocks, one collapsible section headed Attendance names
 everybody invited** (LAN-458, Stu, 2026-09-30; Brian, 2026-10-01 and his visual
-review of 2026-10-05): three groups, **Yes**, **No** and **No response**, each
-headed with its count (`Yes · 12`) and listing every invitee's full name
-alphabetically. The section is open on arrival and can be closed; the blocks
-with the counts sit above and outside it, so they stay when it is closed. Every
-name is shown — there is no "show more" — and a walk-up, who was never invited,
-is not listed. Yes and No sit side by side as two equal columns where there is
-room, with No response full width below them (its names in the same two
-columns); at 375px the groups stack, Yes first. The section groups by answer, not capacity,
-so the LAN-440 and LAN-466 folds do not touch it. It is on the operator's event
-page only: the public **Event info link** page has the blocks but not the names.
+review of 2026-10-05; LAN-481, Brian, 2026-10-06 and 2026-10-07). The section is
+open on arrival and can be closed; the blocks with the counts sit above and
+outside it, so they stay when it is closed. Inside it, **Recruits**, **Players**
+and **Coaches** are each a disclosure of their own, closed on arrival, shown
+only for a capacity that has a block above. A person sits under the capacity
+the blocks count them under — the same function decides both, so a General
+Manager or IT Officer invited only for that seat is under Coaches (LAN-466) and
+any other committee-only invitee under Players (LAN-440) — and the names in a
+section always add up to its block's numbers. Each section holds three groups,
+**Yes**, **No** and **No response**, each headed with its count (`Yes · 12`) and
+listing every invitee's full name alphabetically. Every name is shown — there
+is no "show more" — and a walk-up, who was never invited, is not listed. Yes
+and No sit side by side as two equal columns at every width, a phone included,
+with No response full width below them (its names in the same two columns). It
+is on the operator's event page only: the public **Event info link** page has
+the blocks but not the names.
 
 **The audience is grouped Yes, then No, then No response** (LAN-439, client
 QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort

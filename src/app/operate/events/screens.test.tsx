@@ -3331,11 +3331,15 @@ describe("the participation table on the event page", () => {
     /**
      * LAN-458 (Stu, 30 September; Brian, 1 October 2026): a fourth box under
      * the three blocks, every invitee's full name under Yes, No or No
-     * response, each group with its count. Nothing collapses, at either width:
-     * the phone stacks the groups and the desktop sets them side by side, by
-     * breakpoint alone, so the same names are in the page at both.
+     * response, each group with its count, every name in the page.
+     *
+     * LAN-481 (Brian, 6 and 7 October 2026) splits it into one disclosure per
+     * capacity the blocks show — Recruits, Players, Coaches — classified by
+     * the blocks' own function, so the GM / IT Officer fold (LAN-466) moves a
+     * name exactly as it moves a count. Inside each, Yes and No sit side by
+     * side at every width and No response runs full width below.
      */
-    describe("LAN-458 — the name-and-response box", () => {
+    describe("LAN-458 / LAN-481 — the name-and-response box by capacity", () => {
       const person = PARTICIPATION.people[0];
       const NAMED: OperatorParticipation = {
         ...PARTICIPATION,
@@ -3344,6 +3348,36 @@ describe("the participation table on the event page", () => {
           { ...person, key: "player:b", displayName: "Bryony No", answer: "no" },
           { ...person, key: "player:c", displayName: "Cyril Yes", answer: "yes" },
           { ...person, key: "coach:d", capacity: "coach", displayName: "Delia Yes", answer: "yes" },
+          {
+            ...person,
+            key: "committee:g",
+            capacity: "committee",
+            displayName: "Gwen Manager",
+            answer: "no",
+            countsAsCoach: true,
+          },
+          {
+            ...person,
+            key: "committee:t",
+            capacity: "committee",
+            displayName: "Tobias Treasurer",
+            answer: "yes",
+            countsAsCoach: false,
+          },
+          {
+            ...person,
+            key: "recruit:r",
+            capacity: "recruit",
+            displayName: "Rhea Recruit",
+            answer: "yes",
+          },
+          {
+            ...person,
+            key: "recruit:s",
+            capacity: "recruit",
+            displayName: "Rory Recruit",
+            answer: null,
+          },
           {
             ...person,
             key: "player:e",
@@ -3366,42 +3400,108 @@ describe("the participation table on the event page", () => {
         Object.defineProperty(window, "innerWidth", { configurable: true, value: jsdomWidth });
       });
 
-      async function renderNamed(width: number) {
+      async function renderNamed(width: number, participation: OperatorParticipation = NAMED) {
         Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
         vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
         vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
         vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
-        vi.mocked(readOperatorParticipation).mockResolvedValue(NAMED);
+        vi.mocked(readOperatorParticipation).mockResolvedValue(participation);
         return render(await EventDetailPage(detailProps()));
       }
 
+      const names = (group: Element) =>
+        [...group.querySelectorAll("li")].map((item) => item.textContent);
+
+      function groupsOf(capacity: string) {
+        const grid = screen.getByTestId(`response-names-${capacity}-grid`);
+        return [...grid.children];
+      }
+
       for (const width of [1280, 375]) {
-        it(`lists every invitee by answer, Yes, No, then No response, at ${width}px`, async () => {
+        it(`lists every invitee under their capacity, Yes, No, then No response, at ${width}px`, async () => {
           await renderNamed(width);
 
           const box = screen.getByTestId("response-names");
-          const groups = [...box.querySelectorAll('[data-testid^="response-names-"]')];
-          expect(groups.map((node) => node.getAttribute("data-testid"))).toEqual([
-            "response-names-yes",
-            "response-names-no",
-            "response-names-none",
+          const sections = [...box.querySelectorAll("details")];
+          expect(sections.map((node) => node.getAttribute("data-testid"))).toEqual([
+            "section-response-names-recruit",
+            "section-response-names-player",
+            "section-response-names-coach",
           ]);
-          const names = (group: Element) =>
-            [...group.querySelectorAll("li")].map((item) => item.textContent);
+          expect(sections.map((node) => node.querySelector("summary")?.textContent)).toEqual([
+            "Recruits",
+            "Players",
+            "Coaches",
+          ]);
 
-          expect(groups[0].textContent).toContain("Yes · 2");
-          expect(names(groups[0])).toEqual(["Cyril Yes", "Delia Yes"]);
-          expect(groups[1].textContent).toContain("No · 1");
-          expect(names(groups[1])).toEqual(["Bryony No"]);
-          // Every nonresponder is listed — no "show more" — and the walk-up,
-          // who was never invited, is not.
-          expect(groups[2].textContent).toContain("No response · 41");
-          expect(names(groups[2])).toHaveLength(41);
-          expect(names(groups[2])[0]).toBe("Aldous None");
+          for (const capacity of ["recruit", "player", "coach"]) {
+            expect(groupsOf(capacity).map((node) => node.getAttribute("data-testid"))).toEqual([
+              `response-names-${capacity}-yes`,
+              `response-names-${capacity}-no`,
+              `response-names-${capacity}-none`,
+            ]);
+          }
+
+          const [recruitYes, recruitNo, recruitNone] = groupsOf("recruit");
+          expect(recruitYes.textContent).toContain("Yes · 1");
+          expect(names(recruitYes)).toEqual(["Rhea Recruit"]);
+          expect(recruitNo.textContent).toContain("No · 0");
+          expect(names(recruitNone)).toEqual(["Rory Recruit"]);
+
+          // A committee seat other than GM / IT Officer folds into Players
+          // (LAN-440), and every nonresponder is listed — no "show more".
+          const [playerYes, playerNo, playerNone] = groupsOf("player");
+          expect(playerYes.textContent).toContain("Yes · 2");
+          expect(names(playerYes)).toEqual(["Cyril Yes", "Tobias Treasurer"]);
+          expect(playerNo.textContent).toContain("No · 1");
+          expect(names(playerNo)).toEqual(["Bryony No"]);
+          expect(playerNone.textContent).toContain("No response · 41");
+          expect(names(playerNone)).toHaveLength(41);
+          expect(names(playerNone)[0]).toBe("Aldous None");
+
+          // LAN-466: the General Manager is a Coach.
+          const [coachYes, coachNo, coachNone] = groupsOf("coach");
+          expect(names(coachYes)).toEqual(["Delia Yes"]);
+          expect(names(coachNo)).toEqual(["Gwen Manager"]);
+          expect(coachNone.textContent).toContain("No response · 0");
+
+          // The walk-up, who was never invited, is nowhere.
           expect(box.textContent).not.toContain("Edwin Walkup");
           expect(within(box).queryByRole("button")).toBeNull();
         });
       }
+
+      it("lists each invitee once, and agrees with the counts in the blocks above", async () => {
+        await renderNamed(1280);
+
+        const listed = [...screen.getByTestId("response-names").querySelectorAll("li")].map(
+          (item) => item.textContent,
+        );
+        expect(new Set(listed).size).toBe(listed.length);
+        expect(listed).toHaveLength(NAMED.people.filter((one) => !one.isWalkUp).length);
+
+        for (const capacity of ["recruit", "player", "coach"]) {
+          const [yes, no, none] = groupsOf(capacity).map((group) =>
+            Number(group.getAttribute("data-count")),
+          );
+          expect(
+            within(screen.getByTestId(`response-progress-${capacity}`)).getByTestId(
+              "response-counts",
+            ).textContent,
+          ).toBe(`${yes} yes · ${no} no / ${yes + no + none}`);
+        }
+      });
+
+      it("shows a section only for a capacity in the audience", async () => {
+        await renderNamed(1280, {
+          ...NAMED,
+          people: NAMED.people.filter((one) => one.capacity === "player"),
+        });
+
+        expect(screen.getByTestId("section-response-names-player")).toBeInTheDocument();
+        expect(screen.queryByTestId("section-response-names-recruit")).toBeNull();
+        expect(screen.queryByTestId("section-response-names-coach")).toBeNull();
+      });
 
       it("sits directly under the response blocks", async () => {
         const { container } = await renderNamed(1280);
@@ -3416,35 +3516,64 @@ describe("the participation table on the event page", () => {
 
       // Brian's visual review, 5 October 2026: one collapsible "Attendance"
       // section, open on arrival, the counts card above and outside it.
-      it("holds the three lists in one open Attendance section, the counts card outside it", async () => {
+      // LAN-481: a closed disclosure per capacity inside it.
+      it("holds the capacity sections, closed, in one open Attendance section, the counts card outside it", async () => {
         await renderNamed(1280);
 
         const section = screen.getByTestId("section-response-names");
         expect(section.tagName).toBe("DETAILS");
         expect(section).toHaveAttribute("open");
         expect(section.querySelector("summary")?.textContent).toBe("Attendance");
-        expect(section).toContainElement(screen.getByTestId("response-names-yes"));
-        expect(section).toContainElement(screen.getByTestId("response-names-no"));
-        expect(section).toContainElement(screen.getByTestId("response-names-none"));
+
+        for (const capacity of ["recruit", "player", "coach"]) {
+          const inner = screen.getByTestId(`section-response-names-${capacity}`);
+          expect(inner.tagName).toBe("DETAILS");
+          expect(inner).not.toHaveAttribute("open");
+          expect(section).toContainElement(inner);
+          expect(inner).toContainElement(screen.getByTestId(`response-names-${capacity}-yes`));
+          expect(inner).toContainElement(screen.getByTestId(`response-names-${capacity}-no`));
+          expect(inner).toContainElement(screen.getByTestId(`response-names-${capacity}-none`));
+        }
 
         const progress = screen.getByTestId("response-progress");
         expect(section.contains(progress)).toBe(false);
         expect(
           progress.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
-
-        // Yes and No are the first two cells of the grid; No response spans it.
-        const grid = screen.getByTestId("response-names");
-        expect([...grid.children].map((node) => node.getAttribute("data-testid"))).toEqual([
-          "response-names-yes",
-          "response-names-no",
-          "response-names-none",
-        ]);
-        expect(
-          getComputedStyle(screen.getByTestId("response-names-none")).gridColumn.replace(/\s/g, ""),
-        ).toBe("1/-1");
-        expect(getComputedStyle(screen.getByTestId("response-names-yes")).gridColumn).toBe("");
       });
+
+      it("opens a capacity section when its heading is clicked", async () => {
+        await renderNamed(1280);
+
+        const players = screen.getByTestId("section-response-names-player") as HTMLDetailsElement;
+        expect(players.open).toBe(false);
+        fireEvent.click(within(players).getByText("Players"));
+        expect(players.open).toBe(true);
+        expect(
+          (screen.getByTestId("section-response-names-coach") as HTMLDetailsElement).open,
+        ).toBe(false);
+      });
+
+      // LAN-481, mobile (Brian, 7 October 2026): Yes and No side by side in
+      // one row, No response full width underneath — at every width, so the
+      // two-column grid carries no breakpoint that would stack it on a phone.
+      for (const width of [1280, 375]) {
+        it(`sets Yes and No side by side and No response full width below at ${width}px`, async () => {
+          await renderNamed(width);
+
+          for (const capacity of ["recruit", "player", "coach"]) {
+            const grid = screen.getByTestId(`response-names-${capacity}-grid`);
+            const style = getComputedStyle(grid);
+            expect(style.display).toBe("grid");
+            expect(style.gridTemplateColumns.replace(/\s/g, "")).toBe("repeat(2,minmax(0,1fr))");
+
+            const [yes, no, none] = [...grid.children].map((node) => getComputedStyle(node));
+            expect(yes.gridColumn).toBe("");
+            expect(no.gridColumn).toBe("");
+            expect(none.gridColumn.replace(/\s/g, "")).toBe("1/-1");
+          }
+        });
+      }
     });
 
     it("shows no block at all before approval, when nobody is invited", async () => {

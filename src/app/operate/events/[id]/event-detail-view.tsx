@@ -257,7 +257,7 @@ export function EventDetailView({
             nothing at all before approval, when there is no invitation to
             count. */}
         {participation ? <ResponseProgress people={participation.people} /> : null}
-        {/* LAN-458: every invitee's name under their answer, operator page only. */}
+        {/* LAN-458 / LAN-481: every invitee's name, by capacity then answer, operator page only. */}
         {participation ? <ResponseNames people={participation.people} /> : null}
 
         {mayApprove && changeWentOutSilently && lastAmendment ? (

@@ -52,12 +52,16 @@ const COUNTING_PRECEDENCE: readonly ResponseCapacity[] = Object.freeze([
 ]);
 
 /** The capacities a block is shown for — LAN-440: committee folds into Players, display only. */
-type DisplayCapacity = Exclude<ResponseCapacity, "committee">;
+export type DisplayCapacity = Exclude<ResponseCapacity, "committee">;
 
 /** The order the blocks are shown in — Stewart's own order, which is not the counting order. */
-const DISPLAY_ORDER: readonly DisplayCapacity[] = Object.freeze(["recruit", "player", "coach"]);
+export const DISPLAY_ORDER: readonly DisplayCapacity[] = Object.freeze([
+  "recruit",
+  "player",
+  "coach",
+]);
 
-const RESPONSE_CAPACITY_LABELS: Readonly<Record<DisplayCapacity, string>> = Object.freeze({
+export const RESPONSE_CAPACITY_LABELS: Readonly<Record<DisplayCapacity, string>> = Object.freeze({
   recruit: "Recruits",
   player: "Players",
   coach: "Coaches",
@@ -139,6 +143,16 @@ function countingCapacityOf(row: ResponseProgressRow): ResponseCapacity | null {
 }
 
 /**
+ * The block a row is tallied under, or null where it is tallied under none —
+ * the one classifier. LAN-481: the name card under the blocks reads it too, so
+ * a name and the count it belongs to can never disagree.
+ */
+export function responseCapacityOf(row: ResponseProgressRow): DisplayCapacity | null {
+  const counted = countingCapacityOf(row);
+  return counted === null ? null : displayCapacityOf(counted, row);
+}
+
+/**
  * One block per capacity present in the event's audience, in display order.
  *
  * A capacity nobody was invited under produces no block at all, which is
@@ -153,9 +167,8 @@ export function responseProgressByCapacity(
   const tally = new Map<DisplayCapacity, { invited: number; yes: number; no: number }>();
 
   for (const row of rows) {
-    const counted = countingCapacityOf(row);
-    if (counted === null) continue;
-    const capacity = displayCapacityOf(counted, row);
+    const capacity = responseCapacityOf(row);
+    if (capacity === null) continue;
     const held = tally.get(capacity) ?? { invited: 0, yes: 0, no: 0 };
     held.invited += 1;
     if (row.answer === "yes") held.yes += 1;
