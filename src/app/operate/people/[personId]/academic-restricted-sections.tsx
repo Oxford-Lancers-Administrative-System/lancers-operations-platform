@@ -18,7 +18,7 @@ import type { VisiblePersonRecord } from "./identity-contact-sections";
 export function RestrictedSection({ record }: { record: VisiblePersonRecord }) {
   return (
     <Section variant="banded" band="person" title="Restricted">
-      <Fact label="Date of birth" note={record.dateOfBirthSource ?? undefined}>
+      <Fact label="Date of birth">
         {record.dateOfBirth != null ? <>{formatDay(record.dateOfBirth)}</> : <NotRecorded />}
       </Fact>
       <Fact label="Under 18">

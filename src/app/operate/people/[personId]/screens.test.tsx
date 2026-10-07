@@ -301,67 +301,86 @@ describe("the person record, for an authorized operator", () => {
       unmount();
     }
   });
-  it("shows who supplied a contact value, from its own stored source", async () => {
+  // LAN-482: a field shows its label and its value or state only. The stored
+  // `source` of a contact point, and who supplied a name or an academic fact,
+  // stay in the data and never render beneath the value.
+  it("renders no source or ticket id beneath a contact value", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(
       baseRecord({
         familyName: "Fielding",
         contacts: [
           {
+            ...contactOf("phone", null, "+15550148001"),
             id: "c1",
-            kind: "phone",
-            scope: null,
-            rawValue: "+447700900233",
-            normalisedValue: null,
-            isPreferred: true,
-            source: "Norbert Mereworth",
-            validFrom: new Date(),
-            validUntil: null,
+            source: "recruitment sign-up, partial (LAN-425)",
           },
+          {
+            ...contactOf("email", "personal", "synthetic.person@example.test"),
+            id: "c2",
+            source: "recruitment sign-up (LAN-202)",
+          },
+          {
+            ...contactOf("email", "college", "synthetic.person@college.example"),
+            id: "c3",
+            source: "operator intake (LAN-206)",
+          },
+          {
+            ...contactOf("email", null, "unclassified.person@example.test"),
+            id: "c4",
+            source: "recruitment operator add (LAN-206)",
+          },
+        ],
+        aliases: [
+          {
+            id: "a1",
+            alias: "Synthetic Alias",
+            isDisplayName: false,
+            source: "recruitment sign-up (LAN-202)",
+          } as PersonRecord["aliases"][number],
         ],
         missingRequiredFields: [],
       }),
     );
     stubReads();
 
-    render(await PersonRecordPage(pageProps("p1")));
+    const { container } = render(await PersonRecordPage(pageProps("p1")));
 
-    expect(screen.getByText("+447700900233")).toBeVisible();
-    expect(screen.getByText("Norbert Mereworth")).toBeVisible();
+    expect(screen.getByText("+15550148001")).toBeVisible();
+    expect(screen.getByText("synthetic.person@example.test")).toBeVisible();
+    expect(screen.getByText("Synthetic Alias")).toBeVisible();
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/\bLAN-\d+\b/);
+    expect(text).not.toContain("recruitment sign-up");
+    expect(text).not.toContain("operator intake");
+    expect(text).not.toContain("recruitment operator add");
+    expect(container.querySelector('[data-testid="fact-provenance"]')).toBeNull();
   });
 
-  // Q-13: college, matriculation year, expected graduation, degree field,
-  // given name, family name and date of birth have no `source` column of
-  // their own — `readPersonRecord()` derives who supplied them from
-  // `audit_events` instead. This is the acceptance test for that derivation.
-  it("shows known field provenance and omits the caption where history has none", async () => {
+  // Q-13 / LAN-482: the audit-derived "who supplied it" for college, name and
+  // the academic facts is still read by the service, and is not drawn.
+  it("renders no who-supplied caption under name or academic facts", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(
       baseRecord({
         familyName: "Fielding",
-        familyNameSource: null, // never edited through the application
+        familyNameSource: "Synthetic Operator",
         college: "Merton",
-        collegeSource: "Norbert Mereworth", // most recent person_college_updated
+        collegeSource: "Synthetic Operator",
         matriculationYear: 2023,
-        matriculationYearSource: null,
+        matriculationYearSource: "Synthetic Operator (LAN-999)",
         missingRequiredFields: [],
       }),
     );
     stubReads();
 
-    render(await PersonRecordPage(pageProps("p1")));
+    const { container } = render(await PersonRecordPage(pageProps("p1")));
 
     expect(screen.getByText("Merton")).toBeVisible();
-    expect(screen.getByText("Norbert Mereworth")).toBeVisible();
-    // Matriculation year has a value but no audit row naming who set it —
-    // LAN-233 only displays provenance when it is known; the value stays visible.
     expect(screen.getByText("2023")).toBeVisible();
-    expect(
-      screen
-        .getByText("2023")
-        .closest('[data-testid="record-row"]')
-        ?.querySelector('[data-testid="fact-provenance"]'),
-    ).toBeNull();
+    expect(screen.queryByText(/Synthetic Operator/)).toBeNull();
+    expect(container.textContent ?? "").not.toMatch(/\bLAN-\d+\b/);
+    expect(container.querySelector('[data-testid="fact-provenance"]')).toBeNull();
   });
 
   it("opens a recruit with their status, and no funnel control", async () => {
