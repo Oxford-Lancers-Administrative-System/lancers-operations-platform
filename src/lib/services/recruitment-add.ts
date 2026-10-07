@@ -1,6 +1,5 @@
 import "server-only";
 
-import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { applyAudienceGroupRuleIn } from "./event-audience-rule";
@@ -241,18 +240,13 @@ export async function finishRecruitmentAddIn(
   const evidenceValue = academic.optInEvidence?.trim() || null;
   const evidenceLabel = evidenceValue ? (OPT_IN_LABEL.get(evidenceValue) ?? null) : null;
 
-  // first_contact_on is today: the operator is typing this recruit in because the club just met them (LAN-247).
+  // first_contact_on is now: the operator is typing this recruit in because the club just met them (LAN-247, LAN-486).
   const inserted = await tx.query<{ id: string }>(
     `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
-     values ($1::uuid, $2::uuid, $3, $4::date)
+     values ($1::uuid, $2::uuid, $3, now())
      on conflict (person_id, season_id) do nothing
      returning id`,
-    [
-      personId,
-      seasonId,
-      evidenceLabel ? `Operator add · ${evidenceLabel}` : "Operator add",
-      todayInClubZone(),
-    ],
+    [personId, seasonId, evidenceLabel ? `Operator add · ${evidenceLabel}` : "Operator add"],
   );
   let prospectId: string;
   let prospectCreated: boolean;

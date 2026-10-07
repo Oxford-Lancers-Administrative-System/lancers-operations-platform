@@ -39,7 +39,7 @@ const ROW = {
   phoneForCall: "+447700900555",
   status: "identified",
   source: "Referred by a current player",
-  firstContactOn: "2026-05-12",
+  firstContactOn: "2026-05-12T09:00:00.000Z",
   personalSent: false,
   recruitmentSent: false,
   consent: "never_asked",

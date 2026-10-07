@@ -312,7 +312,7 @@ async function repointProspects(
     await tx.query(
       `update public.recruitment_prospects
           set status = $3::public.prospect_status,
-              first_contact_on = coalesce($4::date, first_contact_on),
+              first_contact_on = coalesce($4::timestamptz, first_contact_on),
               committed_on = $5::date
         where person_id = $1::uuid and season_id = $2::uuid`,
       [

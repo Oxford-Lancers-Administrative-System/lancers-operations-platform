@@ -230,6 +230,13 @@ new recruit by — LAN-247. Both now record today, on the club's clock, on the
 row they create; a second sign-up or a second add keeps the day the club first
 met them.
 
+**First contact is a date and time (LAN-486).** The field is an instant. QR
+sign-up and hand-add record the moment of capture; walk-up records the event's
+start (Europe/London), or the moment of entry when the event has no start time;
+a merge keeps the earlier. The board's First contact column and the record show
+it in the app's date-time format (`1 May 2026, 10:00`), and the board sorts by
+it to the minute. The weekly report still prints the day.
+
 **SEND / RESEND**, one button per questionnaire, each opening a dialog naming
 the last-sent date or that it has never been sent — see "The send machinery."
 Whether either button is reachable now differs by track — see item 9 below.

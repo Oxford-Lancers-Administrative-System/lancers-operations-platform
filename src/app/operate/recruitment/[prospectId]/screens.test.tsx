@@ -101,7 +101,7 @@ function givenRecord(overrides: Partial<RecruitmentProspectRecord> = {}): void {
     displayName: "Ambrose Kittiwake",
     status: "engaged",
     source: "Freshers' fair",
-    firstContactOn: "2026-05-01",
+    firstContactOn: "2026-05-01T09:00:00.000Z",
     committedOn: null,
     convertedMembershipId: null,
     consent: "never_asked",

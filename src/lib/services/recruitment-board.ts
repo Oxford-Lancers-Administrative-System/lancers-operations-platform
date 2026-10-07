@@ -54,6 +54,7 @@ export interface RecruitmentBoardRow {
   // Recruitment.
   readonly status: ProspectStatus;
   readonly source: string | null;
+  /** LAN-486: the instant of first contact, as an ISO string (`Date.toISOString()`, UTC). Sorts as time. */
   readonly firstContactOn: string | null;
   readonly personalSent: boolean;
   readonly recruitmentSent: boolean;
@@ -98,12 +99,12 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
     person_id: string;
     status: string;
     source: string | null;
-    first_contact_on: string | null;
+    first_contact_on: Date | null;
     given_name: string;
     family_name: string | null;
   }>(
     `select rp.id as prospect_id, rp.person_id, rp.status::text as status, rp.source,
-            to_char(rp.first_contact_on, 'YYYY-MM-DD') as first_contact_on,
+            rp.first_contact_on,
             p.given_name, p.family_name
        from public.recruitment_prospects rp
        join public.people p on p.id = rp.person_id
@@ -306,7 +307,7 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
       phoneForCall: person?.phone_for_call ?? null,
       status: prospect.status as ProspectStatus,
       source: prospect.source,
-      firstContactOn: prospect.first_contact_on,
+      firstContactOn: prospect.first_contact_on?.toISOString() ?? null,
       personalSent: SENT_STEP_KEYS.personal.some((step) => sentSteps.has(step)),
       recruitmentSent: SENT_STEP_KEYS.recruitment.some((step) => sentSteps.has(step)),
       consent: consentByPerson.get(prospect.person_id)?.state ?? "never_asked",

@@ -161,7 +161,8 @@ then most recent first contact", `LAN-204`) had nothing to sort a hand-added
 recruit by. An operator typing a recruit in has just met them, which is what the
 field means; the walk-up door already recorded the same fact from the event's own
 date. Offering an existing prospect rather than erroring is unchanged, and that
-path still leaves the earlier date alone.
+path still leaves the earlier date alone. Since LAN-486 the value is the exact
+moment of the add, not only its day.
 
 ## The send machinery — `declareRecruitmentCycleJobsIn`, called once
 

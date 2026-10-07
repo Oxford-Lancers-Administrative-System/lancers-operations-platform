@@ -66,7 +66,8 @@ interface RecruitmentRow {
   display_name: string | null;
   status: string;
   source: string | null;
-  first_contact_on: Date | string | null;
+  /** LAN-486: the Europe/London day of the first-contact instant, `YYYY-MM-DD`. */
+  first_contact_on: string | null;
 }
 
 interface UpcomingRow {
@@ -367,13 +368,17 @@ export async function computeReportContent(
   });
 
   const recruitment = await tx.query<RecruitmentRow>(
+    // LAN-486: first_contact_on is an instant; the report shows the day, read on
+    // the club's clock (not the server's zone), and keeps its day-then-name order.
     `select ${DISPLAY_NAME} as display_name, r.status::text as status, r.source,
-            r.first_contact_on
+            to_char(r.first_contact_on at time zone 'Europe/London', 'YYYY-MM-DD')
+              as first_contact_on
        from public.recruitment_prospects r
        join public.people p on p.id = r.person_id
       where r.season_id = $1
         and r.converted_membership_id is null
-      order by r.first_contact_on desc nulls last, display_name`,
+      order by (r.first_contact_on at time zone 'Europe/London')::date desc nulls last,
+               display_name`,
     [season.id],
   );
 

@@ -55,7 +55,7 @@ const BASE_RECORD: RecruitmentProspectRecord = {
   displayName: "Ambrose Kittiwake",
   status: "engaged",
   source: "Freshers' fair",
-  firstContactOn: "2026-05-01",
+  firstContactOn: "2026-05-01T09:00:00.000Z",
   committedOn: null,
   convertedMembershipId: null,
   consent: "never_asked",
@@ -335,6 +335,14 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
     expect(screen.getByTestId("section-recruitment")).toBeTruthy();
     // No destination is claimed when no contact was supplied.
     expect(screen.getByTestId("section-person").textContent).toContain("not recorded");
+  });
+});
+
+describe("First contact shows the date and time — LAN-486", () => {
+  it("renders the instant on the club's clock, in the app's date-time format", () => {
+    // BASE_RECORD's first contact is 09:00 UTC on 1 May: 10:00 in London (BST).
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    expect(screen.getByText("1 May 2026, 10:00")).toBeInTheDocument();
   });
 });
 

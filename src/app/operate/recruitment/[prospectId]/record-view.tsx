@@ -366,7 +366,7 @@ export default function RecruitmentRecordView({
               <RecordField label="Source" value={record.source ?? null} readOnly />
               <RecordField
                 label="First contact"
-                value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
+                value={record.firstContactOn ? formatWhen(new Date(record.firstContactOn)) : null}
                 readOnly
               />
               <RecordField

@@ -59,7 +59,7 @@ function row(overrides: Partial<RecruitmentBoardRow> = {}): RecruitmentBoardRow 
     phoneForCall: "07700 900123",
     status: "engaged",
     source: "Taster session",
-    firstContactOn: "2026-05-01",
+    firstContactOn: "2026-05-01T09:00:00.000Z",
     personalSent: false,
     recruitmentSent: false,
     consent: "granted",
@@ -189,13 +189,13 @@ describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09
     const a = row({
       prospectId: "a",
       displayName: "Amory Vance",
-      firstContactOn: "2026-05-01",
+      firstContactOn: "2026-05-01T09:00:00.000Z",
       events: { [EVENT.eventId]: { rsvp: "yes", attendance: "present" } },
     });
     const b = row({
       prospectId: "b",
       displayName: "Beatrix Nowell",
-      firstContactOn: "2026-05-01",
+      firstContactOn: "2026-05-01T09:00:00.000Z",
       events: { [EVENT.eventId]: { rsvp: "no", attendance: "absent" } },
     });
     return [a, b];
@@ -283,6 +283,15 @@ describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09
     renderWithEvent([row({ prospectId: "c", displayName: "Cassius Wren", events: {} })]);
     const rowC = within(screen.getByTestId("recruitment-row-c"));
     expect(rowC.getAllByText("Not recorded").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("First contact shows the date and time — LAN-486", () => {
+  it("renders the instant on the club's clock, in the app's date-time format", () => {
+    // 09:00 UTC on 1 May is 10:00 in London (BST).
+    renderBoard([row({ firstContactOn: "2026-05-01T09:00:00.000Z" })]);
+    const boardRow = within(screen.getByTestId("recruitment-row-prospect-1"));
+    expect(boardRow.getByText("1 May 2026, 10:00")).toBeInTheDocument();
   });
 });
 
