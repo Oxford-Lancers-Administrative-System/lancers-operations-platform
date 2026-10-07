@@ -270,7 +270,7 @@ Notes, What changed and Status history as Recruit details; Recruitment events
 as Event details. The record header's status is text, not a pill. Every write
 re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
-**Add recruits** (Add recruit, Import recruits) and **QR code** only with "May
+**Add recruits** (Add one recruit, Bulk import recruits) and **QR code** only with "May
 add recruits"; their pages and actions refuse without it.
 
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
@@ -324,8 +324,8 @@ consent was given** note says it was verbal, and the consent row keeps who
 recorded it and when, audited to that operator. It never grants anything on its
 own.
 
-**Import recruits (LAN-487, Brian 2026-10-07).** Recruitment → **Add recruits**
-is a menu of **Add recruit** and **Import recruits**. The import is the
+**Bulk import recruits (LAN-487, Brian 2026-10-07).** Recruitment → **Add recruits**
+is a menu of **Add one recruit** and **Bulk import recruits**. The import is the
 roster import's door for recruits: download the empty template, upload,
 read the proposal, answer possible duplicates, confirm, read the result. It
 only adds. The template's columns are the hand-add's fields; first name, last

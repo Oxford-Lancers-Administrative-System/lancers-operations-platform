@@ -276,7 +276,7 @@ describe("after applying", () => {
 });
 
 describe("the board's Add recruits menu", () => {
-  it("offers Add recruit and Import recruits", async () => {
+  it("offers Add one recruit and Bulk import recruits", async () => {
     render(<AddRecruitsMenu testId="recruitment-add-button" />);
     await act(async () => {
       fireEvent.click(screen.getByTestId("recruitment-add-button"));
@@ -289,6 +289,6 @@ describe("the board's Add recruits menu", () => {
       "href",
       "/operate/recruitment/import",
     );
-    expect(screen.getByTestId("add-recruits-import")).toHaveTextContent("Import recruits");
+    expect(screen.getByTestId("add-recruits-import")).toHaveTextContent("Bulk import recruits");
   });
 });

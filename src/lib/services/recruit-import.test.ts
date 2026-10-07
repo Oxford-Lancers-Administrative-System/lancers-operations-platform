@@ -377,6 +377,24 @@ describe("who a row might already be", () => {
     expect(row.duplicate).toBeNull();
   });
 
+  it("a mobile held by one person and an email held by another asks, listing both", async () => {
+    const mobile = mobileFor();
+    const email = collegeEmailFor("Split");
+    const byMobile = await seedPerson({ mobile });
+    const byEmail = await seedPerson({ emails: [{ value: email, scope: "college" }] });
+    const plan = await planned(csvOf([newRow("Split", { mobile, collegeEmail: email })]));
+    const row = rowAt(plan, 2);
+    expect(row.outcome).toBe("refused");
+    expect(plan.unansweredLines).toEqual([2]);
+    const candidates = row.duplicate?.candidates ?? [];
+    expect(candidates.map((c) => [c.personId, c.matchedOn]).sort()).toEqual(
+      [
+        [byMobile.id, ["mobile"]],
+        [byEmail.id, ["college email"]],
+      ].sort(),
+    );
+  });
+
   it("a person matched on several fields appears once, with every matched field named", async () => {
     const college = collegeEmailFor("Multi");
     const personal = personalEmailFor("Multi");

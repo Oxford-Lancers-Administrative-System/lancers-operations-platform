@@ -45,7 +45,7 @@ import {
 } from "./presentation";
 
 /**
- * Import recruits — LAN-487. The roster import's screen
+ * Bulk import recruits — LAN-487. The roster import's screen
  * (`../../roster/import/import-screen.tsx`, LAN-215) in its three states —
  * choosing a file, the proposal with its possible duplicates, and what
  * happened — with recruit nouns. Every outcome, reason and candidate arrives
@@ -68,7 +68,7 @@ export default function RecruitImportScreen(props: RecruitImportScreenProps) {
   return (
     <Stack spacing={3}>
       <PageHeader
-        title={plan === null ? "Import recruits" : `Import — ${plan.fileName ?? "your file"}`}
+        title={plan === null ? "Bulk import recruits" : `Import — ${plan.fileName ?? "your file"}`}
         back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
         subtitle={
           <Typography component="span" variant="body2" data-testid="import-subheading">

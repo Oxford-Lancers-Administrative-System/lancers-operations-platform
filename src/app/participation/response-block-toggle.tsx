@@ -33,7 +33,7 @@ export function ResponseBlockToggle({
         component="div"
         onClick={() => setOpen((was) => !was)}
         aria-expanded={open}
-        aria-controls={panelId}
+        aria-controls={open ? panelId : undefined}
         data-testid={`response-toggle-${capacity}`}
         sx={{
           display: "flex",

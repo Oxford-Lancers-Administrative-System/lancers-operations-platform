@@ -21,7 +21,7 @@ export default async function RecruitImportPage() {
     if (!isServiceError(error)) throw error;
     return (
       <UnavailableScreen
-        title="Import recruits"
+        title="Bulk import recruits"
         message={error.message}
         testId="import-unavailable"
       >

@@ -6,19 +6,19 @@ import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 
-// Add recruits, as a menu of two — LAN-487: Add recruit and Import recruits,
+// Add recruits, as a menu of two — LAN-487: Add one recruit and Bulk import recruits,
 // in the roster's Add players menu pattern (`../roster/add-players-menu.tsx`).
 
 const ADD_RECRUITS_MENU_CHOICES: readonly { href: string; label: string; detail: string }[] =
   Object.freeze([
     Object.freeze({
       href: "/operate/recruitment/new",
-      label: "Add recruit",
+      label: "Add one recruit",
       detail: "One person, by hand",
     }),
     Object.freeze({
       href: "/operate/recruitment/import",
-      label: "Import recruits",
+      label: "Bulk import recruits",
       detail: "A CSV of recruits",
     }),
   ]);

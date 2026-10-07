@@ -197,8 +197,17 @@ async function planRow(
   };
 
   // As on the roster: a mobile is single-owner, so a match to exactly one person is that person.
+  // But if another person holds one of the row's emails, the row names two people:
+  // ask, rather than resolve to the mobile's owner and fail the apply on the email.
   const byPhone = candidates.filter((candidate) => candidate.matchedOn.includes("phone"));
-  if (byPhone.length === 1) {
+  const emailElsewhere =
+    byPhone.length === 1 &&
+    candidates.some(
+      (candidate) =>
+        candidate.personId !== byPhone[0].personId &&
+        (candidate.matchedOn.includes("email") || candidate.matchedOn.includes("college email")),
+    );
+  if (byPhone.length === 1 && !emailElsewhere) {
     const [person] = byPhone;
     return {
       ...resolved(person.personId, null),

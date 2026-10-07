@@ -3579,6 +3579,7 @@ describe("the participation table on the event page", () => {
 
         fireEvent.click(players);
         expect(players).toHaveAttribute("aria-expanded", "false");
+        expect(players).not.toHaveAttribute("aria-controls");
       });
 
       it("opens from the keyboard", async () => {
