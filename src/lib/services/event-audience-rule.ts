@@ -5,6 +5,7 @@ import { recordAudit } from "./audit";
 import {
   audienceGroupTokenFor,
   audienceOptionFor,
+  candidateInGroup,
   groupSelectionKeys,
   parseAudienceGroupToken,
   RECRUITMENT_EVENT_TYPE,
@@ -270,6 +271,50 @@ export async function applyAudienceGroupRuleIn(
   }
 
   return { added, messagesDeclared, messagesWithheld, retracted };
+}
+
+/**
+ * LAN-487 — what the recruit import's preview says before anything is written:
+ * the approved, not-yet-started events a recruit entering at `identified` (a
+ * new prospect's own status) would be added to by this rule. The same event
+ * read and the same group test {@link applyAudienceGroupRuleIn} uses; only the
+ * recruit is hypothetical. Read-only.
+ */
+export async function readEventsANewRecruitJoinsIn(
+  tx: Tx,
+  seasonId: string,
+): Promise<readonly string[]> {
+  const events = await readCandidateEventsIn(tx, seasonId);
+  const newRecruit = {
+    key: "",
+    capacity: "recruit" as const,
+    anchorId: "",
+    personId: "",
+    displayName: "",
+    standing: "",
+    unit: null,
+    contact: null,
+    recruitStatus: "identified",
+  };
+  return events
+    .filter((event) => event.groups.some((group) => candidateInGroup(newRecruit, group)))
+    .map((event) => event.id);
+}
+
+/**
+ * Of those events, how many one person the club already holds would still be
+ * added to: a deliberate deselection sticks and an existing row is left alone,
+ * exactly as the rule itself decides.
+ */
+export async function countAudienceJoinsForPersonIn(
+  tx: Tx,
+  eventIds: readonly string[],
+  personId: string,
+): Promise<number> {
+  if (eventIds.length === 0) return 0;
+  const excluded = await readExclusionsIn(tx, personId);
+  const existing = await readExistingAudienceIn(tx, personId);
+  return eventIds.filter((id) => !excluded.has(id) && !existing.has(id)).length;
 }
 
 // ---------------------------------------------------------------------------

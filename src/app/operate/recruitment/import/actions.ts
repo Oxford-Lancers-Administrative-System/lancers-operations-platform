@@ -1,0 +1,137 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireGrant } from "@/lib/auth/guards";
+import { ADD_RECRUITS } from "@/lib/auth/roster-access";
+import { isServiceError } from "@/lib/db";
+import { MAX_IMPORT_BYTES } from "@/lib/services/recruit-csv";
+import {
+  applyRecruitImport,
+  IMPORT_TOO_LARGE_MESSAGE,
+  planRecruitImport,
+  type RecruitDuplicateAnswers,
+} from "@/lib/services/recruit-import";
+import {
+  EMPTY_RECRUIT_IMPORT_STATE,
+  NO_FILE_CHOSEN_MESSAGE,
+  type RecruitImportScreenState,
+} from "./import-state";
+
+/**
+ * The recruit import's two writes, one of which writes nothing — LAN-487,
+ * `../../roster/import/actions.ts`'s shape. May add recruits here, and again
+ * in the service.
+ */
+
+function text(formData: FormData, field: string): string {
+  const value = formData.get(field);
+  return typeof value === "string" ? value : "";
+}
+
+/** A `NotPermitted` is a message like any service error (LAN-423); a bug still throws. */
+function messageFor(error: unknown): string {
+  if (!isServiceError(error)) throw error;
+  return error.message;
+}
+
+function readDuplicateAnswers(formData: FormData): RecruitDuplicateAnswers {
+  const raw = text(formData, "duplicateAnswersJson");
+  let parsed: Record<string, string> = {};
+  if (raw !== "") {
+    try {
+      const value: unknown = JSON.parse(raw);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        parsed = Object.fromEntries(
+          Object.entries(value as Record<string, unknown>).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        );
+      }
+    } catch {
+      parsed = {};
+    }
+  }
+
+  const answerLine = text(formData, "answerLine");
+  const answerValue = text(formData, "answerValue");
+  if (answerLine === "" || answerValue === "") return parsed;
+  return { ...parsed, [answerLine]: answerValue };
+}
+
+export async function importRecruitsAction(
+  previous: RecruitImportScreenState,
+  formData: FormData,
+): Promise<RecruitImportScreenState> {
+  try {
+    await requireGrant(ADD_RECRUITS);
+  } catch (error) {
+    // LAN-423: the refusal is the screen's error; the proposal stays on screen.
+    return { ...previous, error: messageFor(error), applied: null };
+  }
+
+  const intent = text(formData, "intent");
+  if (intent === "cancel") return EMPTY_RECRUIT_IMPORT_STATE;
+  if (intent === "apply") return applyImport(previous, formData);
+  return proposeImport(formData);
+}
+
+/** Read the file (or a fresh duplicate answer), say what it would do, and write nothing. */
+async function proposeImport(formData: FormData): Promise<RecruitImportScreenState> {
+  const uploaded = formData.get("file");
+  const carryingFile = uploaded !== null && typeof uploaded !== "string" && uploaded.size > 0;
+
+  let csvText: string;
+  let fileName: string | null;
+
+  if (carryingFile) {
+    const file = uploaded as File;
+    if (file.size > MAX_IMPORT_BYTES) {
+      return { ...EMPTY_RECRUIT_IMPORT_STATE, error: IMPORT_TOO_LARGE_MESSAGE };
+    }
+    fileName = file.name === "" ? null : file.name;
+    csvText = await file.text();
+  } else {
+    // Re-proposing after a duplicate answer: the file is carried through the hidden field, not re-chosen.
+    csvText = text(formData, "csvText");
+    fileName = text(formData, "fileName") || null;
+    if (csvText === "") return { ...EMPTY_RECRUIT_IMPORT_STATE, error: NO_FILE_CHOSEN_MESSAGE };
+  }
+
+  const duplicateAnswers = readDuplicateAnswers(formData);
+
+  let result;
+  try {
+    result = await planRecruitImport({ csvText, fileName, duplicateAnswers });
+  } catch (error) {
+    return { ...EMPTY_RECRUIT_IMPORT_STATE, error: messageFor(error) };
+  }
+
+  if (!result.ok) return { ...EMPTY_RECRUIT_IMPORT_STATE, error: result.reason, fileName };
+
+  return { error: null, plan: result.plan, csvText, fileName, duplicateAnswers, applied: null };
+}
+
+/** Apply the proposal the operator confirmed, as one transaction. */
+async function applyImport(
+  previous: RecruitImportScreenState,
+  formData: FormData,
+): Promise<RecruitImportScreenState> {
+  const csvText = text(formData, "csvText");
+  const digest = text(formData, "digest");
+  const fileName = text(formData, "fileName") || null;
+  const duplicateAnswers = readDuplicateAnswers(formData);
+
+  if (csvText === "" || digest === "") {
+    return { ...EMPTY_RECRUIT_IMPORT_STATE, error: NO_FILE_CHOSEN_MESSAGE };
+  }
+
+  try {
+    const applied = await applyRecruitImport({ csvText, fileName, duplicateAnswers, digest });
+    revalidatePath("/operate/recruitment");
+    revalidatePath("/operate/recruitment/import");
+    return { ...previous, error: null, applied };
+  } catch (error) {
+    // The proposal stays on screen — nothing was written, whatever went wrong.
+    return { ...previous, error: messageFor(error), applied: null };
+  }
+}

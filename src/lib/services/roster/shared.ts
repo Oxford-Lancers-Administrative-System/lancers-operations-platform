@@ -19,7 +19,9 @@ export interface ReturnerIntakeInput {
   matriculationYear?: number | null;
 }
 
-export type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
+/** `college email` is LAN-487's: only the recruit import asks it, so a roster candidate never carries it. */
+export type CandidateMatch =
+  "given name" | "family name" | "known as" | "email" | "college email" | "phone";
 
 export interface PersonCandidate {
   personId: string;

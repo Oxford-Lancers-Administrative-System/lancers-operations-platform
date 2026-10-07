@@ -270,8 +270,8 @@ Notes, What changed and Status history as Recruit details; Recruitment events
 as Event details. The record header's status is text, not a pill. Every write
 re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
-**Add recruit** and **QR code** only with "May add recruits"; their pages and
-actions refuse without it.
+**Add recruits** (Add recruit, Import recruits) and **QR code** only with "May
+add recruits"; their pages and actions refuse without it.
 
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
 board (and a phone on its side) an **Attendance** group sits immediately right
@@ -323,6 +323,27 @@ recorded from their record's **Record consent** (LAN-371): the required **How
 consent was given** note says it was verbal, and the consent row keeps who
 recorded it and when, audited to that operator. It never grants anything on its
 own.
+
+**Import recruits (LAN-487, Brian 2026-10-07).** Recruitment → **Add recruits**
+is a menu of **Add recruit** and **Import recruits**. The import is the
+roster import's door for recruits: download the empty template, upload,
+read the proposal, answer possible duplicates, confirm, read the result. It
+only adds. The template's columns are the hand-add's fields; first name, last
+name and mobile are required; `opt_in` takes `gave_it`, `passed_on`, `public`
+or `other` or their full labels, any case, or blank, and anything else refuses
+the row. Each row is checked with the roster's duplicate check on first name,
+last name, known as, college email, personal email and mobile (last nine
+digits); one person holding the mobile is that person, any other match asks
+the roster's Same person / Different person question, and an unanswered row is
+refused. A current player is refused; a recruit already in this season is
+reported as already there with nothing written. Every other row is written by
+the hand-add's own write, so it gets the recruit record (source `CSV import`,
+or `CSV import · <opt-in label>`), opt-in evidence and note, the welcome cycle
+and the audience group rule; the proposal shows how many will be added to
+event audiences. "Different person" over a matching contact records the
+reason `Confirmed different in recruit import, line N`. A later line repeating
+an earlier line's person, mobile or email is refused naming the earlier line.
+The file is never stored; the digest, size and row limits are the roster's.
 
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.

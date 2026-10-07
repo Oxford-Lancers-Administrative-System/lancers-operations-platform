@@ -427,7 +427,8 @@ export function refuseOversizedRosterFile(csvText: string): string | null {
 
 // The plan's shape — pure, so the client confirmation screen can read it (`./roster-import.ts` is `server-only`).
 
-type RosterCandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
+type RosterCandidateMatch =
+  "given name" | "family name" | "known as" | "email" | "college email" | "phone";
 
 export type RosterRowOutcome = "new" | "carried_forward" | "unchanged" | "refused";
 

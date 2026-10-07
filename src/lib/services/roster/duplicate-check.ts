@@ -6,6 +6,7 @@ import {
   normaliseInput,
   resolveOpenSeason,
   type CandidateMatch,
+  type OpenSeason,
   type PersonCandidate,
   type ReturnerIntakeInput,
 } from "./shared";
@@ -29,7 +30,17 @@ interface CandidateRow {
   matched_family: boolean;
   matched_known_as: boolean;
   matched_email: boolean;
+  matched_college_email: boolean;
   matched_phone: boolean;
+}
+
+/**
+ * LAN-487: the recruit import checks a row's college email as well as its
+ * personal one. Absent for every roster caller, so a roster row never matches
+ * on it and the roster's own behaviour is unchanged.
+ */
+interface PersonCandidateQuery extends ReturnerIntakeInput {
+  collegeEmail?: string | null;
 }
 
 /**
@@ -41,12 +52,20 @@ interface CandidateRow {
  * (`person_aliases`). Phones compare on their last nine digits. Excludes
  * people merged away under invariant I6.
  */
-export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<PersonCandidate[]> {
+export async function findPersonCandidates(
+  input: PersonCandidateQuery,
+  /** LAN-487: the recruit import names the season it writes into; every roster caller resolves the open one. */
+  forSeason?: OpenSeason,
+): Promise<PersonCandidate[]> {
   const normalised = normaliseInput(input);
+  const collegeEmail =
+    typeof input.collegeEmail === "string" && input.collegeEmail.trim() !== ""
+      ? input.collegeEmail.trim()
+      : null;
 
   return withTransaction(async (tx) => {
     // Resolved first: an operator who cannot create a membership at all should learn that before typing more.
-    const season = await resolveOpenSeason(tx);
+    const season = forSeason ?? (await resolveOpenSeason(tx));
 
     const result = await tx.query<CandidateRow>(
       `with wanted as (
@@ -55,7 +74,8 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
            lower($2::text)          as family_name,
            lower($3::text)          as known_as,
            lower($4::text)          as email,
-           nullif(right(regexp_replace(coalesce($5::text, ''), '\\D', '', 'g'), 9), '') as phone_tail
+           nullif(right(regexp_replace(coalesce($5::text, ''), '\\D', '', 'g'), 9), '') as phone_tail,
+           lower($8::text)          as college_email
        ),
        alias_match as (
          select a.person_id,
@@ -69,6 +89,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
        contact_match as (
          select c.person_id,
                 bool_or(c.kind = 'email' and lower(btrim(c.raw_value)) = w.email) as by_email,
+                bool_or(c.kind = 'email' and lower(btrim(c.raw_value)) = w.college_email) as by_college_email,
                 bool_or(
                   c.kind = 'phone'
                   and w.phone_tail is not null
@@ -122,6 +143,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
          coalesce(lower(btrim(p.given_name)) = w.known_as
                   or am.by_known_as, false)               as matched_known_as,
          coalesce(cm.by_email, false)                     as matched_email,
+         coalesce(cm.by_college_email, false)             as matched_college_email,
          coalesce(cm.by_phone, false)                     as matched_phone
        from public.people p
        cross join wanted w
@@ -136,7 +158,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
           or lower(btrim(p.family_name)) = w.family_name
           or lower(btrim(p.given_name)) = w.known_as
           or coalesce(am.by_given or am.by_family or am.by_known_as, false)
-          or coalesce(cm.by_email or cm.by_phone, false)
+          or coalesce(cm.by_email or cm.by_college_email or cm.by_phone, false)
         )
       order by p.family_name nulls last, p.given_name, p.id`,
       [
@@ -147,6 +169,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
         normalised.phone?.compare ?? null,
         season.id,
         season.label,
+        collegeEmail,
       ],
     );
 
@@ -160,6 +183,7 @@ function toCandidate(row: CandidateRow): PersonCandidate {
   if (row.matched_family) matchedOn.push("family name");
   if (row.matched_known_as) matchedOn.push("known as");
   if (row.matched_email) matchedOn.push("email");
+  if (row.matched_college_email) matchedOn.push("college email");
   if (row.matched_phone) matchedOn.push("phone");
 
   return {

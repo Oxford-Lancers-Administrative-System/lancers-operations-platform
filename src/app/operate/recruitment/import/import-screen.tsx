@@ -20,16 +20,19 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
-import type {
-  RosterImportApplied,
-  RosterImportPlan,
-  RosterPlannedRow,
-} from "@/lib/services/roster-csv";
-import { importRosterAction } from "./actions";
-import { EMPTY_IMPORT_STATE } from "./import-state";
+import {
+  OPT_IN_HEADER,
+  RECRUIT_IMPORT_COLUMNS,
+  type RecruitImportApplied,
+  type RecruitImportPlan,
+  type RecruitPlannedRow,
+} from "@/lib/services/recruit-csv";
+import { importRecruitsAction } from "./actions";
+import { EMPTY_RECRUIT_IMPORT_STATE } from "./import-state";
 import {
   applyLabel,
   cellText,
+  cellValue,
   changeSummary,
   COLUMN_HEADINGS,
   describeApplied,
@@ -38,37 +41,35 @@ import {
   describeUnanswered,
   OUTCOME_LABELS,
   SHOWN_COLUMNS,
+  standingLabel,
 } from "./presentation";
 
 /**
- * Bulk import — screens `W1-01`…`W1-04` of the approved mockup. LAN-215,
- * `WP-arrival-doors`.
- *
- * One component in three states, on `../../events/import/import-screen.tsx`'s
- * own precedent (`OD7-import-like-events`): a season with nothing new to
- * bring in, the proposal — which grows one section the event import has no
- * need of, the possible duplicates — and what happened. Nothing here decides
- * anything: every outcome, reason and candidate arrives already decided from
- * `@/lib/services/roster-import`; this component chooses colours and column
- * order.
+ * Import recruits — LAN-487. The roster import's screen
+ * (`../../roster/import/import-screen.tsx`, LAN-215) in its three states —
+ * choosing a file, the proposal with its possible duplicates, and what
+ * happened — with recruit nouns. Every outcome, reason and candidate arrives
+ * already decided from `@/lib/services/recruit-import`.
  */
 
-export interface ImportScreenProps {
+export interface RecruitImportScreenProps {
   seasonLabel: string;
-  onRoster: number;
-  onboarding: number;
-  exportHref: string;
+  recruits: number;
+  templateHref: string;
 }
 
-export default function ImportScreen(props: ImportScreenProps) {
-  const [state, formAction, pending] = useActionState(importRosterAction, EMPTY_IMPORT_STATE);
+export default function RecruitImportScreen(props: RecruitImportScreenProps) {
+  const [state, formAction, pending] = useActionState(
+    importRecruitsAction,
+    EMPTY_RECRUIT_IMPORT_STATE,
+  );
   const plan = state.plan;
 
   return (
     <Stack spacing={3}>
       <PageHeader
-        title={plan === null ? "Bulk import players" : `Import — ${plan.fileName ?? "your file"}`}
-        back={{ href: "/operate/roster", label: "Back to roster" }}
+        title={plan === null ? "Import recruits" : `Import — ${plan.fileName ?? "your file"}`}
+        back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
         subtitle={
           <Typography component="span" variant="body2" data-testid="import-subheading">
             {plan === null
@@ -97,61 +98,30 @@ export default function ImportScreen(props: ImportScreenProps) {
       ) : (
         <Applied plan={plan} applied={state.applied} />
       )}
-
-      <Boundaries />
     </Stack>
   );
 }
 
-/** `W1-01`/`W1-02`'s last block — what an import can never do. */
-function Boundaries() {
-  return (
-    <Box data-testid="import-boundaries">
-      <Section title="What this import can never do">
-        <Box component="ul" sx={{ listStyleType: "disc", pl: 2.5, mt: 1, mb: 0 }}>
-          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-            <strong>Delete anybody.</strong> A player on the roster and absent from the file is left
-            exactly as they were.
-          </Typography>
-          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-            <strong>Overwrite a confirmed fact.</strong> A difference between the file and the
-            record becomes something the player confirms on their form.
-          </Typography>
-          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-            <strong>Send anything.</strong> It queues the welcome. Nothing is ever sent by hand.
-          </Typography>
-          <Typography component="li" variant="body2">
-            <strong>Create a season.</strong> It writes into the season the roster is already in.
-          </Typography>
-        </Box>
-      </Section>
-    </Box>
-  );
-}
-
 // ---------------------------------------------------------------------------
-// W1-02 — choosing a file, and the season it will write into
+// Choosing a file, and the season it will write into
 // ---------------------------------------------------------------------------
 
 function StartHere(
-  props: ImportScreenProps & { formAction: (formData: FormData) => void; pending: boolean },
+  props: RecruitImportScreenProps & { formAction: (formData: FormData) => void; pending: boolean },
 ) {
   return (
-    <Section
-      title={`This season\'s roster has ${props.onRoster} player${props.onRoster === 1 ? "" : "s"}`}
-    >
+    <Section title={`This season has ${props.recruits} recruit${props.recruits === 1 ? "" : "s"}`}>
       <MetricRow testId="season-counts">
-        <Metric value={props.onRoster} label="On the roster now" />
-        <Metric value={props.onboarding} label="In onboarding" />
+        <Metric value={props.recruits} label="Recruits now" />
         <Metric value={props.seasonLabel} label="The season this writes into" />
       </MetricRow>
 
       <Box component="ol" sx={{ listStyleType: "decimal", pl: 2.5, mt: 1.5, mb: 0 }}>
         {[
           "Download template",
-          "Fill it from the club's own spreadsheet. First name, last name and mobile on every row.",
-          "Import it here. You will see exactly who is about to be added, and who might already be on record.",
-          "Answer any possible duplicates, then confirm. Nothing is written until you do.",
+          "Fill it in · first name, last name and mobile on every row",
+          "Import it · see who is about to be added, and who might already be on record",
+          "Answer any possible duplicates, then confirm · nothing is written until you do",
         ].map((step) => (
           <Typography component="li" variant="body2" key={step} sx={{ mb: 0.5 }}>
             {step}
@@ -166,7 +136,7 @@ function StartHere(
       >
         <input type="hidden" name="intent" value="propose" />
         <Button variant="contained" size="small" component="label" disabled={props.pending}>
-          {props.pending ? "Reading the file…" : "Upload squad file"}
+          {props.pending ? "Reading the file…" : "Upload recruit file"}
           <input
             type="file"
             name="file"
@@ -176,14 +146,14 @@ function StartHere(
             onChange={(event) => event.currentTarget.form?.requestSubmit()}
           />
         </Button>
-        <Button variant="outlined" size="small" href={props.exportHref} data-testid="export-link">
+        <Button variant="outlined" size="small" href={props.templateHref} data-testid="export-link">
           Download the template
         </Button>
       </Box>
 
       <Box sx={{ mt: 1.5 }}>
         <Typography variant="caption" color="text.secondary" component="p">
-          The six columns
+          The columns
         </Typography>
         <Box
           component="pre"
@@ -202,26 +172,22 @@ function StartHere(
             wordBreak: "break-word",
           }}
         >
-          {"first_name,last_name,mobile,personal_email,college,matriculation_year\n\n" +
-            "first_name, last_name and mobile are required on every row.\n" +
-            "personal_email, college and matriculation_year are optional — leave them empty " +
-            "and the player fills them in themselves when they open their welcome link.\n\n" +
-            "There is deliberately no column for date of birth or emergency contact. Both are " +
-            "asked of every player at onboarding, and neither belongs in a spreadsheet."}
+          {RECRUIT_IMPORT_COLUMNS.join(",") +
+            "\n\nRequired: first_name, last_name, mobile\n" +
+            OPT_IN_HEADER.replace(/^opt_in /, "opt_in: ")}
         </Box>
       </Box>
 
       <Divider sx={{ my: 2 }} />
       <Typography variant="overline" color="text.secondary" component="p">
-        A player already on this season&rsquo;s roster is left alone · leave somebody out and
-        nothing happens to them
+        A recruit already on this season&rsquo;s list is left alone · the import only adds
       </Typography>
     </Section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// W1-03 — the proposal, and the duplicates underneath it
+// The proposal, and the duplicates underneath it
 // ---------------------------------------------------------------------------
 
 function Confirmation({
@@ -230,7 +196,7 @@ function Confirmation({
   formAction,
   pending,
 }: {
-  plan: RosterImportPlan;
+  plan: RecruitImportPlan;
   state: {
     csvText: string | null;
     fileName: string | null;
@@ -244,8 +210,8 @@ function Confirmation({
 
   return (
     <>
-      <MetricRow columns={3}>
-        {describeTotals(plan.totals).map(([value, label]) => (
+      <MetricRow columns={3} testId="import-totals">
+        {describeTotals(plan).map(([value, label]) => (
           <Metric key={label} value={value} label={label} />
         ))}
       </MetricRow>
@@ -262,7 +228,7 @@ function Confirmation({
               <TableHead>
                 <TableRow>
                   <TableCell>Outcome</TableCell>
-                  <TableCell>Player</TableCell>
+                  <TableCell>Recruit</TableCell>
                   {SHOWN_COLUMNS.map((column) => (
                     <TableCell key={column}>{COLUMN_HEADINGS[column]}</TableCell>
                   ))}
@@ -277,7 +243,7 @@ function Confirmation({
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
                     {SHOWN_COLUMNS.map((column) => (
-                      <TableCell key={column}>{cellText(row.cells[column])}</TableCell>
+                      <TableCell key={column}>{cellText(cellValue(row, column))}</TableCell>
                     ))}
                     <TableCell
                       sx={{
@@ -285,6 +251,7 @@ function Confirmation({
                         color: row.outcome === "refused" ? "error.main" : undefined,
                       }}
                     >
+                      {row.outcome === "refused" ? `Line ${row.line}: ` : ""}
                       {changeSummary(row)}
                     </TableCell>
                   </TableRow>
@@ -298,14 +265,19 @@ function Confirmation({
       {duplicateRows.length === 0 ? null : (
         <Box data-testid="import-duplicates">
           <Section title={`Possible duplicates — ${describeUnanswered(plan.unansweredLines)}`}>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
-              Answer each row and confirm again — the rest of the import is not held up by it.
-            </Typography>
-            <Stack spacing={2}>
+            <Stack spacing={2} sx={{ mt: 1 }}>
               {duplicateRows.map((row) => (
-                <DuplicateRow
+                <ImportDuplicateQuestion
                   key={row.line}
-                  row={row}
+                  line={row.line}
+                  name={row.name}
+                  detail={[row.cells.mobile, row.cells.college_email, row.cells.personal_email]
+                    .filter((value) => value !== "")
+                    .join(" · ")}
+                  candidates={(row.duplicate?.candidates ?? []).map((candidate) => ({
+                    ...candidate,
+                    standing: standingLabel(candidate),
+                  }))}
                   formAction={formAction}
                   pending={pending}
                   csvText={state.csvText ?? ""}
@@ -348,53 +320,21 @@ function Confirmation({
   );
 }
 
-function DuplicateRow({
-  row,
-  formAction,
-  pending,
-  csvText,
-  fileName,
-  duplicateAnswersJson,
-}: {
-  row: RosterPlannedRow;
-  formAction: (formData: FormData) => void;
-  pending: boolean;
-  csvText: string;
-  fileName: string;
-  duplicateAnswersJson: string;
-}) {
-  // LAN-487: the question itself is shared with the recruit import.
-  return (
-    <ImportDuplicateQuestion
-      line={row.line}
-      name={row.name}
-      detail={[row.cells.mobile, row.cells.personal_email, row.cells.college]
-        .filter((value) => value !== "")
-        .join(" · ")}
-      candidates={row.duplicate?.candidates ?? []}
-      formAction={formAction}
-      pending={pending}
-      csvText={csvText}
-      fileName={fileName}
-      duplicateAnswersJson={duplicateAnswersJson}
-    />
-  );
-}
-
-/**
- * The same row at 375px — the row's own summary rather than a table's worth
- * of columns, on `../../events/import/import-screen.tsx`'s identical `RowCard`.
- */
-function RowCard({ row }: { row: RosterPlannedRow }) {
+/** The same row at 375px — the roster import's `RowCard`. */
+function RowCard({ row }: { row: RecruitPlannedRow }) {
   return (
     <KitRowCard
       title={row.name}
       testId={`import-card-${row.line}`}
       sublines={[
-        OUTCOME_LABELS[row.outcome],
+        `${OUTCOME_LABELS[row.outcome]} · line ${row.line}`,
         <FactGrid key="facts" columns={2}>
           {SHOWN_COLUMNS.map((column) => (
-            <Fact key={column} label={COLUMN_HEADINGS[column]} value={row.cells[column] || null} />
+            <Fact
+              key={column}
+              label={COLUMN_HEADINGS[column] ?? column}
+              value={cellValue(row, column) || null}
+            />
           ))}
         </FactGrid>,
         <Typography
@@ -410,32 +350,29 @@ function RowCard({ row }: { row: RosterPlannedRow }) {
 }
 
 // ---------------------------------------------------------------------------
-// W1-04 — what happened, after confirming
+// What happened, after confirming
 // ---------------------------------------------------------------------------
 
-function Applied({ plan, applied }: { plan: RosterImportPlan; applied: RosterImportApplied }) {
-  const arrived = plan.rows.filter(
-    (row) => row.outcome === "new" || row.outcome === "carried_forward",
-  );
+function Applied({ plan, applied }: { plan: RecruitImportPlan; applied: RecruitImportApplied }) {
+  const arrived = plan.rows.filter((row) => row.outcome === "new" || row.outcome === "existing");
   const refused = plan.rows.filter((row) => row.outcome === "refused");
-  const arrivedTotal = applied.created + applied.carriedForward;
 
   return (
     <Stack spacing={2}>
-      <MetricRow columns={3}>
+      <MetricRow columns={3} testId="applied-totals">
         <Metric value={applied.created} label="New" />
-        <Metric value={applied.carriedForward} label="Carried forward" />
-        <Metric value={applied.unchanged} label="Unchanged" />
+        <Metric value={applied.existing} label="Known to the club" />
+        <Metric value={applied.alreadyRecruits} label="Already a recruit" />
         <Metric value={applied.refused} label="Refused" />
         <Metric value={applied.welcomesQueued} label="Welcomes queued" />
-        <Metric value={arrivedTotal} label="Checklists generated" />
+        <Metric value={applied.addedToAudiences} label="Added to event audiences" />
       </MetricRow>
 
       <Box data-testid="applied-arrived">
         <Section title="Who arrived">
           {arrived.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              Nobody new arrived from this file.
+              None
             </Typography>
           ) : (
             <Stack divider={<Divider />} spacing={1}>
@@ -450,9 +387,7 @@ function Applied({ plan, applied }: { plan: RosterImportPlan; applied: RosterImp
                     {row.name}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {row.outcome === "new"
-                      ? "new · onboarding · welcome queued"
-                      : "carried forward · onboarding · welcome queued"}
+                    {row.outcome === "new" ? "new · recruit" : "known to the club · recruit"}
                   </Typography>
                 </Stack>
               ))}
@@ -465,7 +400,7 @@ function Applied({ plan, applied }: { plan: RosterImportPlan; applied: RosterImp
         <Section title="What was refused, and why">
           {refused.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              Every row applied.
+              None
             </Typography>
           ) : (
             <Stack divider={<Divider />} spacing={1}>
@@ -490,8 +425,8 @@ function Applied({ plan, applied }: { plan: RosterImportPlan; applied: RosterImp
       </Box>
 
       <Box>
-        <Button variant="outlined" href="/operate/roster">
-          Back to the roster
+        <Button variant="outlined" href="/operate/recruitment">
+          Back to recruitment
         </Button>
       </Box>
     </Stack>

@@ -8,18 +8,15 @@ import { isServiceError, withTransaction } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import type { OperatorGrants } from "@/lib/auth/grants";
 import { redactRecruitCandidates } from "@/lib/services/person-candidate-access";
-import { createPerson } from "@/lib/services/person-create";
 import { readCandidateIdentitiesIn } from "@/lib/services/recruitment-candidate-identity";
-import {
-  finishRecruitmentAddIn,
-  refuseIfAlreadyAMemberIn,
-  requireMobileProvided,
-} from "@/lib/services/recruitment-add";
+import type { RecruitmentAddAcademic } from "@/lib/services/recruitment-add";
+import { addRecruitIn } from "@/lib/services/recruitment-add-write";
 import { readCurrentSeasonIn } from "@/lib/services/seasons";
 import {
   GENERIC_FAILURE,
   readAddRecruitValues,
   type AddRecruitCandidate,
+  type AddRecruitFormValues,
   type AddRecruitFieldErrors,
   type AddRecruitState,
 } from "./create-state";
@@ -88,33 +85,12 @@ export async function submitAddRecruit(
     try {
       prospectId = await withTransaction(async (tx) => {
         const season = await readCurrentSeasonIn(tx);
-        requireMobileProvided(values.mobile);
-        await refuseIfAlreadyAMemberIn(tx, personId, season.id);
-        const result = await createPerson({
+        const finished = await addRecruitIn(tx, {
           actorPersonId: operator.personId,
-          input: values,
-          decision: { kind: "link_existing", personId },
-        });
-        const finished = await finishRecruitmentAddIn(tx, {
-          actorPersonId: operator.personId,
-          personId: result.personId,
-          givenName: values.givenName,
           seasonId: season.id,
-          academic: {
-            college: values.college,
-            matriculationYear: values.matriculationYear,
-            knownAs: values.knownAs,
-            expectedGraduationYear: values.expectedGraduationYear,
-            degreeField: values.degreeField,
-            dateOfBirth: values.dateOfBirth,
-            emergencyGivenName: values.emergencyGivenName,
-            emergencyFamilyName: values.emergencyFamilyName,
-            emergencyRelationship: values.emergencyRelationship,
-            emergencyPhone: values.emergencyPhone,
-            emergencyEmail: values.emergencyEmail,
-            optInEvidence: values.optInEvidence,
-            optInNote: values.optInNote,
-          },
+          person: values,
+          decision: { kind: "link_existing", personId },
+          academic: academicOf(values),
         });
         return finished.prospectId;
       });
@@ -162,35 +138,15 @@ export async function submitAddRecruit(
     try {
       prospectId = await withTransaction(async (tx) => {
         const season = await readCurrentSeasonIn(tx);
-        requireMobileProvided(values.mobile);
-        const result = await createPerson({
+        const finished = await addRecruitIn(tx, {
           actorPersonId: operator.personId,
-          input: values,
+          seasonId: season.id,
+          person: values,
           decision: {
             kind: "create_new",
             overrideReason: typeof overrideReason === "string" ? overrideReason : null,
           },
-        });
-        const finished = await finishRecruitmentAddIn(tx, {
-          actorPersonId: operator.personId,
-          personId: result.personId,
-          givenName: values.givenName,
-          seasonId: season.id,
-          academic: {
-            college: values.college,
-            matriculationYear: values.matriculationYear,
-            knownAs: values.knownAs,
-            expectedGraduationYear: values.expectedGraduationYear,
-            degreeField: values.degreeField,
-            dateOfBirth: values.dateOfBirth,
-            emergencyGivenName: values.emergencyGivenName,
-            emergencyFamilyName: values.emergencyFamilyName,
-            emergencyRelationship: values.emergencyRelationship,
-            emergencyPhone: values.emergencyPhone,
-            emergencyEmail: values.emergencyEmail,
-            optInEvidence: values.optInEvidence,
-            optInNote: values.optInNote,
-          },
+          academic: academicOf(values),
         });
         return finished.prospectId;
       });
@@ -234,6 +190,25 @@ export async function submitAddRecruit(
   }
 
   return { ...previous, formError: GENERIC_FAILURE };
+}
+
+/** The form's optional fields, as the shared recruit write reads them. */
+function academicOf(values: AddRecruitFormValues): RecruitmentAddAcademic {
+  return {
+    college: values.college,
+    matriculationYear: values.matriculationYear,
+    knownAs: values.knownAs,
+    expectedGraduationYear: values.expectedGraduationYear,
+    degreeField: values.degreeField,
+    dateOfBirth: values.dateOfBirth,
+    emergencyGivenName: values.emergencyGivenName,
+    emergencyFamilyName: values.emergencyFamilyName,
+    emergencyRelationship: values.emergencyRelationship,
+    emergencyPhone: values.emergencyPhone,
+    emergencyEmail: values.emergencyEmail,
+    optInEvidence: values.optInEvidence,
+    optInNote: values.optInNote,
+  };
 }
 
 /** The matches with who each one is, narrowed to the seat's own grants before they leave the server (LAN-423). */

@@ -68,6 +68,7 @@ import {
   useRememberedPhoneSort,
   type PhoneSort,
 } from "../board-phone-sort";
+import AddRecruitsMenu from "./add-recruits-menu";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 
 /** The roster board's own debounce: folding three groups away is three clicks in about a second, and only the last state is worth storing. */
@@ -434,14 +435,7 @@ export default function RecruitmentBoardView({
             >
               QR CODE
             </Button>
-            <Button
-              variant="contained"
-              href="/operate/recruitment/new"
-              sx={{ minHeight: 44 }}
-              data-testid="recruitment-add-button"
-            >
-              ADD RECRUIT
-            </Button>
+            <AddRecruitsMenu testId="recruitment-add-button" />
           </Stack>
         ) : null}
       </Stack>
@@ -464,9 +458,7 @@ export default function RecruitmentBoardView({
               <Button variant="outlined" href="/operate/recruitment/qr" sx={{ minHeight: 44 }}>
                 QR CODE
               </Button>
-              <Button variant="contained" href="/operate/recruitment/new" sx={{ minHeight: 44 }}>
-                ADD RECRUIT
-              </Button>
+              <AddRecruitsMenu testId="recruitment-add-empty-button" />
             </Stack>
           ) : null}
         </Paper>
