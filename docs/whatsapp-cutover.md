@@ -56,7 +56,7 @@ gcloud projects add-iam-policy-binding oxford-lancers-operations \
   --member="serviceAccount:$(gh variable get GCP_DEPLOY_SERVICE_ACCOUNT --repo Oxford-Lancers-Administrative-System/lancers-operations-platform)" \
   --role="roles/cloudscheduler.admin"
 
-gcloud secrets add-iam-policy-binding scheduler-trigger-token \
+gcloud --project=oxford-lancers-operations secrets add-iam-policy-binding scheduler-trigger-token \
   --member="serviceAccount:$(gh variable get GCP_DEPLOY_SERVICE_ACCOUNT --repo Oxford-Lancers-Administrative-System/lancers-operations-platform)" \
   --role="roles/secretmanager.secretAccessor"
 
@@ -79,8 +79,8 @@ built.
 ## 4. Confirm the scheduler job exists and works
 
 ```
-gcloud scheduler jobs describe lancers-messaging-sweep --location=europe-west2
-gcloud scheduler jobs run lancers-messaging-sweep --location=europe-west2
+gcloud --project=oxford-lancers-operations scheduler jobs describe lancers-messaging-sweep --location=europe-west2
+gcloud --project=oxford-lancers-operations scheduler jobs run lancers-messaging-sweep --location=europe-west2
 ```
 
 Expect the `run` to return `200` and, against today's empty queue,
@@ -142,7 +142,7 @@ revision — they exist for the loopback test path only and `deploy.yml` never
 sets them:
 
 ```
-gcloud run services describe lancers-operations-platform --region=europe-west2 \
+gcloud --project=oxford-lancers-operations run services describe lancers-operations-platform --region=europe-west2 \
   --format='value(spec.template.spec.containers[0].env[].name)' | tr ';' '\n' \
   | grep -E 'WHATSAPP_ALLOW_FREE_FORM|WHATSAPP_MESSAGE_MODE|WHATSAPP_TEST_RECIPIENT|EMAIL_TEST_RECIPIENT'
 ```

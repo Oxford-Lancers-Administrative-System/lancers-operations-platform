@@ -143,7 +143,7 @@ code that creates one, and the hosted credential has no reach into the `auth`
 schema anyway:
 
 ```bash
-DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)" SUPABASE_URL="https://fggbgeraiadetyiyjlvb.supabase.co" SUPABASE_SECRET_KEY="$(gcloud secrets versions access latest --secret=supabase-secret-key)" node scripts/production/bootstrap-founding-operators.mjs --manifest ~/founding-operators.json --app-base-url https://<the application origin> --confirm-target fggbgeraiadetyiyjlvb
+DATABASE_URL="$(gcloud --project=oxford-lancers-operations secrets versions access latest --secret=database-url)" SUPABASE_URL="https://fggbgeraiadetyiyjlvb.supabase.co" SUPABASE_SECRET_KEY="$(gcloud --project=oxford-lancers-operations secrets versions access latest --secret=supabase-secret-key)" node scripts/production/bootstrap-founding-operators.mjs --manifest ~/founding-operators.json --app-base-url https://<the application origin> --confirm-target fggbgeraiadetyiyjlvb
 ```
 
 Read the preview. For each of the three seats it says exactly one of `create` /
@@ -249,7 +249,7 @@ bystander row survives.
 Get the connection string from Secret Manager into your shell, then:
 
 ```bash
-DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)" node scripts/production/connection-smoke-test.mjs --confirm-target fggbgeraiadetyiyjlvb
+DATABASE_URL="$(gcloud --project=oxford-lancers-operations secrets versions access latest --secret=database-url)" node scripts/production/connection-smoke-test.mjs --confirm-target fggbgeraiadetyiyjlvb
 ```
 
 The connection string is passed in the environment rather than as an argument so

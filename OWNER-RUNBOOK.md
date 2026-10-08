@@ -118,7 +118,7 @@ the tester whose account it was cannot finish their own list.
       service until § 11 is done. Check:
 
 ```
-gcloud run services describe lancers-operations-platform --region REGION --format='value(spec.template.spec.containers[0].env)' | tr ';' '\n' | grep -i whatsapp
+gcloud --project=oxford-lancers-operations run services describe lancers-operations-platform --region REGION --format='value(spec.template.spec.containers[0].env)' | tr ';' '\n' | grep -i whatsapp
 ```
 
 ---
@@ -231,7 +231,7 @@ select a.event_id, coalesce(a.person_id, m.person_id) as human, count(*) from pu
 - [ ] Get the connection string into your shell without it reaching history:
 
 ```
-export DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)"
+export DATABASE_URL="$(gcloud --project=oxford-lancers-operations secrets versions access latest --secret=database-url)"
 ```
 
 - [ ] Roll it back with the **current** loader — not a worktree of an older
@@ -605,7 +605,7 @@ half-corrected state by accident.
 - [ ] Connection string into the shell, and a manual backup taken (as § 4):
 
 ```
-export DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)"
+export DATABASE_URL="$(gcloud --project=oxford-lancers-operations secrets versions access latest --secret=database-url)"
 ```
 
 - [ ] **One.** Roll back with the loader that wrote it — the commit named in

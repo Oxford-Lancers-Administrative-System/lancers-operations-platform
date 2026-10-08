@@ -156,8 +156,8 @@ created, and no link is signed with a fallback. Everything else on the event
 page works. Provision it with:
 
 ```bash
-printf '%s' "$(openssl rand -hex 32)" | gcloud secrets create club-link-secret --data-file=- --replication-policy=automatic
-gcloud secrets add-iam-policy-binding club-link-secret --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
+printf '%s' "$(openssl rand -hex 32)" | gcloud --project=oxford-lancers-operations secrets create club-link-secret --data-file=- --replication-policy=automatic
+gcloud --project=oxford-lancers-operations secrets add-iam-policy-binding club-link-secret --member="serviceAccount:$(gcloud --project=oxford-lancers-operations run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
 ```
 
 before the next deploy. The workflow's `secrets:` block already injects it as
@@ -191,8 +191,8 @@ the role, the grants, the `BYPASSRLS` decision and the connection mode.
 Rotate the Supabase secret key with:
 
 ```bash
-printf '%s' 'NEW_KEY' | gcloud secrets versions add supabase-secret-key --data-file=-
-gcloud run services update lancers-operations-platform --region europe-west2
+printf '%s' 'NEW_KEY' | gcloud --project=oxford-lancers-operations secrets versions add supabase-secret-key --data-file=-
+gcloud --project=oxford-lancers-operations run services update lancers-operations-platform --region europe-west2
 ```
 
 `/api/health` reports `secretsLoaded: true|false` and
@@ -258,13 +258,13 @@ Paste the finished string into your own terminal, in place of the placeholder
 below. It must not be typed into a file, a ticket, or a chat.
 
 ```bash
-printf '%s' 'PASTE-THE-CONNECTION-STRING-HERE' | gcloud secrets create database-url --data-file=- --replication-policy=automatic
+printf '%s' 'PASTE-THE-CONNECTION-STRING-HERE' | gcloud --project=oxford-lancers-operations secrets create database-url --data-file=- --replication-policy=automatic
 ```
 
 **3 — Let the runtime read it.**
 
 ```bash
-gcloud secrets add-iam-policy-binding database-url --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
+gcloud --project=oxford-lancers-operations secrets add-iam-policy-binding database-url --member="serviceAccount:$(gcloud --project=oxford-lancers-operations run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
 ```
 
 **4 — Merge the pull request, wait for CI, then manually dispatch `deploy.yml`.**
@@ -277,7 +277,7 @@ password, a role without `BYPASSRLS`, or a pooler refusing the login all pass th
 gate and fail on the first transaction an operator attempts.
 
 ```bash
-DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)" node scripts/production/connection-smoke-test.mjs --confirm-target <project-ref>
+DATABASE_URL="$(gcloud --project=oxford-lancers-operations secrets versions access latest --secret=database-url)" node scripts/production/connection-smoke-test.mjs --confirm-target <project-ref>
 ```
 
 Expect seven `PASS` lines. See
@@ -290,8 +290,8 @@ is the one failure the smoke test names explicitly and the health check cannot.
 ### Rotating it
 
 ```bash
-printf '%s' '<new connection string>' | gcloud secrets versions add database-url --data-file=-
-gcloud run services update lancers-operations-platform --region europe-west2
+printf '%s' '<new connection string>' | gcloud --project=oxford-lancers-operations secrets versions add database-url --data-file=-
+gcloud --project=oxford-lancers-operations run services update lancers-operations-platform --region europe-west2
 ```
 
 Reset the role's password in Supabase first (`alter role app_runtime password
@@ -492,7 +492,7 @@ gcloud projects add-iam-policy-binding oxford-lancers-operations \
   --member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}" \
   --role="roles/cloudscheduler.admin"
 
-gcloud secrets add-iam-policy-binding scheduler-trigger-token \
+gcloud --project=oxford-lancers-operations secrets add-iam-policy-binding scheduler-trigger-token \
   --member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}" \
   --role="roles/secretmanager.secretAccessor"
 
@@ -515,7 +515,7 @@ warning to know whether the job needs attention.
 invocation, from the Cloud Scheduler console (**Force run**) or:
 
 ```bash
-gcloud scheduler jobs run lancers-messaging-sweep --location=europe-west2
+gcloud --project=oxford-lancers-operations scheduler jobs run lancers-messaging-sweep --location=europe-west2
 ```
 
 Expect an HTTP `200` and, against an empty queue, a body reporting
@@ -656,7 +656,7 @@ limits.
 > the risk. Check the effective cap with:
 >
 > ```bash
-> gcloud run revisions describe <revision> --region europe-west2 \
+> gcloud --project=oxford-lancers-operations run revisions describe <revision> --region europe-west2 \
 >   --format="value(metadata.annotations)" | tr ';' '\n' | grep maxScale
 > ```
 
@@ -678,7 +678,7 @@ limits.
 > compare image digests:
 >
 > ```bash
-> gcloud artifacts docker images list \
+> gcloud --project=oxford-lancers-operations artifacts docker images list \
 >   europe-west2-docker.pkg.dev/oxford-lancers-operations/lancers/lancers-operations-platform \
 >   --include-tags --format='table(version, tags)'
 > ```
@@ -686,7 +686,7 @@ limits.
 - Cloud Run captures stdout/stderr into Cloud Logging automatically. Query with:
 
 ```bash
-gcloud run services logs read lancers-operations-platform --region europe-west2 --limit 100
+gcloud --project=oxford-lancers-operations run services logs read lancers-operations-platform --region europe-west2 --limit 100
 ```
 
 ## Messaging safety alerting — LAN-394
@@ -870,8 +870,8 @@ runs. This keeps the pipeline as the single path to production.
 **Fastest — shift traffic to the previous revision directly:**
 
 ```bash
-gcloud run revisions list --service lancers-operations-platform --region europe-west2
-gcloud run services update-traffic lancers-operations-platform \
+gcloud --project=oxford-lancers-operations run revisions list --service lancers-operations-platform --region europe-west2
+gcloud --project=oxford-lancers-operations run services update-traffic lancers-operations-platform \
   --region europe-west2 --to-revisions <previous-revision>=100
 ```
 
