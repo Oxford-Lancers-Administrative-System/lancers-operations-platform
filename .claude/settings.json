@@ -1,4 +1,5 @@
 {
+  "env": { "CLOUDSDK_CORE_PROJECT": "oxford-lancers-operations" },
   "permissions": {
     "disableBypassPermissionsMode": "disable",
     "allow": [

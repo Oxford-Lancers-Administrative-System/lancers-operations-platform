@@ -90,7 +90,8 @@ echo "Region:   ${REGION}"
 echo "Service:  ${SERVICE}"
 echo "Repo:     ${GITHUB_REPO}"
 
-gcloud config set project "${PROJECT_ID}" >/dev/null
+# Pin this run to the target project without rewriting the global gcloud default.
+export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
 PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 
 # ===========================================================================
