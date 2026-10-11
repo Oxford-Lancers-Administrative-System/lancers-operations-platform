@@ -182,7 +182,7 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Sunday practice`,
     templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
-    scheduledOn: "2026-10-18",
+    scheduledOn: "2027-10-18",
     startsAt: "10:00",
     endsAt: "13:00",
     venue: "University Parks",
@@ -1407,7 +1407,7 @@ describe("the deadline every approval computes", () => {
   it("gives an event's invitations the configured deadline", async () => {
     const event = await newDraft({
       templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
-      scheduledOn: "2026-10-18",
+      scheduledOn: "2027-10-18",
     });
     const keys = await keysFor(event, "player", 2);
 
@@ -1433,7 +1433,7 @@ describe("the deadline every approval computes", () => {
     // 10:00 on the practice's own day, two days earlier — 09:00Z in British
     // Summer Time. LAN-169 measures the deadline from the event's start rather
     // than from a fixed 18:00 clock (REQ-deadline-from-event-start).
-    expect(rows.rows[0].expires_at?.toISOString()).toBe("2026-10-16T09:00:00.000Z");
+    expect(rows.rows[0].expires_at?.toISOString()).toBe("2027-10-16T09:00:00.000Z");
   });
 
   /*
@@ -1550,7 +1550,7 @@ describe("a stale or forged selection", () => {
 
 describe("the approval preview", () => {
   it("offers coaches for an event inside the season, not an empty coaching list", async () => {
-    const event = await newDraft({ scheduledOn: "2026-10-18" });
+    const event = await newDraft({ scheduledOn: "2027-10-18" });
 
     const preview = await readApprovalPreview(event.id);
 
@@ -1558,13 +1558,13 @@ describe("the approval preview", () => {
     // "today" in this dataset — a catalogue resolved as of now would show none.
     expect(preview.catalogue.counts.coach).toBeGreaterThan(0);
     expect(preview.catalogue.counts.player).toBeGreaterThan(0);
-    expect(preview.deadline?.at.toISOString()).toBe("2026-10-16T09:00:00.000Z");
+    expect(preview.deadline?.at.toISOString()).toBe("2027-10-16T09:00:00.000Z");
   });
 
   it("shows no deadline for an event that has no date yet", async () => {
     // The only case left in which the preview has no deadline to show. It is
     // also the case approval refuses, because invariant E1a requires a date.
-    const event = await newDraft({ scheduledOn: "2026-10-18" });
+    const event = await newDraft({ scheduledOn: "2027-10-18" });
     await observer.query("update public.events set scheduled_on = null where id = $1", [event.id]);
 
     const preview = await readApprovalPreview(event.id);
@@ -1580,7 +1580,7 @@ describe("the approval preview", () => {
     // `draft()`'s own default window, 10:00–13:00 — a straddling-midnight fixture
     // is exactly the trap this file's peers document, so this reuses the
     // fixture's own well-ordered default rather than inventing a new pair.
-    const event = await newDraft({ scheduledOn: "2026-10-18" });
+    const event = await newDraft({ scheduledOn: "2027-10-18" });
 
     const preview = await readApprovalPreview(event.id);
 
@@ -1599,7 +1599,7 @@ describe("the approval preview", () => {
   // LAN-171, D8. "Every user is expected to have WhatsApp" — a missing number
   // is named before approval rather than discovered afterwards.
   it("names an audience member with no usable WhatsApp number", async () => {
-    const event = await newDraft({ scheduledOn: "2026-10-18" });
+    const event = await newDraft({ scheduledOn: "2027-10-18" });
     const [reachableKey, unreachableKey] = await reachableKeysFor(event, 2);
     await saveEventAudience(actorPersonId, event.id, [reachableKey, unreachableKey]);
     const audience = await readEventAudience(event.id);
@@ -1727,18 +1727,18 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(tx, {
         templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
-        scheduledOn: "2026-10-18",
+        scheduledOn: "2027-10-18",
         startsAt: null,
       }),
     );
-    expect(plan.responseDeadlineAt.toISOString()).toBe("2026-10-15T23:00:00.000Z");
+    expect(plan.responseDeadlineAt.toISOString()).toBe("2027-10-15T23:00:00.000Z");
 
     // And the service-layer guard itself, on the identical fixture: approving
     // it outright is what F-C1 refuses now.
     const event = await insertDraftDirectly({
       name: `${NAME_MARKER} Dateless kickoff`,
       templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
-      scheduledOn: "2026-10-18",
+      scheduledOn: "2027-10-18",
       startsAt: null,
     });
     const keys = await keysFor(event, "player", 1);
@@ -1761,7 +1761,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     const summer = await insertDraftDirectly({
       name: `${NAME_MARKER} Summer time`,
       templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
-      scheduledOn: "2026-10-18",
+      scheduledOn: "2027-10-18",
     });
     const winter = await insertDraftDirectly({
       name: `${NAME_MARKER} Winter time`,
@@ -1772,7 +1772,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     const summerOutcome = await approve(summer.id, await keysFor(summer, "player", 1));
     const winterOutcome = await approve(winter.id, await keysFor(winter, "player", 1));
 
-    expect(summerOutcome.deadline?.at.toISOString()).toBe("2026-10-16T18:00:00.000Z");
+    expect(summerOutcome.deadline?.at.toISOString()).toBe("2027-10-16T18:00:00.000Z");
     expect(winterOutcome.deadline?.at.toISOString()).toBe("2027-01-18T19:00:00.000Z");
   });
 
