@@ -1655,13 +1655,13 @@ describe("every event type in the enum gets the deadline Brian configured", () =
    * `fixture` and `varsity` into `game`, and `other` into `meeting`.
    */
   const EXPECTED: ReadonlyArray<readonly [type: string, expiresAt: string]> = [
-    ["practice", "2026-10-16T18:00:00.000Z"],
-    ["strength_and_conditioning", "2026-10-16T18:00:00.000Z"],
-    ["chalk", "2026-10-16T18:00:00.000Z"],
-    ["game", "2026-10-11T18:00:00.000Z"],
-    ["social", "2026-10-13T18:00:00.000Z"],
-    ["recruitment", "2026-10-16T18:00:00.000Z"],
-    ["meeting", "2026-10-16T18:00:00.000Z"],
+    ["practice", "2027-10-16T18:00:00.000Z"],
+    ["strength_and_conditioning", "2027-10-16T18:00:00.000Z"],
+    ["chalk", "2027-10-16T18:00:00.000Z"],
+    ["game", "2027-10-11T18:00:00.000Z"],
+    ["social", "2027-10-13T18:00:00.000Z"],
+    ["recruitment", "2027-10-16T18:00:00.000Z"],
+    ["meeting", "2027-10-16T18:00:00.000Z"],
   ];
 
   it("covers the enum exactly, with no type left untested", async () => {
@@ -1686,7 +1686,9 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     const event = await insertDraftDirectly({
       name: `${NAME_MARKER} ${eventType}`,
       templateId: SEEDED_TEMPLATE_IDS[eventType],
-      scheduledOn: "2026-10-18",
+      // A year ahead (LAN-496): a deadline already in the past is clamped to now, which
+      // failed this row from 18:00Z on 11 October 2026.
+      scheduledOn: "2027-10-18",
     });
     const keys = await keysFor(event, "player", 1);
 
