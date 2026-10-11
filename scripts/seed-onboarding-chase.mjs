@@ -109,7 +109,10 @@ async function recordAttempt(client, jobId, attemptNumber, outcome, occurredAt, 
         concluded_at, provider_message_id, failure_reason)
      values ($1, $2, 'whatsapp', 'meta_whatsapp_cloud', $3::timestamptz, $3::timestamptz,
              $3::timestamptz, $4, $5)
-     on conflict (notification_job_id, attempt_number) do nothing
+     on conflict (notification_job_id, attempt_number) do update
+       set requested_at = excluded.requested_at, accepted_at = excluded.accepted_at,
+           concluded_at = excluded.concluded_at, provider_message_id = excluded.provider_message_id,
+           failure_reason = excluded.failure_reason
      returning id`,
     [jobId, attemptNumber, occurredAt, `LAN218-seed-${jobId}-${attemptNumber}`, detail],
   );
@@ -117,7 +120,8 @@ async function recordAttempt(client, jobId, attemptNumber, outcome, occurredAt, 
     `insert into public.delivery_results
        (notification_job_id, attempt_number, outcome, channel, provider, detail, occurred_at)
      values ($1, $2, $3::public.delivery_outcome, 'whatsapp', 'meta_whatsapp_cloud', $4, $5::timestamptz)
-     on conflict (notification_job_id, attempt_number) do nothing`,
+     on conflict (notification_job_id, attempt_number) do update
+       set outcome = excluded.outcome, detail = excluded.detail, occurred_at = excluded.occurred_at`,
     [jobId, attemptNumber, outcome, detail, occurredAt],
   );
   if (detail !== null) {
@@ -152,11 +156,27 @@ async function seedChase(
         template_variables, created_at, updated_at)
      values ($1, 'other', $2::public.notification_job_status, $3::uuid, 'whatsapp', $4::timestamptz,
              $5, '{}'::jsonb, $4::timestamptz, $4::timestamptz)
-     on conflict (idempotency_key) do update set idempotency_key = excluded.idempotency_key
+     on conflict (idempotency_key) do update
+       set status = excluded.status, attempt_count = excluded.attempt_count,
+           scheduled_for = excluded.scheduled_for, last_error = null, next_attempt_at = null
      returning id`,
     [key, outcome === "delivered" ? "completed" : "failed", personId, occurredAt, attemptCount],
   );
   const jobId = job.rows[0].id;
+  // LAN-496: a sweep can reach these people before this script runs (CI seeds with
+  // `seed-local.mjs` alone, and the chase now asks players without a consent row), and
+  // its attempt would otherwise outlive the seeded history under the same key. The
+  // seeded attempt is the job's last.
+  for (const table of ["delivery_callbacks", "delivery_results", "delivery_attempts"]) {
+    await client.query(
+      table === "delivery_callbacks"
+        ? `delete from public.delivery_callbacks where delivery_attempt_id in
+             (select id from public.delivery_attempts
+               where notification_job_id = $1 and attempt_number > $2)`
+        : `delete from public.${table} where notification_job_id = $1 and attempt_number > $2`,
+      [jobId, attemptCount],
+    );
+  }
   await recordAttempt(client, jobId, attemptCount, outcome, occurredAt, failureDetail);
 
   await client.query(

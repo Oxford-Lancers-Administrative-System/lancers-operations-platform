@@ -24,7 +24,10 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 
 import { closePool, withTransaction } from "@/lib/db";
 import { applyProviderCallback, MAX_ATTEMPTS } from "./delivery";
-import { grantSeasonMessagingConsentIn } from "./messaging-consent";
+import {
+  grantSeasonMessagingConsentIn,
+  withdrawSeasonMessagingConsentIn,
+} from "./messaging-consent";
 import {
   dispatchOnboardingChaseEscalationJob,
   dispatchOnboardingChaseJob,
@@ -246,6 +249,18 @@ async function grantConsent(personId: string): Promise<void> {
   await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, openSeasonId));
 }
 
+async function withdrawConsent(personId: string): Promise<void> {
+  await withTransaction((tx) => withdrawSeasonMessagingConsentIn(tx, personId, openSeasonId));
+}
+
+async function sweepTwice(): Promise<void> {
+  const { transport } = acceptingTransport();
+  for (let tick = 0; tick < 2; tick += 1) {
+    await agePastSafetyPacing(observer);
+    await runMessagingSweep({ source: CONFIGURED, transport });
+  }
+}
+
 async function setChase(settings: {
   firstChaseAfterHours: number;
   chaseCount: number;
@@ -354,35 +369,37 @@ describe("declareDueOnboardingChasesIn, via runMessagingSweep", () => {
     ).toBe(true);
   });
 
-  it("never fires before the configured delay, and never on a person without granted consent", async () => {
-    const { personId, membershipId } = await createArrival();
-    // No consent granted at all — `never_asked`.
+  // LAN-496: a player records consent on the questionnaire the chase asks them to finish, so
+  // requiring it first left every player who ignored the welcome unreachable. Restore the
+  // granted-consent check in the sweep and this player is never chased.
+  it("chases a player who has recorded no consent — the arrival who ignored the welcome, LAN-496", async () => {
+    const { membershipId } = await createArrival();
     await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
 
-    const { transport } = acceptingTransport();
-    // LAN-394. One message per person per five minutes, so a backlog for one
-    // person drains a rung per tick. Two ticks with the window cleared
-    // between them is what two real ticks would do; a job already claimed
-    // is not selected again, so this cannot send anything twice.
-    for (let tick = 0; tick < 2; tick += 1) {
-      await agePastSafetyPacing(observer);
-      await runMessagingSweep({ source: CONFIGURED, transport });
-    }
+    await sweepTwice();
 
+    const jobId = await chaseJobId(membershipId, 1);
+    expect(jobId).not.toBeNull();
+    const job = await observer.query<{ status: string }>(
+      "select status::text as status from public.notification_jobs where id = $1",
+      [jobId],
+    );
+    expect(job.rows[0].status).toBe("processing");
+  });
+
+  it("never fires before the configured delay, and never on a person who withdrew consent", async () => {
+    const { personId, membershipId } = await createArrival();
+    await withdrawConsent(personId);
+    await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
+
+    await sweepTwice();
     expect(await chaseJobId(membershipId, 1)).toBeNull();
 
-    // Same person, consent now granted, but the delay has not passed.
-    await grantConsent(personId);
+    // Another arrival, consent never asked, but the delay has not passed.
+    const waiting = await createArrival();
     await setChase({ firstChaseAfterHours: 999, chaseCount: 4, chaseIntervalDays: 3 });
-    // LAN-394. One message per person per five minutes, so a backlog for one
-    // person drains a rung per tick. Two ticks with the window cleared
-    // between them is what two real ticks would do; a job already claimed
-    // is not selected again, so this cannot send anything twice.
-    for (let tick = 0; tick < 2; tick += 1) {
-      await agePastSafetyPacing(observer);
-      await runMessagingSweep({ source: CONFIGURED, transport });
-    }
-    expect(await chaseJobId(membershipId, 1)).toBeNull();
+    await sweepTwice();
+    expect(await chaseJobId(waiting.membershipId, 1)).toBeNull();
   });
 
   it("never messages a person flagged under 18, by the automated path", async () => {
@@ -558,6 +575,32 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
       await runMessagingSweep({ source: CONFIGURED, transport: sweepAgain });
     }
     expect(await chaseJobId(failedMembershipId, 2)).toBeNull();
+  });
+  // LAN-496: LAN-472 concluded every pre-webhook WhatsApp attempt with no result row. Read as
+  // undelivered, each one held its player's ladder at ordinal 1 for good.
+  it("counts an accepted attempt concluded without a receipt as sent, so the ladder moves on, LAN-496", async () => {
+    const { membershipId } = await createArrival();
+    await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
+    await sweepTwice();
+    const firstJobId = await chaseJobId(membershipId, 1);
+    expect(firstJobId).not.toBeNull();
+
+    await observer.query(
+      `update public.delivery_attempts
+          set accepted_at = now() - interval '4 days', concluded_at = now(),
+              failure_reason = 'Concluded without an outcome; nothing was resent.'
+        where notification_job_id = $1`,
+      [firstJobId],
+    );
+
+    const progress = await withTransaction((tx) =>
+      readOnboardingChaseProgressIn(tx, [membershipId]),
+    );
+    expect(progress.get(membershipId)?.deliveredCount).toBe(1);
+    expect(progress.get(membershipId)?.automatedAttemptOutstanding).toBe(false);
+
+    await sweepTwice();
+    expect(await chaseJobId(membershipId, 2)).not.toBeNull();
   });
 });
 
@@ -844,6 +887,42 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
 
     expect(result.outcome).toBe("skipped");
     expect(sent).toHaveLength(0);
+  });
+
+  it("sends a nudge to a player who has recorded no consent, LAN-496", async () => {
+    const { membershipId } = await createArrival();
+
+    const { sent, transport } = acceptingTransport();
+    const [result] = await sendOnboardingNudges(actorPersonId, [membershipId], {
+      source: CONFIGURED,
+      transport,
+    });
+
+    expect(result.outcome).toBe("accepted");
+    expect(sent).toHaveLength(1);
+  });
+
+  it("refuses a nudge to a player who withdrew consent, and records why, LAN-496", async () => {
+    const { personId, membershipId } = await createArrival();
+    await withdrawConsent(personId);
+
+    const { sent, transport } = acceptingTransport();
+    const [result] = await sendOnboardingNudges(actorPersonId, [membershipId], {
+      source: CONFIGURED,
+      transport,
+    });
+
+    expect(result.outcome).not.toBe("accepted");
+    expect(sent).toHaveLength(0);
+    const job = await observer.query<{ status: string; last_error: string | null }>(
+      `select status::text as status, last_error from public.notification_jobs
+        where idempotency_key like $1`,
+      [`${ONBOARDING_NUDGE_KEY_PREFIX}${membershipId}:%`],
+    );
+    expect(job.rows[0].status).toBe("failed");
+    expect(job.rows[0].last_error).toBe(
+      "This person has declined messaging contact, so no chase can be sent.",
+    );
   });
 });
 
@@ -1217,7 +1296,7 @@ describe("listOnboardingChaseCandidatesIn", () => {
     const mine = candidates.find((c) => c.membershipId === membershipId);
     expect(mine).toBeTruthy();
     expect(mine?.hasOutstanding).toBe(true);
-    expect(mine?.hasConsent).toBe(true);
+    expect(mine?.mayBeAsked).toBe(true);
     expect(mine?.hasReachableNumber).toBe(true);
     expect(mine?.isUnder18).toBe(false);
   });
@@ -1245,7 +1324,7 @@ describe("listOnboardingChaseCandidatesIn", () => {
     const mine = candidates.find((c) => c.membershipId === membershipId);
     expect(mine).toBeTruthy();
     if (!mine) throw new Error("unreachable — asserted above");
-    expect(mine.hasConsent).toBe(true);
+    expect(mine.mayBeAsked).toBe(true);
     expect(mine.hasReachableNumber).toBe(false);
 
     await setChase({ firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3 });

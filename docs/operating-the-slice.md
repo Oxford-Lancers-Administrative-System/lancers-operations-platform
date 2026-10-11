@@ -695,6 +695,16 @@ player who finishes in between is not sent it, and a player who finished after
 their last chase is not counted in the office's "chases have run out" message.
 An operator's **Nudge** is not re-checked; it is the operator's own decision.
 
+The chase and the **Nudge** reach a player who has recorded no messaging consent,
+on the same rule as the onboarding welcome: only a refusal or a withdrawal for
+the season stops them, and an under-18 flag stops every path (LAN-496, Brian
+2026-10-11). A player records consent on the questionnaire the chase asks them
+to finish, so requiring it first left anyone who had not started unreachable. A
+refused nudge reads **This person has declined messaging contact, so no chase
+can be sent.** A chase the provider accepted but that was concluded without a
+receipt (LAN-472's pre-webhook messages) counts as sent, so the next chase is
+spaced from it rather than waiting on it.
+
 ### The attendance sheet, an hour before the start
 
 One hour before an approved event starts, one email headed **Attendance sheet:**

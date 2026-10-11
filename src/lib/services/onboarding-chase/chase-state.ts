@@ -3,7 +3,7 @@ import "server-only";
 import { type Tx } from "@/lib/db";
 import { selectMobileNumber } from "@/lib/delivery/phone";
 import { MAX_ATTEMPTS } from "../delivery";
-import { hasGrantedSeasonMessagingConsentIn } from "../messaging-consent";
+import { mayReceiveWelcomeContactIn } from "../messaging-consent";
 import { DEFAULT_CALLING_CODE } from "../person-validation";
 import { readPlayerHasOutstandingIn } from "../player-questionnaire/read";
 import { readOnboardingChaseSettingsIn, type OnboardingChaseSettings } from "./settings";
@@ -76,13 +76,37 @@ export async function readOnboardingChaseProgressIn(
   const membershipIdPattern = `^${ONBOARDING_CHASE_KEY_PREFIX}([0-9a-f-]+):`;
   // One pattern reads the membership out of either ask prefix — LAN-266.
   const askIdPattern = `^onboarding-(?:chase|nudge):([0-9a-f-]+):`;
+  // LAN-496: an attempt the provider accepted and that was concluded with no
+  // result row — LAN-472's pre-webhook conclusion, the one path that writes
+  // that shape — reads as delivered. The message went; only its receipt never
+  // could, and without this the ladder waited on it forever.
   const latestAttemptJoin = `
     left join lateral (
-      select r.outcome::text as outcome, r.occurred_at, r.detail
-        from public.delivery_results r
-       where r.notification_job_id = j.id
-       order by r.attempt_number desc
-       limit 1
+      select coalesce(res.outcome, case when unreceipted.accepted_at is not null then 'delivered' end) as outcome,
+             coalesce(res.occurred_at, unreceipted.accepted_at) as occurred_at,
+             res.detail
+        from (select 1) one
+        left join lateral (
+          select r.outcome::text as outcome, r.occurred_at, r.detail
+            from public.delivery_results r
+           where r.notification_job_id = j.id
+           order by r.attempt_number desc
+           limit 1
+        ) res on true
+        left join lateral (
+          select a.accepted_at
+            from public.delivery_attempts a
+           where a.notification_job_id = j.id
+             and a.accepted_at is not null
+             and a.concluded_at is not null
+             and not exists (
+               select 1 from public.delivery_results r
+                where r.notification_job_id = a.notification_job_id
+                  and r.attempt_number = a.attempt_number
+             )
+           order by a.attempt_number desc
+           limit 1
+        ) unreceipted on res.outcome is null
     ) latest on true`;
 
   // Sequential, not `Promise.all` (LAN-301): one transaction client, which `pg`
@@ -191,7 +215,8 @@ export interface OnboardingChaseCandidate {
   readonly automatedAttemptOutstanding: boolean;
   /** From the compiled ask — a missing required field or an unresolved checklist item, either counts. */
   readonly hasOutstanding: boolean;
-  readonly hasConsent: boolean;
+  /** Not refused or withdrawn this season — the welcome's own rule (LAN-204), which the chase and nudge share since LAN-496; a player without a consent row is asked. */
+  readonly mayBeAsked: boolean;
   /** Whether anything could actually be sent — `selectMobileNumber`'s own question (the send path's own function), not "a mobile field is present", so the queue, the send button and the actual send can never disagree (LAN-249). */
   readonly hasReachableNumber: boolean;
   readonly isUnder18: boolean;
@@ -270,7 +295,7 @@ async function buildCandidatesIn(
     // LAN-437: the player's own questionnaire, never the operator-owned items.
     const hasOutstanding =
       (await readPlayerHasOutstandingIn(tx, row.person_id, row.season_id)) === true;
-    const hasConsent = await hasGrantedSeasonMessagingConsentIn(tx, row.person_id, row.season_id);
+    const mayBeAsked = await mayReceiveWelcomeContactIn(tx, row.person_id, row.season_id);
     const isUnder18 = await isPersonUnder18In(tx, row.person_id);
     const hasReachableNumber = reachable.has(row.person_id);
     const p = progress.get(row.id) ?? NO_PROGRESS;
@@ -287,7 +312,7 @@ async function buildCandidatesIn(
       automatedOrdinal: p.automatedOrdinal,
       automatedAttemptOutstanding: p.automatedAttemptOutstanding,
       hasOutstanding,
-      hasConsent,
+      mayBeAsked,
       hasReachableNumber,
       isUnder18,
     });
