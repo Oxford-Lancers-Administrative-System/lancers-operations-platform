@@ -2259,7 +2259,7 @@ export async function dispatchOnboardingWelcomeJob(
  * claims and sends it exactly as it does every other job type.
  *
  * Eligibility is checked here, not only at dispatch, so a person this package
- * must never message (`under 18`, no granted consent) never accumulates an
+ * must never message (`under 18`, refused or withdrawn) never accumulates an
  * undispatchable job at all — `declareRecruitmentCycleJobsIn`'s own posture,
  * carried over. `isPersonUnder18In` and consent are re-checked again at claim
  * time in {@link dispatchOnboardingChaseJob}, for the identical reason the
@@ -2295,7 +2295,7 @@ async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
 
     for (const candidate of candidates) {
       if (!candidate.hasOutstanding) continue;
-      if (candidate.isUnder18 || !candidate.hasConsent) continue;
+      if (candidate.isUnder18 || !candidate.mayBeAsked) continue;
       if (candidate.deliveredCount >= settings.chaseCount) continue;
       if (candidate.currentAttemptTerminallyFailed) continue;
 
@@ -3253,7 +3253,7 @@ export async function dispatchRecruitEventReminderJob(
 const ONBOARDING_CHASE_MEMBERSHIP_GONE_REASON =
   "This membership no longer exists, so no chase can be sent.";
 const ONBOARDING_CHASE_NOT_CONSENTED_REASON =
-  "This person has not granted messaging consent for this season, so no chase can be sent.";
+  "This person has declined messaging contact, so no chase can be sent.";
 const ONBOARDING_CHASE_UNDER_18_REASON =
   "This person is flagged under 18, so no message may be sent to them by any path.";
 const ONBOARDING_CHASE_NOTHING_OUTSTANDING_REASON =
@@ -3498,7 +3498,10 @@ export async function dispatchOnboardingChaseJob(
       return { kind: "no-send" };
     }
 
-    const consented = await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, seasonId);
+    // LAN-496 (Brian, 2026-10-11): the welcome's rule, not granted consent. A player records
+    // consent on the questionnaire this message asks them to finish, so requiring it first
+    // left anyone who had not started unreachable. Refusal and withdrawal still stop it.
+    const consented = await mayReceiveWelcomeContactIn(tx, job.person_id, seasonId);
     if (!consented) {
       await failClaimTerminallyIn(
         tx,
