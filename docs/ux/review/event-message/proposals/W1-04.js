@@ -4,7 +4,7 @@ const STATUS = "Scheduled 6 Nov 14:00";
 // rendered brief and its status value. The plan disclosure counts it too.
 // Event: Sun 8 Nov 14:00. 48 hours before = Fri 6 Nov 14:00; now is 16 Oct,
 // so the status is Scheduled.
-(() => {
+(async () => {
   const SAMPLE = `# GAMEDAY vs Cambridge
 Varsity Bowl XVII. Please read everything.
 
@@ -36,6 +36,46 @@ Iffley Road pickup location
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Round 1 (Brian): the preview is a full-width "Preview" disclosure below the
+  // box, at the size the player receives it — the 900px-wide render scaled to
+  // the column. The disclosure is the app's own collapsible Section, cloned
+  // from the messaging plan (fetched, with its styles, from an approved
+  // event's page when this page does not render one).
+  const DISCLOSURE_SOURCE = "/operate/events/dc59ab3d-861c-42a0-ab30-51023527d057";
+  async function nativeDisclosure() {
+    let source = document.querySelector('[data-testid="section-messaging-plan-disclosure"]');
+    if (!source) {
+      const html = await (await fetch(DISCLOSURE_SOURCE, { credentials: "same-origin" })).text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      doc
+        .querySelectorAll("style[data-emotion]")
+        .forEach((style) => document.head.appendChild(document.importNode(style, true)));
+      source = doc.querySelector('[data-testid="section-messaging-plan-disclosure"]');
+    }
+    const disclosure = document.importNode(source, true);
+    disclosure.removeAttribute("data-testid");
+    disclosure.setAttribute("open", "");
+    disclosure.querySelector("h2").textContent = "Preview";
+    const body = disclosure.querySelector(":scope > div");
+    body.replaceChildren();
+    return { disclosure, body };
+  }
+  function scaledBrief(host) {
+    const inner = document.createElement("div");
+    inner.style.cssText = "width:900px;transform-origin:0 0";
+    inner.innerHTML = render(SAMPLE);
+    const frame = document.createElement("div");
+    frame.style.cssText =
+      "overflow:hidden;border:1px solid rgba(0,0,0,0.23);border-radius:8px;background:#fff";
+    frame.appendChild(inner);
+    host.appendChild(frame);
+    return () => {
+      const scale = frame.clientWidth / 900;
+      inner.style.transform = `scale(${scale})`;
+      frame.style.height = `${Math.ceil(inner.offsetHeight * scale)}px`;
+    };
+  }
 
   function render(md) {
     const NAVY = "#0a1f44";
@@ -129,10 +169,10 @@ Iffley Road pickup location
   item.querySelector("div span").textContent = STATUS;
   item.querySelector(":scope > p").textContent =
     "48 hours before · WhatsApp and email · Everyone invited";
-  const paper = document.createElement("div");
-  paper.style.cssText =
-    "margin-top:12px;max-width:420px;border:1px solid rgba(0,0,0,0.23);border-radius:8px;overflow:hidden;background:#fff";
-  paper.innerHTML = render(SAMPLE);
-  item.appendChild(paper);
+  const { disclosure, body: previewBody } = await nativeDisclosure();
+  disclosure.style.marginTop = "12px";
+  const fitPreview = scaledBrief(previewBody);
+  item.appendChild(disclosure);
   plan.after(section);
+  fitPreview();
 })();

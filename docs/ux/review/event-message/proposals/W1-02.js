@@ -4,9 +4,9 @@ const SEND_AT = "";
 // questions section and before the ActionBar. Every element is a clone of a
 // node already on the page (section, field group, text field, selects,
 // icon buttons, outlined button), so it wears the application's own styling.
-// Only the preview pane carries its own styles: it is the rendered brief the
+// Only the rendered brief carries its own styles: it is the rendered brief the
 // player receives as an image, with the look Brian approved.
-(() => {
+(async () => {
   const SAMPLE = `# GAMEDAY vs Cambridge
 Varsity Bowl XVII. Please read everything.
 
@@ -97,6 +97,46 @@ Iffley Road pickup location
     return `<div style="background:#fff;color:#1a1a1a;font:17px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;padding:20px">${out.join("")}</div>`;
   }
 
+  // Round 1 (Brian): the preview is a full-width "Preview" disclosure below the
+  // box, at the size the player receives it — the 900px-wide render scaled to
+  // the column. The disclosure is the app's own collapsible Section, cloned
+  // from the messaging plan (fetched, with its styles, from an approved
+  // event's page when this page does not render one).
+  const DISCLOSURE_SOURCE = "/operate/events/dc59ab3d-861c-42a0-ab30-51023527d057";
+  async function nativeDisclosure() {
+    let source = document.querySelector('[data-testid="section-messaging-plan-disclosure"]');
+    if (!source) {
+      const html = await (await fetch(DISCLOSURE_SOURCE, { credentials: "same-origin" })).text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      doc
+        .querySelectorAll("style[data-emotion]")
+        .forEach((style) => document.head.appendChild(document.importNode(style, true)));
+      source = doc.querySelector('[data-testid="section-messaging-plan-disclosure"]');
+    }
+    const disclosure = document.importNode(source, true);
+    disclosure.removeAttribute("data-testid");
+    disclosure.setAttribute("open", "");
+    disclosure.querySelector("h2").textContent = "Preview";
+    const body = disclosure.querySelector(":scope > div");
+    body.replaceChildren();
+    return { disclosure, body };
+  }
+  function scaledBrief(host) {
+    const inner = document.createElement("div");
+    inner.style.cssText = "width:900px;transform-origin:0 0";
+    inner.innerHTML = render(SAMPLE);
+    const frame = document.createElement("div");
+    frame.style.cssText =
+      "overflow:hidden;border:1px solid rgba(0,0,0,0.23);border-radius:8px;background:#fff";
+    frame.appendChild(inner);
+    host.appendChild(frame);
+    return () => {
+      const scale = frame.clientWidth / 900;
+      inner.style.transform = `scale(${scale})`;
+      frame.style.height = `${Math.ceil(inner.offsetHeight * scale)}px`;
+    };
+  }
+
   const ICONS = {
     Heading: "M5 4v3h5.5v12h3V7H19V4z",
     Bold: "M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42M10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5",
@@ -123,6 +163,7 @@ Iffley Road pickup location
   addButton.textContent = "Add event message";
   addButton.removeAttribute("data-testid");
 
+  let fitPreview = null;
   if (EMPTY) {
     card.remove();
     ol.remove();
@@ -191,24 +232,9 @@ Iffley Road pickup location
     editorCol.style.cssText = "display:flex;flex-direction:column;gap:4px;min-width:0";
     editorCol.append(toolbar, body);
 
-    const previewCol = document.createElement("div");
-    previewCol.style.cssText = "display:flex;flex-direction:column;gap:8px;min-width:0";
-    const previewLabel = $("legend", card).cloneNode(false);
-    previewLabel.style.cssText = "padding:10px 0 6px";
-    previewLabel.textContent = "Preview";
-    const paper = document.createElement("div");
-    paper.style.cssText =
-      "border:1px solid rgba(0,0,0,0.23);border-radius:8px;overflow:hidden;background:#fff";
-    paper.innerHTML = render(SAMPLE);
-    previewCol.append(previewLabel, paper);
-
-    const wide = window.innerWidth >= 900;
-    const pair = document.createElement("div");
-    pair.style.cssText = wide
-      ? "display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start"
-      : "display:flex;flex-direction:column;gap:8px";
-    pair.append(editorCol, previewCol);
-    stack.appendChild(pair);
+    const { disclosure, body: previewBody } = await nativeDisclosure();
+    fitPreview = scaledBrief(previewBody);
+    stack.append(editorCol, disclosure);
   }
 
   questions.after(section);
@@ -217,4 +243,5 @@ Iffley Road pickup location
     ta.style.height = "auto";
     ta.style.height = `${ta.scrollHeight + 4}px`;
   }
+  if (fitPreview) fitPreview();
 })();

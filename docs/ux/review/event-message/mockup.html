@@ -7,7 +7,7 @@
     <!-- ================================================================== *
      * Grounding (docs/ux/mockup-standards.md). W1-01 to W1-04 change
      * surfaces that exist on `main`, so both sides are photographs of the
-     * same running page (local primary slot, production build of origin/main
+     * same running page (local overflow slot, production build of origin/main
      * 2cc0c930), taken by `shootScreen` in scripts/intake/lib/shoot.mjs. The
      * proposed side is the current page with the matching file in
      * proposals/ evaluated into its live DOM; shots.json records each
@@ -407,6 +407,14 @@
           new surface and is drawn on both sides. Each frame scrolls; it opens at the change.
           <code>shots.json</code> records the widths the browser reported and each proposal's hash.
         </p>
+        <p>
+          <strong>Correction round 1.</strong> The preview no longer sits beside the box. It is a
+          full-width <strong>Preview</strong> disclosure below the box, the app's own collapsible
+          section (the one the messaging plan uses), shown open. Inside it is the brief at the size
+          the player receives it: the 900px-wide render scaled to the column. The event page (W1-04)
+          shows the brief the same way. All four photographed screens were retaken on a fresh copy
+          of the same event, so the event id in the URLs changed.
+        </p>
         <div class="legend">
           <span
             ><span class="side-label" style="margin: 0; background: var(--current)"
@@ -439,7 +447,7 @@
       /* Event   vs Ivybridge Ravens · Sun 8 Nov 2026 14:00–16:30 (Europe/London)
        * Message 48 hours before → Fri 6 Nov 2026 14:00 · Both · Everyone invited
        * Now     Fri 16 Oct 2026 22:30 BST, when the photographs were taken    */
-      const EVENT_ID = "866f6f23-5bc5-4a19-83dc-5f7e55fd57cc";
+      const EVENT_ID = "c3649e89-366a-4f25-870d-9842886abeca";
       const ORIGIN = "localhost:3000";
 
       // Scroll targets: the first pixel row where current and proposed differ,
@@ -451,6 +459,8 @@
           disposition: "Modified",
           route: `/operate/events/${EVENT_ID}/edit`,
           focus: { desktop: 2160, phone375: 2568 },
+          // Round 1: the proposed frames open on the Preview disclosure.
+          focusProposed: { desktop: 3160, phone375: 3860 },
           blurb:
             "The event form today ends with Questions and the action bar. The proposal adds an Event messages section between them, built like the question editor: one stacked card per message. The send time under Hours before is computed from the event start.",
           deltas: [
@@ -458,7 +468,8 @@
             "Card <strong>Event message 1</strong> with Remove; fields Hours before (48), Channel (Both), Recipients (Everyone invited).",
             "Helper under Hours before: <strong>Fri 6 Nov · 14:00</strong> — Sun 8 Nov 14:00 less 48 hours.",
             "Four icon buttons above the box: Heading, Bold, Bullet, Itinerary line.",
-            "<strong>Message</strong> box with <strong>Preview</strong> beside it on desktop, below it at 375.",
+            "<strong>Message</strong> box at full card width.",
+            "<strong>Preview</strong> disclosure below the box, open: the brief rendered 900px wide and scaled to the card width (round 1).",
             "<strong>Add event message</strong> under the card.",
           ],
           clock: "Now: Friday, 16 October 2026, 22:30",
@@ -497,12 +508,12 @@
           route: `/operate/events/${EVENT_ID}`,
           focus: { desktop: 955, phone375: 1233 },
           blurb:
-            "After approval the event page carries the frozen messaging plan, closed. The proposal adds an Event messages section after it, in the Questions list's row style, with the status value and the rendered brief. Fri 6 Nov 14:00 is still ahead of today, so the status reads Scheduled; from then on the same value reads Sent 6 Nov 14:00.",
+            "After approval the event page carries the frozen messaging plan, closed. The proposal adds an Event messages section after it, in the Questions list's row style, with the status value and the brief in a Preview disclosure. Fri 6 Nov 14:00 is still ahead of today, so the status reads Scheduled; from then on the same value reads Sent 6 Nov 14:00.",
           deltas: [
             "Closed plan heading <strong>Messaging plan · 5 steps · approved</strong> (was 4); the row is the one in W1-03.",
             "New section <strong>Event messages</strong> after the plan.",
             "Row <strong>Event message 1</strong> · <strong>Scheduled 6 Nov 14:00</strong>; line 48 hours before · WhatsApp and email · Everyone invited.",
-            "The rendered brief under the row.",
+            "<strong>Preview</strong> disclosure under the row, open, full width, as in W1-01 (round 1).",
           ],
           clock: "Now: Friday, 16 October 2026, 22:30",
         },
@@ -537,7 +548,7 @@
               <span class="url">${ORIGIN}${screen.route}</span>
               <span class="frame-badge">${screen.id} · ${desktop ? "DESKTOP 1280" : "375"}</span>
             </div>
-            <div class="shot" data-focus="${screen.focus[vp]}" data-capture-width="${desktop ? 1280 : 375}">
+            <div class="shot" data-focus="${(side === "proposed" && screen.focusProposed ? screen.focusProposed : screen.focus)[vp]}" data-capture-width="${desktop ? 1280 : 375}">
               <img src="${file}" alt="${screen.id} ${side} at ${desktop ? "1280" : "375"}px" loading="lazy" />
             </div>
             <div class="frame-foot"><span>Photograph · browser measured ${desktop ? "1280" : "375"}px</span><a href="${file}" target="_blank">Full capture</a></div>
