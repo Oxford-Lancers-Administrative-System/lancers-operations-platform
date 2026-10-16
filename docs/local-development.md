@@ -415,15 +415,13 @@ Run one project on its own with `npx vitest run --project database` or
 [0029](adr/0029-serialized-database-test-suites.md) records what it costs and
 what it bought.
 
-## The WhatsApp test box
+## Sending a real WhatsApp test message
 
-Real-message testing does not happen on `main`. It happens on the
-`whatsapp-test-box` branch: current `main` plus the test apparatus (the panel,
-the shared clock, the local sink, the `_test` template names), which never
-merges. Its `docs/test-box.md` opens with a "Start here" section that takes a
-fresh worktree to a running panel, and names where the private runtime files
-live on Brian's machine. When `main` moves, that branch merges `main` in; it
-never carries product code of its own.
+Real-message testing uses Meta's test account on the OULAFC Test App, with a
+24-hour token held only in the terminal that runs the script. The procedure is
+`docs/whatsapp-test-account.md`; the script is `npm run whatsapp:test`. The
+`whatsapp-test-box` branch and its stored credential are retired under LAN-507
+and are not the way to do this any more.
 
 ## Building and running the production container locally
 

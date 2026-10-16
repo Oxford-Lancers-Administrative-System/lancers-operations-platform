@@ -1491,7 +1491,9 @@ describe("UX-32 — a draft event", () => {
     // D30, on the surface it matters on. "Approved" says what the club decided;
     // "Upcoming" or "Occurred" says where the date has got to, and the screen
     // never collapses the two into one word.
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2099-01-01" }),
+    );
     const upcoming = render(await EventDetailPage(detailProps()));
     expect(
       upcoming.container.querySelector('[data-domain="event"][data-status="approved"]'),
