@@ -115,3 +115,41 @@ The event-brief experiment (Event Messages work request) proved a Utility
 template with an image header on the club's account, then repeated it here:
 `create-brief` with the rendered brief as the sample, approval from Meta, then
 `send` with the same image to Brian's registered handset from the test number.
+
+## Agent procedure — binding
+
+An agent asked to put a real message on a handset follows these steps and no
+others. They were walked once in full on 16 October 2026 (LAN-507).
+
+1. **Only this account.** The test account above is the only WhatsApp account
+   an agent may send from or create templates on. Never read, copy or use a
+   token for the club's account from any file, environment or secret store;
+   the retired test box's `env.test-box.local` and `.env.test-box.local` are
+   not inputs. Never delete a template or media object on any account.
+2. **Open the page in Brian's Chrome.** With the Claude in Chrome tools, in a
+   new tab, open the "Try it out" page linked above. Brian must be present:
+   the next step needs a click from him.
+3. **Check the recipient.** Open the **Recipient** dropdown and confirm the
+   target number is listed. If it is not, tell Brian; he adds it through
+   **Manage phone number list** and reads back the verification code Meta
+   sends to that phone. Never type a number into that list on your own.
+4. **Generate the token, once.** Click **Generate token** exactly once. It
+   opens a Facebook popup in a separate window that the browser tools cannot
+   see; tell Brian a popup is waiting and ask him to approve it. Do not click
+   again while waiting — each click opens another popup. Confirm success with
+   `find` on the field's state, never by reading the field's value or by a
+   screenshot at a scale where the token is legible.
+5. **Brian moves the token; you never see it.** Ask Brian to press the copy
+   button beside the field, then run in the session, prefixed `!`,
+   `pbpaste > <scratchpad>/whatsapp-test-token.txt` with the session's full
+   scratchpad path. The command prints nothing, so the token never enters
+   the conversation. Never ask Brian to paste it into chat.
+6. **Run the script.** `WHATSAPP_TEST_TOKEN=$(cat <that file>) npm run -s
+whatsapp:test -- …` for `status`, `create`, `create-brief` and `send`.
+   Send only to a number Brian confirmed in this conversation. Poll `status`
+   for approval rather than guessing; a send before approval fails with
+   `132001`.
+7. **Clean up.** Delete the scratch token file when the work is done, say so,
+   and remind Brian that the token expires on its own within 24 hours. Record
+   what was created and sent in the ticket, by template name and recipient,
+   never by token.
