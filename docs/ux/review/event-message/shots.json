@@ -1,0 +1,196 @@
+{
+  "screens": [
+    {
+      "id": "W1-01",
+      "route": "/operate/events/866f6f23-5bc5-4a19-83dc-5f7e55fd57cc/edit",
+      "headSha": "2cc0c930923be58e1aaaada44eff82c2d6f8959d",
+      "slot": "primary",
+      "proposal": {
+        "file": "proposals/W1-01.js",
+        "sha256": "fcbfc550a3fc2537a358f938621351c5fceca8abb71d1f6152caa935e30dbc19",
+        "bytes": 9139,
+        "capturedSha256": "7c3803930e4a568c1af89369fb7d53c1331ed972003d50a71fb81f93537db571",
+        "note": "Captured with capturedSha256; the committed file is the same script after Prettier (whitespace and line breaks only)."
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-01-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-01-proposed.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-01-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-01-proposed.png"
+        }
+      ],
+      "at": "2026-10-16T21:37:47.386Z"
+    },
+    {
+      "id": "W1-02",
+      "route": "/operate/events/866f6f23-5bc5-4a19-83dc-5f7e55fd57cc/edit",
+      "headSha": "2cc0c930923be58e1aaaada44eff82c2d6f8959d",
+      "slot": "primary",
+      "proposal": {
+        "file": "proposals/W1-02.js",
+        "sha256": "e17ee4e141ddb29b0ac3a1ff5c7222fedc5da878305d917722c04c7f7bb29a8d",
+        "bytes": 9120,
+        "capturedSha256": "cb9afe2635e1b106de9b2896a36b4d6ac5e7e40fcc582bf45c996b7a1b1af272",
+        "note": "Captured with capturedSha256; the committed file is the same script after Prettier (whitespace and line breaks only)."
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-02-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-02-proposed.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-02-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-02-proposed.png"
+        }
+      ],
+      "at": "2026-10-16T21:37:50.439Z"
+    },
+    {
+      "id": "W1-03",
+      "route": "/operate/events/866f6f23-5bc5-4a19-83dc-5f7e55fd57cc?step=review",
+      "headSha": "2cc0c930923be58e1aaaada44eff82c2d6f8959d",
+      "slot": "primary",
+      "proposal": {
+        "file": "proposals/W1-03.js",
+        "sha256": "cb949cb84db078ed0c677fb3c6a70a8a5d2f38c2531801fdf66a65a3e778d5d3",
+        "bytes": 1105,
+        "capturedSha256": "1130262b708c824f3df888e6de5bac07ba291801e69c87b4a644efef98212d3a",
+        "note": "Captured with capturedSha256; the committed file is the same script after Prettier (whitespace and line breaks only)."
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-03-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-03-proposed.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-03-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-03-proposed.png"
+        }
+      ],
+      "at": "2026-10-16T21:37:53.585Z"
+    },
+    {
+      "id": "W1-04",
+      "route": "/operate/events/866f6f23-5bc5-4a19-83dc-5f7e55fd57cc",
+      "headSha": "2cc0c930923be58e1aaaada44eff82c2d6f8959d",
+      "slot": "primary",
+      "proposal": {
+        "file": "proposals/W1-04.js",
+        "sha256": "e1bafd899c99e5f1d5c4b11e9b1598e342a65351988ee089062d4c26245dab6c",
+        "bytes": 5345,
+        "capturedSha256": "67736f9731ac66241bbcad159d024cbceada3dced9874a8452ab11f8ce03d324",
+        "note": "Captured with capturedSha256; the committed file is the same script after Prettier (whitespace and line breaks only)."
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-04-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "desktop_W1-04-proposed.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-04-current.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "phone375_W1-04-proposed.png"
+        }
+      ],
+      "at": "2026-10-16T21:39:16.895Z"
+    }
+  ]
+}

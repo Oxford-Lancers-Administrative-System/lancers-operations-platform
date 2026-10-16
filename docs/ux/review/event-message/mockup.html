@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Event message · review mockup</title>
+    <!-- ================================================================== *
+     * Grounding (docs/ux/mockup-standards.md). W1-01 to W1-04 change
+     * surfaces that exist on `main`, so both sides are photographs of the
+     * same running page (local primary slot, production build of origin/main
+     * 2cc0c930), taken by `shootScreen` in scripts/intake/lib/shoot.mjs. The
+     * proposed side is the current page with the matching file in
+     * proposals/ evaluated into its live DOM; shots.json records each
+     * proposal's sha256 and the browser-measured width. W1-05 is a new
+     * surface and is drawn on both sides.
+     * ================================================================== -->
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Tokens taken from src/theme.ts and src/theme-tokens.ts (Oxford Blue
+       * #002147, Charcoal #211D1C / 70% #5A5754, ground #F6F5F2, control
+       * radius 8, surface radius 12, body1 15/22, h3 17/24 600, button 14
+       * 600 no-transform) plus MUI v9 Dialog, DialogActions and Button
+       * defaults. The review shell (frames, bands, chips) is
+       * .claude/skills/mission-intake/assets/mockup-exemplar.html.
+       * Nothing here is a redesign.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #002147;
+        --text-primary: #211d1c;
+        --text-secondary: #5a5754;
+        --divider: rgba(33, 29, 28, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --ground: #f6f5f2;
+        --grey100: #f5f5f5;
+        --grey400: #bdbdbd;
+        --grey900: #212121;
+        --current: #5a6b7d;
+        --proposed: #c09723;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+      code {
+        font-size: 0.85em;
+      }
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+      .legend > span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .screen {
+        margin-top: 72px;
+      }
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .screen-head p,
+      .screen-head li {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+      .screen-head ul {
+        margin: 8px 0 0;
+        padding-left: 20px;
+      }
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+      .side {
+        margin-top: 20px;
+        border-left: 6px solid var(--current);
+        padding-left: 16px;
+      }
+      .side.proposed {
+        border-left-color: var(--proposed);
+      }
+      .side-label {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        color: #fff;
+        background: var(--current);
+        padding: 4px 10px;
+        border-radius: 4px;
+        margin-bottom: 12px;
+      }
+      .side.proposed .side-label {
+        background: var(--proposed);
+        color: var(--text-primary);
+      }
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+      .frame.desktop {
+        width: 924px;
+        max-width: 100%;
+      }
+      .frame.phone {
+        width: 377px;
+        max-width: 100%;
+        border-radius: 20px;
+      }
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+      .shot {
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: var(--ground);
+      }
+      .desktop .shot {
+        height: 640px;
+      }
+      .phone .shot {
+        height: 700px;
+      }
+      .shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .frame-foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 12px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        border-top: 1px solid var(--divider);
+        background: var(--grey100);
+      }
+      .frame-foot a {
+        color: var(--text-secondary);
+      }
+      .nothing {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 220px;
+        background: repeating-linear-gradient(
+          135deg,
+          #fafafa,
+          #fafafa 10px,
+          #f0f0f0 10px,
+          #f0f0f0 20px
+        );
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+        font-weight: 600;
+      }
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+      }
+      .chip-disp {
+        background: var(--grey900);
+        color: #fff;
+      }
+      .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        display: inline-block;
+      }
+
+      /* ---------------- W1-05 drawing: MUI Dialog with the app's theme --------------- */
+      .dialog-stage {
+        position: relative;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font);
+      }
+      .desktop .dialog-stage {
+        height: 640px;
+      }
+      .phone .dialog-stage {
+        height: 700px;
+      }
+      .dialog {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow:
+          0 11px 15px -7px rgba(0, 0, 0, 0.2),
+          0 24px 38px 3px rgba(0, 0, 0, 0.14),
+          0 9px 46px 8px rgba(0, 0, 0, 0.12);
+        max-width: 600px;
+        width: calc(100% - 64px);
+        margin: 32px;
+        color: var(--text-primary);
+      }
+      .desktop .dialog {
+        width: 444px;
+      }
+      .dialog h3 {
+        margin: 0;
+        padding: 16px 24px;
+        font-size: 17px;
+        line-height: 24px;
+        font-weight: 600;
+      }
+      .dialog .content {
+        padding: 0 24px 20px;
+        font-size: 15px;
+        line-height: 22px;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+      .dialog .actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px;
+      }
+      .btn {
+        font: 600 14px/20px var(--font);
+        min-height: 44px;
+        padding: 0 16px;
+        border-radius: 8px;
+        border: 0;
+        background: transparent;
+        color: var(--primary);
+      }
+      .btn.contained {
+        background: var(--primary);
+        color: #fff;
+      }
+      .dim-note {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        font-size: 0.6875rem;
+        color: rgba(255, 255, 255, 0.85);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>Event message</h1>
+        <p>
+          A new section on the event form: zero or more event messages, each sent a set number of
+          hours before the event start by WhatsApp, email or both, to everyone invited or to those
+          who answered Yes. The body is Markdown with a live preview of the brief the player
+          receives as an image. Five screens, each at desktop (1280px, shown at 72%) and at a
+          browser-measured 375px.
+        </p>
+        <p>
+          One event throughout: <strong>vs Ivybridge Ravens</strong>, Game, Iffley Road Astro,
+          Sunday 8 November 2026, 14:00–16:30, audience All roster players (38). It is a local copy
+          of the seeded synthetic game, made through the app's own Duplicate, audience and approval
+          screens; every person on it is from the synthetic seed. The message text is Brian's
+          approved sample. One event message: <strong>48 hours before</strong> → Friday 6 November
+          2026, 14:00.
+        </p>
+        <p>
+          W1-01 to W1-04 are photographs of the running application on both sides; the proposed side
+          is the same page with the script in <code>proposals/</code> evaluated into its live DOM,
+          cloning the page's own section, field, select, icon-button and button markup. W1-05 is a
+          new surface and is drawn on both sides. Each frame scrolls; it opens at the change.
+          <code>shots.json</code> records the widths the browser reported and each proposal's hash.
+        </p>
+        <div class="legend">
+          <span
+            ><span class="side-label" style="margin: 0; background: var(--current)"
+              >CURRENT — on <code>main</code> today</span
+            >
+            the running build, unchanged</span
+          >
+          <span
+            ><span
+              class="side-label"
+              style="margin: 0; background: var(--proposed); color: var(--text-primary)"
+              >PROPOSED — this mission</span
+            >
+            the same page with the proposal applied</span
+          >
+          <span
+            ><span class="chip chip-proposed">Proposed</span> surface absent from the current
+            build</span
+          >
+          <span
+            ><span class="chip chip-disp">Modified</span> /
+            <span class="chip chip-disp">New</span> disposition of the surface</span
+          >
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+
+    <script>
+      /* Event   vs Ivybridge Ravens · Sun 8 Nov 2026 14:00–16:30 (Europe/London)
+       * Message 48 hours before → Fri 6 Nov 2026 14:00 · Both · Everyone invited
+       * Now     Fri 16 Oct 2026 22:30 BST, when the photographs were taken    */
+      const EVENT_ID = "866f6f23-5bc5-4a19-83dc-5f7e55fd57cc";
+      const ORIGIN = "localhost:3000";
+
+      // Scroll targets: the first pixel row where current and proposed differ,
+      // less 160px of context, in capture pixels.
+      const SCREENS = [
+        {
+          id: "W1-01",
+          title: "Event form · Event messages, filled in",
+          disposition: "Modified",
+          route: `/operate/events/${EVENT_ID}/edit`,
+          focus: { desktop: 2160, phone375: 2568 },
+          blurb:
+            "The event form today ends with Questions and the action bar. The proposal adds an Event messages section between them, built like the question editor: one stacked card per message. The send time under Hours before is computed from the event start.",
+          deltas: [
+            "New section <strong>Event messages</strong> after Questions, before Save draft.",
+            "Card <strong>Event message 1</strong> with Remove; fields Hours before (48), Channel (Both), Recipients (Everyone invited).",
+            "Helper under Hours before: <strong>Fri 6 Nov · 14:00</strong> — Sun 8 Nov 14:00 less 48 hours.",
+            "Four icon buttons above the box: Heading, Bold, Bullet, Itinerary line.",
+            "<strong>Message</strong> box with <strong>Preview</strong> beside it on desktop, below it at 375.",
+            "<strong>Add event message</strong> under the card.",
+          ],
+          clock: "Now: Friday, 16 October 2026, 22:30",
+        },
+        {
+          id: "W1-02",
+          title: "Event form · Event messages, none yet",
+          disposition: "Modified",
+          route: `/operate/events/${EVENT_ID}/edit`,
+          focus: { desktop: 2160, phone375: 2568 },
+          blurb:
+            "The same form with no event message. The section is its heading and one button, with no filler, as Questions is when empty. A template that carries a message arrives as a W1-01 card with its skeleton already in the box.",
+          deltas: [
+            "New section <strong>Event messages</strong> with only <strong>Add event message</strong>.",
+          ],
+          clock: "Now: Friday, 16 October 2026, 22:30",
+        },
+        {
+          id: "W1-03",
+          title: "Approval review · Messaging plan",
+          disposition: "Modified",
+          route: `/operate/events/${EVENT_ID}?step=review`,
+          focus: { desktop: 2382, phone375: 2552 },
+          blurb:
+            "The approval review's messaging plan lists the invitation ladder and the escalation. The event message joins it as one more row in time order, in the plan's own row anatomy: when, what, detail, who.",
+          deltas: [
+            "Heading <strong>Messaging plan · 4 steps</strong> → <strong>5 steps</strong>.",
+            "New last row: <strong>Fri 6 Nov · 14:00 · Event message</strong> — 48 hours before · WhatsApp and email · Everyone invited — 38 people.",
+          ],
+          clock: "Now: Friday, 16 October 2026, 22:30",
+        },
+        {
+          id: "W1-04",
+          title: "Event detail · the message after approval",
+          disposition: "Modified",
+          route: `/operate/events/${EVENT_ID}`,
+          focus: { desktop: 955, phone375: 1233 },
+          blurb:
+            "After approval the event page carries the frozen messaging plan, closed. The proposal adds an Event messages section after it, in the Questions list's row style, with the status value and the rendered brief. Fri 6 Nov 14:00 is still ahead of today, so the status reads Scheduled; from then on the same value reads Sent 6 Nov 14:00.",
+          deltas: [
+            "Closed plan heading <strong>Messaging plan · 5 steps · approved</strong> (was 4); the row is the one in W1-03.",
+            "New section <strong>Event messages</strong> after the plan.",
+            "Row <strong>Event message 1</strong> · <strong>Scheduled 6 Nov 14:00</strong>; line 48 hours before · WhatsApp and email · Everyone invited.",
+            "The rendered brief under the row.",
+          ],
+          clock: "Now: Friday, 16 October 2026, 22:30",
+        },
+      ];
+
+      const DIALOG = {
+        id: "W1-05",
+        title: "Send again? · saving a sent event message",
+        route: `/operate/events/${EVENT_ID}/amend`,
+        blurb:
+          "Justified by the editing workflow: once a message has gone, saving a change to it sends it again to the people it went to, so Save stops and asks. Shown as one screen over the approved event's edit page (/amend), which is not redrawn.",
+        deltas: [
+          "Title <strong>Send again?</strong>",
+          "Body <strong>This event message was sent on 6 November at 14:00. Saving sends it again to everyone it went to.</strong>",
+          "Buttons <strong>Cancel</strong> and <strong>Save and send again</strong>.",
+        ],
+        clock: "Now: Saturday, 7 November 2026, 10:00",
+      };
+
+      const label = (side) =>
+        side === "current"
+          ? `<span class="side-label">CURRENT — on <code>main</code> today</span>`
+          : `<span class="side-label">PROPOSED — this mission</span>`;
+
+      const frame = (screen, side, vp) => {
+        const desktop = vp === "desktop";
+        const file = `${vp}_${screen.id}-${side}.png`;
+        return `
+          <div class="frame ${desktop ? "desktop" : "phone"}">
+            <div class="chrome">
+              ${desktop ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+              <span class="url">${ORIGIN}${screen.route}</span>
+              <span class="frame-badge">${screen.id} · ${desktop ? "DESKTOP 1280" : "375"}</span>
+            </div>
+            <div class="shot" data-focus="${screen.focus[vp]}" data-capture-width="${desktop ? 1280 : 375}">
+              <img src="${file}" alt="${screen.id} ${side} at ${desktop ? "1280" : "375"}px" loading="lazy" />
+            </div>
+            <div class="frame-foot"><span>Photograph · browser measured ${desktop ? "1280" : "375"}px</span><a href="${file}" target="_blank">Full capture</a></div>
+          </div>`;
+      };
+
+      const head = (screen, disposition) => `
+        <div class="screen-head">
+          <span class="tab">${screen.id}</span>
+          <h2>${screen.id} · ${screen.title} <span class="chip chip-disp">${disposition}</span> <span class="chip chip-proposed">Proposed</span></h2>
+          <p>${screen.blurb}</p>
+          <ul>${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+          <span class="clock">${screen.clock}</span>
+        </div>`;
+
+      const photographed = SCREENS.map(
+        (screen) => `
+        <section class="screen" id="${screen.id}">
+          ${head(screen, screen.disposition)}
+          ${["current", "proposed"]
+            .map(
+              (side) => `
+            <div class="side ${side}">
+              ${label(side)}
+              <div class="pair">${frame(screen, side, "desktop")}${frame(screen, side, "phone375")}</div>
+            </div>`,
+            )
+            .join("")}
+        </section>`,
+      ).join("");
+
+      const drawnFrame = (vp, inner) => {
+        const desktop = vp === "desktop";
+        return `
+          <div class="frame ${desktop ? "desktop" : "phone"}">
+            <div class="chrome">
+              ${desktop ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+              <span class="url">${ORIGIN}${DIALOG.route}</span>
+              <span class="frame-badge">${DIALOG.id} · ${desktop ? "DESKTOP 1280" : "375"}</span>
+            </div>
+            ${inner}
+            <div class="frame-foot"><span>Drawing</span><span></span></div>
+          </div>`;
+      };
+
+      const dialog = `
+        <div class="dialog-stage">
+          <span class="dim-note">Edit page behind the backdrop, unchanged and not redrawn</span>
+          <div class="dialog" role="dialog" aria-labelledby="send-again-title">
+            <h3 id="send-again-title">Send again?</h3>
+            <p class="content">This event message was sent on 6 November at 14:00. Saving sends it again to everyone it went to.</p>
+            <div class="actions">
+              <button class="btn" type="button">Cancel</button>
+              <button class="btn contained" type="button">Save and send again</button>
+            </div>
+          </div>
+        </div>`;
+
+      const nothing = `<div class="nothing">New surface, nothing to compare</div>`;
+
+      const drawn = `
+        <section class="screen" id="${DIALOG.id}">
+          ${head(DIALOG, "New")}
+          <div class="side current">
+            ${label("current")}
+            <div class="pair">${drawnFrame("desktop", nothing)}${drawnFrame("phone375", nothing)}</div>
+          </div>
+          <div class="side proposed">
+            ${label("proposed")}
+            <div class="pair">${drawnFrame("desktop", dialog)}${drawnFrame("phone375", dialog)}</div>
+          </div>
+        </section>`;
+
+      document.getElementById("screens").innerHTML = photographed + drawn;
+
+      // Open each photograph at its change.
+      const place = (box) => {
+        const img = box.querySelector("img");
+        const scale = box.clientWidth / Number(box.dataset.captureWidth);
+        box.scrollTop = Math.max(0, (Number(box.dataset.focus) - 160) * scale);
+        if (!img.complete) img.addEventListener("load", () => place(box), { once: true });
+      };
+      document.querySelectorAll(".shot").forEach(place);
+    </script>
+  </body>
+</html>
