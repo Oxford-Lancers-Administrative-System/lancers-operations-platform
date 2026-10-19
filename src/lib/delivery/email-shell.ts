@@ -35,10 +35,9 @@
  *
  * `color-scheme: light` is there for the same family of reasons: Apple Mail and
  * Outlook will otherwise invert a light message in dark mode. The crest is the
- * application's own mark — LAN-456: the white crest with the brown football on
- * an opaque club-navy tile, baked into the raster — and a client guessing at
- * the scheme could recolour the card around it. Declaring the scheme is what
- * stops a client guessing.
+ * club's round badge — LAN-491: the navy disc inside the gold ring, transparent
+ * outside the circle — and a client guessing at the scheme could recolour the
+ * card around it. Declaring the scheme is what stops a client guessing.
  *
  * ## The signature block, and where the Stop line goes
  *
@@ -108,27 +107,19 @@ const CLUB_SHORT_NAME = "Oxford Lancers";
 const CLUB_FULL_NAME = "Oxford University Lancers American Football Club";
 
 /**
- * The mark's own proportions, 1017.75 × 860.5 in `crest.svg`'s units.
- *
- * Written out rather than left to the client: an `<img>` with no dimensions
- * reflows the whole header the moment the image loads, and Outlook sizes an
- * unmeasured image at its natural 114px.
- */
-function crestWidthFor(height: number): number {
-  return Math.round(height * (1017.75 / 860.5));
-}
-
-/**
  * The crest at `height`, or nothing at all when there is no origin to serve it
  * from.
  *
  * `srcset` offers the 1x rendition to a client that understands it; `src` is
  * the 2x, so a client that does not — Gmail, Outlook — still gets the sharp
- * one rather than a doubled 57px image.
+ * one rather than a doubled 48px image. The badge is round, so its box is
+ * square (LAN-491), and both dimensions are written out: an `<img>` with none
+ * reflows the header when it loads, and Outlook sizes an unmeasured image at
+ * its natural 96px.
  */
 function crest(appBaseUrl: string, height: number, alt: string): string {
   if (appBaseUrl === "") return "";
-  const width = crestWidthFor(height);
+  const width = height;
   const two = `${appBaseUrl}/brand/crest-email.png`;
   const one = `${appBaseUrl}/brand/crest-email@1x.png`;
   return (

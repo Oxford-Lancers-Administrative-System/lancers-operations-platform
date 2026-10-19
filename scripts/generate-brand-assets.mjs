@@ -9,7 +9,7 @@
  * not durable), and each has exactly one job:
  *
  *   app-logo-group-2454.svg   the application mark  -> public/brand/crest*.svg
- *   gold-outline-ops-logo.svg the favicon/app icons -> public/brand/icon-mark.svg + rasters
+ *   award-sticker.svg         the icons and email   -> public/brand/icon-mark.svg, crest-email*.png
  *   og-image.png              the link preview      -> src/app/opengraph-image.png
  *   join-og-image.png         the sign-up preview   -> src/app/join/[code]/opengraph-image.png
  *
@@ -215,40 +215,6 @@ async function png(svg, size, ground = null) {
 }
 
 /**
- * A PNG of `svg` at its own aspect ratio, `height` tall — LAN-398.
- *
- * The icons above are square because an icon slot is square. The mark is not:
- * it is 1017.75 × 860.5 in its own units, and an email header shows it at its
- * own shape beside the club's name, exactly as the application shell does.
- *
- * Raster and not SVG because this one is consumed by mail clients. Outlook on
- * Windows draws HTML through Word, which does not render an SVG `<img>` at all;
- * a vector crest there is an empty box. Every client renders a PNG.
- *
- * `ground` makes it a tile — LAN-456: the mark drawn `inset` (a fraction of the
- * height, each side) inside an opaque rectangle of that colour, the rectangle
- * keeping the mark's own ratio so the email's `width`/`height` attributes still
- * describe it.
- */
-async function rasterAtHeight(svg, height, { ground = null, inset = 0 } = {}) {
-  const view = attribute(openTag(svg), "viewBox").split(/\s+/).map(Number);
-  const width = Math.round((height * view[2]) / view[3]);
-  const innerHeight = Math.round(height * (1 - 2 * inset));
-  const innerWidth = Math.round((innerHeight * view[2]) / view[3]);
-  const mark = await sharp(Buffer.from(svg), { density: densityFor(svg, width) })
-    .resize(innerWidth, innerHeight, { fit: "fill" })
-    .ensureAlpha(1)
-    .png({ compressionLevel: 9, palette: false })
-    .toBuffer();
-  if (ground === null) return mark;
-  return sharp({ create: { width, height, channels: 4, background: ground } })
-    .composite([{ input: mark, gravity: "center" }])
-    .ensureAlpha(1)
-    .png({ compressionLevel: 9, palette: false })
-    .toBuffer();
-}
-
-/**
  * An `.ico` holding PNG frames.
  *
  * ICO has carried PNG payloads since Windows Vista and every browser this app
@@ -315,21 +281,6 @@ async function main() {
   );
   await put(path.join(brand, "crest-blue.svg"), crestBlue);
 
-  // -- LAN-398, LAN-456: the crest in every email ---------------------------
-  // The application's own mark — the white crest with the brown football on
-  // the club navy, as `BrandMark` draws it in the operator shell — so there is
-  // one mark in circulation (LAN-456, replacing LAN-398's blue-on-white). The
-  // navy is in the raster itself, an opaque tile, because the email's shell is
-  // a white card and a white mark on transparency would vanish into it; a tile
-  // also needs no change to the email's HTML. The header shows this 48px tall
-  // and the signature block 32px, so the committed raster is the 2x of the
-  // larger of the two and both slots scale it down. `@1x` is the matching
-  // non-retina rendition, offered through `srcset`; a client that ignores
-  // `srcset` takes the 2x from `src` and is sharp either way.
-  const tile = { ground: NAVY, inset: 0.1 };
-  await put(path.join(brand, "crest-email.png"), await rasterAtHeight(crestWhite, 96, tile));
-  await put(path.join(brand, "crest-email@1x.png"), await rasterAtHeight(crestWhite, 48, tile));
-
   // -- LAN-269, LAN-385: the icons -----------------------------------------
   // Everything below is one SVG rendered at six sizes. The badge already is an
   // icon — a white crest on a navy disc inside a gold ring, transparent outside
@@ -372,6 +323,18 @@ async function main() {
       { size: 48, png: await png(badge, 48) },
     ]),
   );
+
+  // -- LAN-398, LAN-456, LAN-491: the crest in every email -----------------
+  // The round badge — navy disc, gold ring, three crowns, crossed lances, the
+  // football — square and transparent outside the circle, exactly as the icons
+  // above (LAN-491, Brian, 7 October 2026: the round crest, not the square
+  // application mark, and no square treatment around it). The header shows it
+  // 48px and the signature block 32px, so the committed raster is the 2x of the
+  // larger slot; `@1x` is the matching non-retina rendition offered through
+  // `srcset`. It carries its own ground, so it reads on the email's white card
+  // with nothing behind it.
+  await put(path.join(brand, "crest-email.png"), await png(badge, 96));
+  await put(path.join(brand, "crest-email@1x.png"), await png(badge, 48));
 
   // -- LAN-269, LAN-383: the two link previews -----------------------------
   // Used exactly as supplied. LAN-269: "do not generate one." Copied, never
