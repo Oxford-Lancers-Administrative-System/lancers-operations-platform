@@ -69,6 +69,7 @@ import {
   type PhoneSort,
 } from "../board-phone-sort";
 import AddRecruitsMenu from "./add-recruits-menu";
+import { statusControlFor } from "@/lib/services/recruitment-board-access";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 
 /** The roster board's own debounce: folding three groups away is three clicks in about a second, and only the last state is worth storing. */
@@ -99,6 +100,7 @@ export default function RecruitmentBoardView({
   initialSortDirection,
   initialCollapsedGroups,
   access = FULL_RECRUITING_ACCESS,
+  mayMoveToJoined = true,
   mayAddRecruits = true,
 }: {
   operatorPersonId: string;
@@ -114,6 +116,8 @@ export default function RecruitmentBoardView({
   initialCollapsedGroups?: readonly string[] | undefined;
   /** LAN-432 — the seat's level on each recruiting category; a `none` category's columns are absent. */
   access?: RecruitingAccess;
+  /** LAN-505 — the May move recruits to Joined switch: Joined in the status control. */
+  mayMoveToJoined?: boolean;
   /** LAN-432 — the May add recruits switch: Add recruit and QR code. */
   mayAddRecruits?: boolean;
 }) {
@@ -127,8 +131,13 @@ export default function RecruitmentBoardView({
   const [phoneFilters, setPhoneFilters] = useState(false);
 
   const columns = useMemo(
-    () => visibleRecruitmentColumns([...RECRUITMENT_COLUMNS, ...eventColumns(events)], access),
-    [events, access],
+    () =>
+      visibleRecruitmentColumns(
+        [...RECRUITMENT_COLUMNS, ...eventColumns(events)],
+        access,
+        mayMoveToJoined,
+      ),
+    [events, access, mayMoveToJoined],
   );
   // LAN-432: the pinned filters follow their categories — Status, consent and
   // Recruitment sent Recruit details, Personal sent Person information
@@ -136,6 +145,7 @@ export default function RecruitmentBoardView({
   const personShown = access.recruit_person !== "none";
   const detailsShown = access.recruit_details !== "none";
   const eventsShown = access.recruit_events !== "none";
+  const statusControl = statusControlFor(access.recruit_details, mayMoveToJoined);
   const eventByBand = useMemo(
     () => new Map(events.map((event) => [event.eventId, event])),
     [events],
@@ -832,6 +842,7 @@ export default function RecruitmentBoardView({
                           bandEnd={bandBoundaries.has(column.key)}
                           seasonLabel={season.label}
                           eventColourKey={eventColourOf(column.band)}
+                          statusControl={statusControl}
                         />
                       ))}
                     </TableRow>
@@ -860,7 +871,7 @@ export default function RecruitmentBoardView({
                   key={row.prospectId}
                   row={row}
                   seasonLabel={season.label}
-                  statusEditable={access.recruit_details === "edit"}
+                  statusControl={statusControl}
                 />
               ))
             )}

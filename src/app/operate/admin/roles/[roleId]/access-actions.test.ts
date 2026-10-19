@@ -119,6 +119,9 @@ afterEach(async () => {
   await observer.query(
     `update public.role_access_grants g
         set level = case
+              when g.subject_key = 'move_recruits_to_joined'
+                then case when r.code in ('president', 'general_manager', 'vice_president', 'secretary')
+                       then 'yes' else 'none' end
               when r.code in ('president', 'general_manager', 'it_officer', 'vice_president', 'secretary')
                 then case g.subject_kind
                        when 'event_template' then 'manage'
@@ -248,7 +251,7 @@ describe("whole-seat edits", () => {
   it("copies the Vice-President onto the Treasurer as one History entry listing every changed line", async () => {
     signedInAs(["president"]);
     const plan = await planCopyAccessAction(roleIds.treasurer, roleIds.vice_president);
-    const expected = 12 + 3 + templates.length + 2;
+    const expected = 12 + 3 + templates.length + 3;
     expect(plan).toMatchObject({ ok: true });
     if (plan.ok) expect(plan.lines).toHaveLength(expected);
 

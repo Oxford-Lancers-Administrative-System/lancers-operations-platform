@@ -140,7 +140,13 @@ Adding people — one line each: None / View / Edit on eleven roster categories
 and on Person information and Recruit details, None / View on Attendance (the
 Roster group's last line) and on Event details,
 None / View / Manage on each event template, and No / Yes on "May add to the
-roster" and "May add recruits". A press saves at once; the Notice reads the
+roster" and "May add recruits". Recruiting also carries **May move recruits to
+Joined** (No / Yes, help line "Moves them onto the roster as Onboarding.") after
+Event details (LAN-505, Brian 2026-10-16). It replaced the fixed rule that only
+the President, Vice-President, Secretary and General Manager could move a
+recruit to Joined, and the migration switched it on for exactly those four;
+every other seat starts at No, the IT Officer included, and on that fixed seat
+it stays No. A press saves at once; the Notice reads the
 change back and the seat's **History** gains an "Access changed" entry. **Copy
 access from another seat** (choose the seat, read every line that would
 change, confirm) and **Grant everything** each write one History entry listing
@@ -152,7 +158,8 @@ next request. The eleven roster group colours (Attendance, Slate by default, sin
 beside Add players on the roster, by the same three seats; the board, the
 player and prospect records and the recruitment board draw from them. The
 sidebar follows: Roster, People and Missing data with any roster category at
-View; Recruitment with any recruiting category at View; Events with any template
+View; Recruitment with any recruiting category at View or May move recruits to
+Joined; Events with any template
 at View or an attendance capability; Follow-ups with any template at View; the
 Messaging schedule with any template at Manage. Report appears only for the
 seats that hold the report (the core four and the IT Officer), never as a grant
@@ -163,6 +170,16 @@ delete, send, approve, delivery and chase control and that template's messaging
 schedule (LAN-431). Attendance recording is unchanged for every seat: the
 Attendance line governs the player record's Attendance section and the roster
 board's Attendance group (LAN-457), and nothing else.
+
+**Moving a recruit to Joined (LAN-505).** The recruit's status control, on the
+board, the phone card and the recruit record, offers exactly what the seat can
+do. May move recruits to Joined offers Joined, whatever the Recruit details
+level — with Recruit details at None the status alone is sent so the switch has
+something to act on. Recruit details at Edit offers every other status; without
+the switch, Joined is not offered and the open control's last line reads
+"Moving to Joined needs the May move recruits to Joined permission." With
+neither, the status reads with **Read only** beside it. The server refuses the
+move to Joined for a seat without the switch, whatever the page showed.
 
 **A seat holder is always an operator (LAN-434, Brian 2026-09-26; relaxed for a
 phone-only holder by LAN-459 below).** On a

@@ -143,6 +143,9 @@ afterEach(async () => {
   await observer.query(
     `update public.role_access_grants g
         set level = case
+              when g.subject_key = 'move_recruits_to_joined'
+                then case when r.code in ('president', 'general_manager', 'vice_president', 'secretary')
+                       then 'yes' else 'none' end
               when r.code in ('president', 'general_manager', 'it_officer', 'vice_president', 'secretary')
                 then case g.subject_kind
                        when 'event_template' then 'manage'
@@ -354,12 +357,12 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
       roleId: roleIds.treasurer,
       sourceRoleId: roleIds.vice_president,
     });
-    // Every line of the Treasurer moves: 12 + 3 + templates + 2.
+    // Every line of the Treasurer moves: 12 + 3 + templates + 3.
     const templateCount = Number(
       (await observer.query<{ n: string }>("select count(*) as n from public.event_templates"))
         .rows[0].n,
     );
-    expect(planned).toHaveLength(12 + 3 + templateCount + 2);
+    expect(planned).toHaveLength(12 + 3 + templateCount + 3);
 
     const result = await copyAccessFrom(administrator(), {
       roleId: roleIds.treasurer,

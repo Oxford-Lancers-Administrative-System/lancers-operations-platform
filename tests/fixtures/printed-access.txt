@@ -13,6 +13,7 @@ general_manager        roster_category attendance                   view
 general_manager        recruiting_category recruit_person           edit
 general_manager        recruiting_category recruit_details          edit
 general_manager        recruiting_category recruit_events           view
+general_manager        switch move_recruits_to_joined               yes
 general_manager        event_template Chalk                         manage
 general_manager        event_template Game                          manage
 general_manager        event_template Meeting                       manage
@@ -37,6 +38,7 @@ it_officer             roster_category attendance                   view
 it_officer             recruiting_category recruit_person           edit
 it_officer             recruiting_category recruit_details          edit
 it_officer             recruiting_category recruit_events           view
+it_officer             switch move_recruits_to_joined               none
 it_officer             event_template Chalk                         manage
 it_officer             event_template Game                          manage
 it_officer             event_template Meeting                       manage
@@ -61,6 +63,7 @@ president              roster_category attendance                   view
 president              recruiting_category recruit_person           edit
 president              recruiting_category recruit_details          edit
 president              recruiting_category recruit_events           view
+president              switch move_recruits_to_joined               yes
 president              event_template Chalk                         manage
 president              event_template Game                          manage
 president              event_template Meeting                       manage
@@ -85,6 +88,7 @@ vice_president         roster_category attendance                   view
 vice_president         recruiting_category recruit_person           edit
 vice_president         recruiting_category recruit_details          edit
 vice_president         recruiting_category recruit_events           view
+vice_president         switch move_recruits_to_joined               yes
 vice_president         event_template Chalk                         manage
 vice_president         event_template Game                          manage
 vice_president         event_template Meeting                       manage
@@ -109,6 +113,7 @@ secretary              roster_category attendance                   view
 secretary              recruiting_category recruit_person           edit
 secretary              recruiting_category recruit_details          edit
 secretary              recruiting_category recruit_events           view
+secretary              switch move_recruits_to_joined               yes
 secretary              event_template Chalk                         manage
 secretary              event_template Game                          manage
 secretary              event_template Meeting                       manage
@@ -133,6 +138,7 @@ treasurer              roster_category attendance                   none
 treasurer              recruiting_category recruit_person           none
 treasurer              recruiting_category recruit_details          none
 treasurer              recruiting_category recruit_events           none
+treasurer              switch move_recruits_to_joined               none
 treasurer              event_template Chalk                         none
 treasurer              event_template Game                          none
 treasurer              event_template Meeting                       none
@@ -157,6 +163,7 @@ social_secretary       roster_category attendance                   none
 social_secretary       recruiting_category recruit_person           none
 social_secretary       recruiting_category recruit_details          none
 social_secretary       recruiting_category recruit_events           none
+social_secretary       switch move_recruits_to_joined               none
 social_secretary       event_template Chalk                         none
 social_secretary       event_template Game                          none
 social_secretary       event_template Meeting                       none
@@ -181,6 +188,7 @@ gameday_secretary      roster_category attendance                   none
 gameday_secretary      recruiting_category recruit_person           none
 gameday_secretary      recruiting_category recruit_details          none
 gameday_secretary      recruiting_category recruit_events           none
+gameday_secretary      switch move_recruits_to_joined               none
 gameday_secretary      event_template Chalk                         none
 gameday_secretary      event_template Game                          none
 gameday_secretary      event_template Meeting                       none
@@ -205,6 +213,7 @@ kit_manager            roster_category attendance                   none
 kit_manager            recruiting_category recruit_person           none
 kit_manager            recruiting_category recruit_details          none
 kit_manager            recruiting_category recruit_events           none
+kit_manager            switch move_recruits_to_joined               none
 kit_manager            event_template Chalk                         none
 kit_manager            event_template Game                          none
 kit_manager            event_template Meeting                       none
@@ -229,6 +238,7 @@ media_secretary        roster_category attendance                   none
 media_secretary        recruiting_category recruit_person           none
 media_secretary        recruiting_category recruit_details          none
 media_secretary        recruiting_category recruit_events           none
+media_secretary        switch move_recruits_to_joined               none
 media_secretary        event_template Chalk                         none
 media_secretary        event_template Game                          none
 media_secretary        event_template Meeting                       none
@@ -253,6 +263,7 @@ head_coach             roster_category attendance                   none
 head_coach             recruiting_category recruit_person           none
 head_coach             recruiting_category recruit_details          none
 head_coach             recruiting_category recruit_events           none
+head_coach             switch move_recruits_to_joined               none
 head_coach             event_template Chalk                         none
 head_coach             event_template Game                          none
 head_coach             event_template Meeting                       none
@@ -277,6 +288,7 @@ offence_coach          roster_category attendance                   none
 offence_coach          recruiting_category recruit_person           none
 offence_coach          recruiting_category recruit_details          none
 offence_coach          recruiting_category recruit_events           none
+offence_coach          switch move_recruits_to_joined               none
 offence_coach          event_template Chalk                         none
 offence_coach          event_template Game                          none
 offence_coach          event_template Meeting                       none
@@ -301,6 +313,7 @@ defence_coach          roster_category attendance                   none
 defence_coach          recruiting_category recruit_person           none
 defence_coach          recruiting_category recruit_details          none
 defence_coach          recruiting_category recruit_events           none
+defence_coach          switch move_recruits_to_joined               none
 defence_coach          event_template Chalk                         none
 defence_coach          event_template Game                          none
 defence_coach          event_template Meeting                       none
@@ -325,6 +338,7 @@ quarterbacks_coach     roster_category attendance                   none
 quarterbacks_coach     recruiting_category recruit_person           none
 quarterbacks_coach     recruiting_category recruit_details          none
 quarterbacks_coach     recruiting_category recruit_events           none
+quarterbacks_coach     switch move_recruits_to_joined               none
 quarterbacks_coach     event_template Chalk                         none
 quarterbacks_coach     event_template Game                          none
 quarterbacks_coach     event_template Meeting                       none
@@ -349,6 +363,7 @@ running_backs_coach    roster_category attendance                   none
 running_backs_coach    recruiting_category recruit_person           none
 running_backs_coach    recruiting_category recruit_details          none
 running_backs_coach    recruiting_category recruit_events           none
+running_backs_coach    switch move_recruits_to_joined               none
 running_backs_coach    event_template Chalk                         none
 running_backs_coach    event_template Game                          none
 running_backs_coach    event_template Meeting                       none
@@ -373,6 +388,7 @@ offensive_line_coach   roster_category attendance                   none
 offensive_line_coach   recruiting_category recruit_person           none
 offensive_line_coach   recruiting_category recruit_details          none
 offensive_line_coach   recruiting_category recruit_events           none
+offensive_line_coach   switch move_recruits_to_joined               none
 offensive_line_coach   event_template Chalk                         none
 offensive_line_coach   event_template Game                          none
 offensive_line_coach   event_template Meeting                       none
@@ -397,6 +413,7 @@ wide_receivers_coach   roster_category attendance                   none
 wide_receivers_coach   recruiting_category recruit_person           none
 wide_receivers_coach   recruiting_category recruit_details          none
 wide_receivers_coach   recruiting_category recruit_events           none
+wide_receivers_coach   switch move_recruits_to_joined               none
 wide_receivers_coach   event_template Chalk                         none
 wide_receivers_coach   event_template Game                          none
 wide_receivers_coach   event_template Meeting                       none
@@ -421,6 +438,7 @@ defensive_line_coach   roster_category attendance                   none
 defensive_line_coach   recruiting_category recruit_person           none
 defensive_line_coach   recruiting_category recruit_details          none
 defensive_line_coach   recruiting_category recruit_events           none
+defensive_line_coach   switch move_recruits_to_joined               none
 defensive_line_coach   event_template Chalk                         none
 defensive_line_coach   event_template Game                          none
 defensive_line_coach   event_template Meeting                       none
@@ -445,6 +463,7 @@ linebackers_coach      roster_category attendance                   none
 linebackers_coach      recruiting_category recruit_person           none
 linebackers_coach      recruiting_category recruit_details          none
 linebackers_coach      recruiting_category recruit_events           none
+linebackers_coach      switch move_recruits_to_joined               none
 linebackers_coach      event_template Chalk                         none
 linebackers_coach      event_template Game                          none
 linebackers_coach      event_template Meeting                       none
@@ -469,6 +488,7 @@ defensive_backs_coach  roster_category attendance                   none
 defensive_backs_coach  recruiting_category recruit_person           none
 defensive_backs_coach  recruiting_category recruit_details          none
 defensive_backs_coach  recruiting_category recruit_events           none
+defensive_backs_coach  switch move_recruits_to_joined               none
 defensive_backs_coach  event_template Chalk                         none
 defensive_backs_coach  event_template Game                          none
 defensive_backs_coach  event_template Meeting                       none
@@ -493,6 +513,7 @@ special_teams_coach    roster_category attendance                   none
 special_teams_coach    recruiting_category recruit_person           none
 special_teams_coach    recruiting_category recruit_details          none
 special_teams_coach    recruiting_category recruit_events           none
+special_teams_coach    switch move_recruits_to_joined               none
 special_teams_coach    event_template Chalk                         none
 special_teams_coach    event_template Game                          none
 special_teams_coach    event_template Meeting                       none

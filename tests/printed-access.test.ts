@@ -49,6 +49,14 @@ const SEEDED_TEMPLATES = [
 /** Brian, 2026-09-25 (W1 "Floor"). Retyped, not imported. */
 const FULL_SEATS = ["president", "general_manager", "it_officer", "vice_president", "secretary"];
 
+/**
+ * LAN-505 (Brian, 2026-10-16): May move recruits to Joined is on for exactly
+ * the four offices the fixed rule it replaced named, and off for every other
+ * seat, the IT Officer included. Retyped, not imported.
+ */
+const MOVE_TO_JOINED_SEATS = ["president", "general_manager", "vice_president", "secretary"];
+const MOVE_TO_JOINED_LINE = "switch move_recruits_to_joined";
+
 /** The lines in the order the seat page lists them. Retyped, not imported. */
 const LINE_ORDER = [
   "roster_category person",
@@ -66,6 +74,8 @@ const LINE_ORDER = [
   "recruiting_category recruit_person",
   "recruiting_category recruit_details",
   "recruiting_category recruit_events",
+  // LAN-505: the seat page shows it with the Recruiting lines.
+  "switch move_recruits_to_joined",
   "switch add_to_roster",
   "switch add_recruits",
 ];
@@ -100,7 +110,15 @@ function lineOf(row: MatrixRow): string {
 function rank(line: string): number {
   const index = LINE_ORDER.indexOf(line);
   // Templates sit between the recruiting lines and the switches, by name.
-  return index >= 0 ? (index < 15 ? index : index + 100) : 50;
+  return index >= 0 ? (index < 16 ? index : index + 100) : 50;
+}
+
+/** The seeded level: the line's maximum for a full seat, except the Joined switch. */
+function seededLevelOf(row: MatrixRow): string {
+  if (lineOf(row) === MOVE_TO_JOINED_LINE) {
+    return MOVE_TO_JOINED_SEATS.includes(row.role_code) ? "yes" : "none";
+  }
+  return FULL_SEATS.includes(row.role_code) ? maximumOf(row) : "none";
 }
 
 function maximumOf(row: MatrixRow): string {
@@ -138,29 +156,38 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     expect(`${printed}\n`).toBe(readFileSync(FIXTURE, "utf8"));
   });
 
-  it("gives every one of the twenty-one seats every line: 12 + 3 + 7 templates + 2", async () => {
+  it("gives every one of the twenty-one seats every line: 12 + 3 + 7 templates + 3", async () => {
     const seats = await client.query<{ code: string }>("select code from public.roles");
     expect(seats.rows).toHaveLength(21);
     for (const { code } of seats.rows) {
       expect(
         rows.filter((row) => row.role_code === code),
         code,
-      ).toHaveLength(24);
+      ).toHaveLength(25);
     }
   });
 
-  it("holds the five named seats at the maximum of every line", () => {
+  it("holds the five named seats at the maximum of every line but the Joined switch", () => {
     for (const row of rows.filter((entry) => FULL_SEATS.includes(entry.role_code))) {
-      expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe(maximumOf(row));
+      expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe(seededLevelOf(row));
     }
   });
 
   it("holds every other seat at none on every line", () => {
     const others = rows.filter((entry) => !FULL_SEATS.includes(entry.role_code));
-    expect(others).toHaveLength(16 * 24);
+    expect(others).toHaveLength(16 * 25);
     for (const row of others) {
       expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe("none");
     }
+  });
+
+  it("switches May move recruits to Joined on for the four offices alone — LAN-505", () => {
+    const holders = rows
+      .filter((row) => lineOf(row) === MOVE_TO_JOINED_LINE && row.level === "yes")
+      .map((row) => row.role_code)
+      .sort();
+    expect(holders).toEqual([...MOVE_TO_JOINED_SEATS].sort());
+    expect(rows.filter((row) => lineOf(row) === MOVE_TO_JOINED_LINE)).toHaveLength(21);
   });
 
   it("seeds the roster group colours from the packet, Attendance at Slate (LAN-457)", async () => {

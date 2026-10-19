@@ -17,8 +17,7 @@ import { bandColour, rawValue, type ColumnDef } from "./board-columns";
 import { displayOf, NOT_RECORDED, optionListLabel } from "./board-data";
 import StatusCell from "./status-cell";
 import { formatWhen } from "../roster/presentation";
-import { StatusPill } from "../board-filter-controls";
-import { PROSPECT_STATUS_LABELS } from "@/lib/services/recruitment-vocabulary";
+import type { StatusControl } from "@/lib/services/recruitment-board-access";
 
 /** A filter chip's field label, for the "Filtered by …" row. */
 export function labelForKey(key: string, columns: readonly ColumnDef[]): string {
@@ -77,6 +76,7 @@ export function RecruitCell({
   bandEnd,
   seasonLabel,
   eventColourKey = null,
+  statusControl = "full",
 }: {
   row: RecruitmentBoardRow;
   column: ColumnDef;
@@ -85,6 +85,8 @@ export function RecruitCell({
   seasonLabel: string;
   /** An event column's template colour key — see `bandColour`. */
   eventColourKey?: string | null;
+  /** LAN-505 — what the status cell offers this seat (`statusControlFor`). */
+  statusControl?: StatusControl;
 }) {
   const colours = bandColour(column.band, useBandColours(), eventColourKey);
   const shell = {
@@ -102,20 +104,9 @@ export function RecruitCell({
     return <TableCell sx={{ ...shell, p: 0 }} />;
   }
 
-  if (column.key === "status" && column.viewOnly) {
-    // LAN-432: Recruit details at view — the status reads, it does not change.
-    return (
-      <TableCell sx={shell}>
-        <StatusPill
-          domain="recruitment"
-          status={row.status}
-          label={PROSPECT_STATUS_LABELS[row.status]}
-        />
-      </TableCell>
-    );
-  }
-
   if (column.key === "status") {
+    // LAN-505: Recruit details at edit and May move recruits to Joined each
+    // offer their own statuses; with neither, the status reads and says so.
     return (
       <TableCell sx={shell}>
         <StatusCell
@@ -123,6 +114,7 @@ export function RecruitCell({
           status={row.status}
           displayName={row.displayName}
           seasonLabel={seasonLabel}
+          control={statusControl}
         />
       </TableCell>
     );
@@ -171,17 +163,22 @@ export function RecruitCell({
 export function RecruitCard({
   row,
   seasonLabel,
-  statusEditable = true,
+  statusControl = "full",
 }: {
   row: RecruitmentBoardRow;
   /** `W14`'s interruption names the season it would create a membership for. */
   seasonLabel: string;
-  /** LAN-432 — Recruit details at `edit`. At `view` the status is a pill; at `none` it is absent. */
-  statusEditable?: boolean;
+  /**
+   * LAN-505 — what the status control offers this seat (`statusControlFor`).
+   * The status itself is absent when neither Recruit details nor May move
+   * recruits to Joined sent it.
+   */
+  statusControl?: StatusControl;
 }) {
   // LAN-432: each line of the card appears only when the seat's grants sent it.
   const personShown = "college" in row;
-  const detailsShown = "status" in row;
+  const detailsShown = "consent" in row;
+  const statusShown = "status" in row;
   const callable = "phoneForCall" in row;
   return (
     <Card
@@ -232,24 +229,17 @@ export function RecruitCard({
         </Stack>
       </Box>
 
-      {detailsShown ? (
+      {statusShown ? (
         <Box sx={{ px: 2, pb: 2 }}>
-          {statusEditable ? (
-            <StatusCell
-              prospectId={row.prospectId}
-              status={row.status}
-              displayName={row.displayName}
-              seasonLabel={seasonLabel}
-              size="medium"
-              testIdPrefix="recruitment-card-status"
-            />
-          ) : (
-            <StatusPill
-              domain="recruitment"
-              status={row.status}
-              label={PROSPECT_STATUS_LABELS[row.status]}
-            />
-          )}
+          <StatusCell
+            prospectId={row.prospectId}
+            status={row.status}
+            displayName={row.displayName}
+            seasonLabel={seasonLabel}
+            size="medium"
+            testIdPrefix="recruitment-card-status"
+            control={statusControl}
+          />
         </Box>
       ) : null}
 
