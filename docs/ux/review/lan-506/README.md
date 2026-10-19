@@ -44,3 +44,10 @@ Register of the same event.
 | `lan-497-register-warmup-landscape740.png`       | Phone landscape, Warmup group                                           |
 | `lan-497-group-by-options-desktop1440.png`       | The Group by options open                                               |
 | `lan-497-group-by-options-phone375.png`          | The same at 375                                                         |
+
+## LAN-493 — Recruits: First contact after Status
+
+| File                                         | Shows                                                                                   |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `LAN-493-recruits-first-contact-desktop.png` | Recruits table at 1440, scrolled to the Recruitment band: Status, First contact, Source |
+| `LAN-493-recruits-first-contact-375px.png`   | Recruits cards at 375, unchanged                                                        |

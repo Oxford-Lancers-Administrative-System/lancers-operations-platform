@@ -63,9 +63,10 @@ says: **Person** (slate `#455a64`, unchanged from the roster), **Recruitment**
 recruitment event (blue `#0b3d91`, the roster's own Season colour), over an
 RSVP column and an Attendance column side by side, plain text.
 
-Columns, left to right, exactly `W1`'s table — no column invented outside it:
+Columns, left to right, exactly `W1`'s table — no column invented outside it
+(LAN-493 moved First contact to sit immediately after Status):
 Recruit (pinned) · College · Matric · Grad · Degree field · Contactable ·
-Status · Source · First contact · Personal sent · Recruitment sent · Consent ·
+Status · First contact · Source · Personal sent · Recruitment sent · Consent ·
 Played before · Watched before · Position interest · Gear owned · How they
 heard · Anything else · one RSVP/Attendance pair per event.
 

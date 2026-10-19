@@ -295,6 +295,18 @@ describe("First contact shows the date and time — LAN-486", () => {
   });
 });
 
+describe("First contact sits immediately after Status — LAN-493", () => {
+  it("draws the Status and First contact headers side by side, in that order", () => {
+    renderBoard([row()]);
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent?.trim() ?? "");
+    const status = headers.findIndex((text) => text.startsWith("Status"));
+    expect(status).toBeGreaterThanOrEqual(0);
+    expect(headers[status + 1]).toMatch(/^First contact/);
+  });
+});
+
 describe("W-2, walk correction — Played before / Watched before are capitalised", () => {
   it("renders 'Yes'/'No', not the raw 'yes'/'no' database enum", () => {
     // `personalSent`/`recruitmentSent` also render "Yes"/"No" (already
