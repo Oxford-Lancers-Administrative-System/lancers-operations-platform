@@ -65,7 +65,7 @@ export interface TieBreak<Row> {
 }
 
 /** Display name, then record id — the same answer on every device. */
-export function compareTieBreak<Row>(a: Row, b: Row, tieBreak: TieBreak<Row>): number {
+function compareTieBreak<Row>(a: Row, b: Row, tieBreak: TieBreak<Row>): number {
   const byName = COLLATOR.compare(tieBreak.name(a), tieBreak.name(b));
   if (byName !== 0) return byName;
   const left = tieBreak.id(a);

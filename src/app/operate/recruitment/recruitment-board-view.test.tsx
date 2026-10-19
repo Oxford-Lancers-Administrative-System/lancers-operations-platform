@@ -435,9 +435,11 @@ describe("LAN-495 — the Recruits board's Sort sheet", () => {
     );
   }
 
+  /** Picks from the menu `testId` opens — the newest listbox, as a closing one can linger. */
   async function pick(testId: string, label: string) {
     fireEvent.mouseDown(within(screen.getByTestId(testId)).getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: label }));
+    const listboxes = await screen.findAllByRole("listbox");
+    fireEvent.click(within(listboxes.at(-1)!).getByRole("option", { name: label }));
   }
 
   /** The options of the menu `testId` opens — the newest listbox, as a closing one can linger. */
@@ -509,7 +511,9 @@ describe("LAN-495 — the Recruits board's Sort sheet", () => {
     fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
     await pick("sort-field-1", "First contact");
     expect(await optionsOf("sort-order-1")).toEqual(["Oldest first", "Newest first"]);
-    fireEvent.click(screen.getByRole("option", { name: "Newest first" }));
+    fireEvent.click(
+      within(screen.getAllByRole("listbox").at(-1)!).getByRole("option", { name: "Newest first" }),
+    );
     expect(cardOrder()).toEqual(["p-zed", "p-amy", "p-mia"]);
   });
 

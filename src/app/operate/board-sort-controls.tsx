@@ -105,7 +105,7 @@ export function useBoardSort(
 }
 
 /** The field's label and order for one key, e.g. "Status A–Z". */
-export function sortKeyLabel(fields: readonly SortField[], key: SortKey): string {
+function sortKeyLabel(fields: readonly SortField[], key: SortKey): string {
   const field = fields.find((entry) => entry.key === key.key);
   return field ? `${field.label} ${orderLabel(field.kind, key.direction)}` : key.key;
 }

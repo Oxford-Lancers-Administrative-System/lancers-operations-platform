@@ -1348,9 +1348,11 @@ describe("LAN-495 — the Roster's Sort sheet", () => {
       .map((person) => person?.displayName ?? "?");
   }
 
+  /** Picks from the menu `testId` opens — the newest listbox, as a closing one can linger. */
   async function pick(testId: string, label: string) {
     fireEvent.mouseDown(within(screen.getByTestId(testId)).getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: label }));
+    const listboxes = await screen.findAllByRole("listbox");
+    fireEvent.click(within(listboxes.at(-1)!).getByRole("option", { name: label }));
   }
 
   async function openSheet() {
