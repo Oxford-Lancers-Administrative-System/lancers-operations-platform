@@ -6,6 +6,7 @@ import { gateShellPage } from "../gate";
 import type { BoardFilters } from "./board-data";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 import RosterBoard from "./roster-board";
+import { parseSortParam } from "../board-sort";
 import { operatorHasCapability, operatorHoldsAccess } from "@/lib/auth/guards";
 import { ADD_TO_ROSTER, mayViewRoster, ROSTER_REACH } from "@/lib/auth/roster-access";
 
@@ -41,17 +42,9 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
   }
 
   const search = first(params.q);
-  const sortKeyRaw = first(params.sort);
-  const sortKey =
-    sortKeyRaw !== "" &&
-    (sortKeyRaw === "displayName" ||
-      // LAN-426: the phone board's name sorts, which are not columns.
-      sortKeyRaw === "firstName" ||
-      sortKeyRaw === "lastName" ||
-      columnKeys.has(sortKeyRaw))
-      ? sortKeyRaw
-      : "displayName";
-  const sortDirection = first(params.dir) === "desc" ? "desc" : "asc";
+  // LAN-495: up to three keys, or an older link's single `sort` and `dir`. The
+  // board keeps only keys this viewer may sort by.
+  const sort = parseSortParam(first(params.sort), first(params.dir));
 
   const redactedRows = data.rows.map((row) =>
     redactRow(row, columns, operator.grants),
@@ -79,8 +72,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       seasonHasOnboardingItemTypes={data.seasonHasOnboardingItemTypes}
       initialSearch={search}
       initialFilters={filters}
-      initialSortKey={sortKey}
-      initialSortDirection={sortDirection}
+      initialSort={sort}
       initialCollapsedGroups={preferences.rosterCollapsedGroups}
       canEditCategories={operatorHasCapability(operator, "role_management")}
       canAddPlayers={operatorHoldsAccess(operator, ADD_TO_ROSTER)}

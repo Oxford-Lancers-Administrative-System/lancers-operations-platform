@@ -1,11 +1,10 @@
 "use client";
 
 import { useBandColours } from "@/components/band-colours-provider";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
-import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
@@ -20,6 +19,9 @@ import TableSortLabel from "@mui/material/TableSortLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { PinnedSelect } from "@/components/pinned-select";
+import { ChipBar } from "@/components/chip-bar";
+import { SortButton, SortChips, SortSheet, useBoardSort } from "../board-sort-controls";
+import { boardUrl, formatSortParam, headerSort, type SortKey } from "../board-sort";
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
 import { CONSENT_LABELS, PROSPECT_STATUS_LABELS } from "@/lib/services/recruitment-vocabulary";
 import type { Season } from "@/lib/services/seasons";
@@ -57,28 +59,17 @@ import {
   applyBoard,
   filterOptions,
   optionListLabel,
+  recruitmentSortFields,
   type BoardFilters,
-  type BoardSort,
 } from "./board-data";
 import { filterChipLabel, labelForKey, RecruitCard, RecruitCell } from "./recruitment-board-cells";
 import { SIDEWAYS_PHONE } from "@/theme-tokens";
-import {
-  PhoneSortSelect,
-  rememberPhoneSort,
-  useRememberedPhoneSort,
-  type PhoneSort,
-} from "../board-phone-sort";
 import AddRecruitsMenu from "./add-recruits-menu";
 import { statusControlFor } from "@/lib/services/recruitment-board-access";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 
 /** The roster board's own debounce: folding three groups away is three clicks in about a second, and only the last state is worth storing. */
 const COLLAPSE_SAVE_DELAY_MS = 600;
-
-function buildUrl(base: string, params: URLSearchParams): string {
-  const query = params.toString();
-  return query === "" ? base : `${base}?${query}`;
-}
 
 /**
  * `/operate/recruitment` — `W1`'s board, reworked (2026-09-02 correction).
@@ -96,8 +87,7 @@ export default function RecruitmentBoardView({
   totalInSeason,
   initialSearch,
   initialFilters,
-  initialSortKey,
-  initialSortDirection,
+  initialSort,
   initialCollapsedGroups,
   access = FULL_RECRUITING_ACCESS,
   mayMoveToJoined = true,
@@ -110,8 +100,8 @@ export default function RecruitmentBoardView({
   totalInSeason: number;
   initialSearch: string;
   initialFilters: BoardFilters;
-  initialSortKey: string | null;
-  initialSortDirection: "asc" | "desc";
+  /** The address bar's sort keys, unchecked: the board keeps only those this viewer may sort by (LAN-495). */
+  initialSort: readonly SortKey[];
   /** What this operator's account remembers about folded-away groups, or `undefined` where it remembers nothing (LAN-404). */
   initialCollapsedGroups?: readonly string[] | undefined;
   /** LAN-432 — the seat's level on each recruiting category; a `none` category's columns are absent. */
@@ -124,11 +114,10 @@ export default function RecruitmentBoardView({
   const bandColours = useBandColours();
   const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState<BoardFilters>(initialFilters);
-  const [sort, setSort] = useState<BoardSort | null>(
-    initialSortKey ? { key: initialSortKey, direction: initialSortDirection } : null,
-  );
   const [menu, setMenu] = useState<{ anchor: HTMLElement; column: ColumnDef } | null>(null);
   const [phoneFilters, setPhoneFilters] = useState(false);
+  /** LAN-495 — where the sort sheet is open: the phone's bottom sheet or the desktop dialog. */
+  const [sortOpen, setSortOpen] = useState<"sheet" | "dialog" | null>(null);
 
   const columns = useMemo(
     () =>
@@ -207,21 +196,31 @@ export default function RecruitmentBoardView({
   );
   const bandBoundaries = useMemo(() => bandBoundaryKeys(drawn), [drawn]);
 
+  function syncUrl(nextSearch: string, nextFilters: BoardFilters, nextSort: readonly SortKey[]) {
+    const params = new URLSearchParams();
+    if (nextSearch.trim() !== "") params.set("q", nextSearch.trim());
+    for (const [key, value] of Object.entries(nextFilters)) if (value) params.set(key, value);
+    if (nextSort.length > 0) params.set("sort", formatSortParam(nextSort));
+    window.history.replaceState(null, "", boardUrl("/operate/recruitment", params));
+  }
+
+  /**
+   * LAN-495: up to three sort keys, one state for cards, the sideways table and
+   * the desktop table. No key is `W1`'s default: ladder order, then newest
+   * first contact.
+   */
+  const sortFields = useMemo(() => recruitmentSortFields(columns, bandLabel), [columns, bandLabel]);
+  const { keys: sort, setKeys: setSort } = useBoardSort(
+    "recruitment",
+    sortFields,
+    initialSort,
+    (next) => syncUrl(search, filters, next),
+  );
+
   const visibleRows = useMemo(
     () => applyBoard(rows, { search, filters, sort }),
     [rows, search, filters, sort],
   );
-
-  function syncUrl(nextSearch: string, nextFilters: BoardFilters, nextSort: BoardSort | null) {
-    const params = new URLSearchParams();
-    if (nextSearch.trim() !== "") params.set("q", nextSearch.trim());
-    for (const [key, value] of Object.entries(nextFilters)) if (value) params.set(key, value);
-    if (nextSort) {
-      params.set("sort", nextSort.key);
-      params.set("dir", nextSort.direction);
-    }
-    window.history.replaceState(null, "", buildUrl("/operate/recruitment", params));
-  }
 
   const setFilter = useCallback(
     (key: string, value: string) => {
@@ -230,7 +229,6 @@ export default function RecruitmentBoardView({
       setFilters(next);
       syncUrl(search, next, sort);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filters, search, sort],
   );
 
@@ -239,36 +237,22 @@ export default function RecruitmentBoardView({
     syncUrl(value, filters, sort);
   }
 
-  /** LAN-426: the phone board's sort — an exact key and direction, not a heading's toggle. */
-  function applyPhoneSort(next: PhoneSort) {
-    setSort(next);
-    syncUrl(search, filters, next);
-  }
-  useRememberedPhoneSort("recruitment", detailsShown, applyPhoneSort);
-  function choosePhoneSort(next: PhoneSort) {
-    applyPhoneSort(next);
-    rememberPhoneSort("recruitment", next);
-  }
-
+  /** A heading's tap changes key 1 only and keeps keys 2 and 3 (LAN-495). */
   function sortBy(key: string) {
-    const next: BoardSort =
-      sort?.key === key
-        ? { key, direction: sort.direction === "asc" ? "desc" : "asc" }
-        : { key, direction: "asc" };
-    setSort(next);
-    syncUrl(search, filters, next);
+    setSort(headerSort(sort, key));
   }
+  const sortedAs = (key: string) => sort.find((entry) => entry.key === key)?.direction;
 
+  /** The Filtered by bar's Clear all: search and filters. The sort has its own Clear. */
   const clearAll = () => {
     setSearch("");
     setFilters({});
-    setSort(null);
-    syncUrl("", {}, null);
+    syncUrl("", {}, sort);
   };
 
   const activeFilters = Object.entries(filters).filter(([, value]) => value !== "");
 
-  const pinned = (
+  const renderPinned = (trailing?: ReactNode) => (
     <Stack
       direction={{ xs: "column", md: "row" }}
       spacing={2}
@@ -349,42 +333,39 @@ export default function RecruitmentBoardView({
           minWidth={170}
         />
       ) : null}
+      {trailing}
     </Stack>
   );
+  const pinned = renderPinned();
 
   const chips =
     activeFilters.length > 0 || search.trim() !== "" ? (
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
-        data-testid="recruitment-filter-chips"
-      >
-        <Typography variant="body2" color="text.secondary">
-          Filtered by
-        </Typography>
-        {search.trim() !== "" ? (
-          <Chip size="small" label={`Search: ${search}`} onDelete={() => updateSearch("")} />
-        ) : null}
-        {activeFilters.map(([key, value]) => (
-          <Chip
-            key={key}
-            size="small"
-            label={
+      <ChipBar
+        caption="Filtered by"
+        testId="recruitment-filter-chips"
+        chips={[
+          ...(search.trim() !== ""
+            ? [{ key: "q", label: `Search: ${search}`, onDelete: () => updateSearch("") }]
+            : []),
+          ...activeFilters.map(([key, value]) => ({
+            key,
+            label: (
               <>
                 <Box component="span" sx={{ fontWeight: 700 }}>
                   {labelForKey(key, columns)}:
                 </Box>{" "}
                 {filterChipLabel(key, value, columns)}
               </>
-            }
-            onDelete={() => setFilter(key, "")}
-          />
-        ))}
-        <Button size="small" onClick={clearAll}>
-          Clear all
-        </Button>
-      </Stack>
+            ),
+            onDelete: () => setFilter(key, ""),
+          })),
+        ]}
+        action={
+          <Button size="small" onClick={clearAll}>
+            Clear all
+          </Button>
+        }
+      />
     ) : null;
 
   const empty = totalInSeason === 0;
@@ -485,7 +466,14 @@ export default function RecruitmentBoardView({
             <Box
               sx={{ display: { xs: "none", md: "block" }, [SIDEWAYS_PHONE]: { display: "none" } }}
             >
-              {pinned}
+              {renderPinned(
+                <SortButton
+                  count={sort.length}
+                  onClick={() => setSortOpen("dialog")}
+                  testId="recruitment-sort-desktop"
+                  sx={{ alignSelf: { md: "center" } }}
+                />,
+              )}
             </Box>
             <Stack
               direction="row"
@@ -516,14 +504,19 @@ export default function RecruitmentBoardView({
               >
                 Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
               </Button>
-              <PhoneSortSelect
-                sortKey={sort?.key ?? null}
-                sortDirection={sort?.direction ?? "asc"}
-                statusAvailable={detailsShown}
-                onChange={choosePhoneSort}
+              <SortButton
+                count={sort.length}
+                onClick={() => setSortOpen("sheet")}
+                testId="recruitment-sort-phone"
               />
             </Stack>
             {chips}
+            <SortChips
+              fields={sortFields}
+              keys={sort}
+              onChange={setSort}
+              testId="recruitment-sort-chips"
+            />
           </Stack>
 
           {/* Desktop: the table — the roster board's own banded shape. */}
@@ -644,8 +637,8 @@ export default function RecruitmentBoardView({
                     }}
                   >
                     <TableSortLabel
-                      active={sort?.key === "displayName"}
-                      direction={sort?.key === "displayName" ? sort.direction : "asc"}
+                      active={sortedAs("displayName") !== undefined}
+                      direction={sortedAs("displayName") ?? "asc"}
                       onClick={() => sortBy("displayName")}
                     >
                       Recruit
@@ -738,8 +731,8 @@ export default function RecruitmentBoardView({
                         >
                           {column.sortable ? (
                             <TableSortLabel
-                              active={sort?.key === column.key}
-                              direction={sort?.key === column.key ? sort.direction : "asc"}
+                              active={sortedAs(column.key) !== undefined}
+                              direction={sortedAs(column.key) ?? "asc"}
                               onClick={() => sortBy(column.key)}
                             >
                               {column.label}
@@ -887,6 +880,16 @@ export default function RecruitmentBoardView({
           </Button>
         </Box>
       </Drawer>
+
+      <SortSheet
+        open={sortOpen}
+        fields={sortFields}
+        keys={sort}
+        onChange={setSort}
+        onClear={() => setSort([])}
+        onClose={() => setSortOpen(null)}
+        testId="recruitment-sort"
+      />
 
       <ColumnFilterMenu
         menu={menu}

@@ -138,8 +138,7 @@ function renderBoard(seat: Access, mayMoveToJoined: boolean) {
       totalInSeason={1}
       initialSearch=""
       initialFilters={{}}
-      initialSortKey={null}
-      initialSortDirection="asc"
+      initialSort={[]}
       access={seat}
       mayMoveToJoined={mayMoveToJoined}
     />,

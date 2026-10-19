@@ -4,6 +4,7 @@ import { listRecruitmentBoard } from "@/lib/services/recruitment-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import RecruitmentBoardView from "./recruitment-board-view";
+import { parseSortParam } from "../board-sort";
 import { operatorHoldsAccess } from "@/lib/auth/guards";
 import { ADD_RECRUITS, mayMoveToJoined, RECRUITING_REACH } from "@/lib/auth/roster-access";
 import { recruitingAccessFor, redactRecruitmentRow } from "@/lib/services/recruitment-board-access";
@@ -67,8 +68,7 @@ export default async function RecruitmentBoardPage({
       totalInSeason={data.totalInSeason}
       initialSearch={first(params.q)}
       initialFilters={filters}
-      initialSortKey={first(params.sort) || null}
-      initialSortDirection={first(params.dir) === "desc" ? "desc" : "asc"}
+      initialSort={parseSortParam(first(params.sort), first(params.dir))}
     />
   );
 }

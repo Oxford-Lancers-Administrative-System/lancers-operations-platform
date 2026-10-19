@@ -142,7 +142,8 @@ the page already fetched — `RosterBoard`'s own `applyBoard()` call, not a
 round trip. Before 2026-08-29 every change called `router.push()`, which
 re-ran the server component and re-queried the whole board for data the page
 was already holding. The URL still carries the current search, filters and
-sort (via `history.replaceState`, not a navigation), so a filtered view is
+sort (via `history.replaceState`, not a navigation; since LAN-495 up to three
+keys, `?sort=status:asc,college:asc`), so a filtered view is
 still a link and still survives a refresh — that refresh, and the page's first
 load, are the one real fetch Brian accepted taking a few seconds:
 "I'm okay if the first time it loads it's 5 seconds, but it should be snappy

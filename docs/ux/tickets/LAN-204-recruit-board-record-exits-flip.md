@@ -110,7 +110,8 @@ heard · Anything else · one RSVP/Attendance pair per event.
   Every sortable column carries the roster's own `TableSortLabel` indicator —
   **including each event's own RSVP and Attendance pair** (2026-09-02
   correction, round 2; shipped non-sortable, against this rule, until
-  then).
+  then). Since LAN-495 the board takes up to three sort keys from the Sort
+  sheet, shared with the roster; with none chosen the default above stands.
 - **Search** matches name and alias, identically to the roster board.
 - **Filters are the roster's own two-part mechanism**, not a bespoke row:
   a pinned control (Search plus five `PinnedSelect`s — Status, WhatsApp

@@ -407,15 +407,42 @@ Onboarding → Active
 Two rows, not one: intake and activation are still two distinct events, but
 neither carries a reason any more.
 
-**On a phone, the Roster and Recruits boards sort from one select** (LAN-426).
-Where the boards draw cards, a **Sort** select beside **Filters** offers First
-name, Last name and Status, each A–Z or Z–A; Status sorts alphabetically by its
-label, with no ladder of its own, and is offered only where the Status column is
-shown. The choice writes the same `sort` / `dir` the desktop headings do, so it
-applies to the whole filtered set and a reload keeps it; it is also remembered
-per board in the browser, so returning to the board from the menu restores it.
-The remembered value is read only where the cards are drawn, so the desktop
-table's default order is unchanged.
+**The Roster and Recruits boards sort by up to three keys** (LAN-495, replacing
+LAN-426's phone select). A **Sort** button, **Sort (n)** once keys are set,
+sits beside **Filters** on a phone, upright or on its side, and opens a bottom
+sheet; on a desktop it ends the pinned filter row and opens a dialog. The sheet
+has three rows, **Sort by**, **Then by**, **Then by**, each a field and an
+order, then **Clear** and **Done**. Changes apply as they are made; Done only
+closes. A field chosen in one row is not offered below it, and choosing None
+removes that row and moves the later rows up. Orders are worded by type: A–Z /
+Z–A for text, Oldest first / Newest first for dates, Low–High / High–Low for
+numbers.
+
+- **Fields** are First name, Last name, the pinned Player or Recruit column, and
+  every column this viewer can see, in board order, including columns inside a
+  folded group. A column hidden from the viewer is never offered. A label two
+  columns share names its group (`Membership · BPS`), a special-teams cell its
+  squad, an event's RSVP and Attendance the event.
+- **Comparison:** numbers numerically, text with en-GB numeric collation, First
+  contact by instant, and an empty value last in either direction. A
+  multi-valued cell sorts by its first value in the column's option order.
+  Status stays alphabetical by its label, with no ladder of its own. Every tie
+  ends on display name, then record id, so the order is the same on every
+  device.
+- **Clear** returns to the board's default: Player A–Z on the Roster; ladder
+  order, then newest first contact, on Recruits.
+- A **Sorted by** bar under the toolbar shows numbered chips (`1 Status A–Z`),
+  so the order is readable when those columns are scrolled off screen;
+  removing a chip moves the later keys up. The Filtered by bar's **Clear all**
+  clears the search and filters, not the sort.
+- **A column heading** changes key 1 only and keeps keys 2 and 3; a second tap
+  flips its direction. Every sorted column shows its arrow.
+- **One order everywhere:** the cards, the sideways table and the desktop table
+  read the same keys, so rotating changes the layout only. The keys are in the
+  address bar as `?sort=status:asc,college:asc,lastName:asc` and remembered per
+  board in this browser, restored in every layout when the address carries
+  none. An older `?sort=status&dir=desc` link still reads as one key, and a
+  linked or remembered key this viewer can no longer see is dropped quietly.
 
 **A phone on its side gets the table** (LAN-427). "On its side" is judged by
 height, not width (Brian, 2026-09-28): landscape and at most 500px tall, which
@@ -428,7 +455,7 @@ both boards. On a phone on its side:
   only the phone gutter around the page; the top bar scrolls away with the page;
 - Roster and Recruits put their heading on one line — title, count and the page
   actions (Edit categories / Add players; QR code / Add recruit);
-- the toolbar is one row, **Filters** and the phone sort, with the search box
+- the toolbar is one row, **Filters** and **Sort**, with the search box
   and every filter select inside the Filters bottom sheet;
 - the desktop table follows directly, with every heading's sort, funnel filter
   and editable cell working as on a desktop and the Player or Recruit column

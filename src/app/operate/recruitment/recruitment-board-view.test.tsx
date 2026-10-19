@@ -87,8 +87,7 @@ function renderBoard(rows: readonly RecruitmentBoardRow[]) {
       totalInSeason={rows.length}
       initialSearch=""
       initialFilters={{}}
-      initialSortKey={null}
-      initialSortDirection="asc"
+      initialSort={[]}
     />,
   );
 }
@@ -211,8 +210,7 @@ describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09
         totalInSeason={rows.length}
         initialSearch=""
         initialFilters={{}}
-        initialSortKey={null}
-        initialSortDirection="asc"
+        initialSort={[]}
       />,
     );
   }
@@ -367,8 +365,7 @@ describe("Personal sent follows Person information, as the record does — LAN-4
         totalInSeason={1}
         initialSearch=""
         initialFilters={{}}
-        initialSortKey={null}
-        initialSortDirection="asc"
+        initialSort={[]}
         access={{ ...access, recruit_events: "none" }}
       />,
     );
@@ -389,8 +386,12 @@ describe("Personal sent follows Person information, as the record does — LAN-4
   });
 });
 
-/** LAN-426 — the phone board's sort, as on the roster. */
-describe("LAN-426 — the phone board's sort", () => {
+/**
+ * LAN-495 — the Sort sheet, as on the roster. It replaced LAN-426's phone
+ * select, so the cases LAN-426 proved are kept here in its terms: first name,
+ * last name and status, either way; status alphabetical; remembered per board.
+ */
+describe("LAN-495 — the Recruits board's Sort sheet", () => {
   const RECRUITS = [
     row({
       prospectId: "p-zed",
@@ -398,6 +399,8 @@ describe("LAN-426 — the phone board's sort", () => {
       givenName: "Zed",
       familyName: "Adams",
       status: "joined",
+      college: "Keble",
+      firstContactOn: "2026-10-07T18:31:00.000Z",
     }),
     row({
       prospectId: "p-amy",
@@ -405,6 +408,8 @@ describe("LAN-426 — the phone board's sort", () => {
       givenName: "Amy",
       familyName: "Young",
       status: "committed",
+      college: "Balliol",
+      firstContactOn: "2026-10-07T08:05:00.000Z",
     }),
     row({
       prospectId: "p-mia",
@@ -412,6 +417,8 @@ describe("LAN-426 — the phone board's sort", () => {
       givenName: "Mia",
       familyName: "Brown",
       status: "identified",
+      college: "Balliol",
+      firstContactOn: null,
     }),
   ];
 
@@ -422,64 +429,194 @@ describe("LAN-426 — the phone board's sort", () => {
       .map((id) => id.replace("recruitment-card-", ""));
   }
 
-  function phoneViewport(matches: boolean) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        // A phone held upright: below md, and never the sideways (landscape) rule.
-        matches: matches && !query.includes("landscape"),
-        media: query,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    });
+  function tableOrder(): string[] {
+    return [...document.querySelectorAll('[data-testid^="recruitment-row-p-"]')].map((row) =>
+      (row.getAttribute("data-testid") ?? "").replace("recruitment-row-", ""),
+    );
   }
 
-  async function choose(label: string) {
-    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+  async function pick(testId: string, label: string) {
+    fireEvent.mouseDown(within(screen.getByTestId(testId)).getByRole("combobox"));
     fireEvent.click(await screen.findByRole("option", { name: label }));
+  }
+
+  /** The options of the menu `testId` opens — the newest listbox, as a closing one can linger. */
+  async function optionsOf(testId: string): Promise<(string | null)[]> {
+    fireEvent.mouseDown(within(screen.getByTestId(testId)).getByRole("combobox"));
+    const listboxes = await screen.findAllByRole("listbox");
+    return within(listboxes.at(-1)!)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
   }
 
   beforeEach(() => {
     window.history.replaceState(null, "", "/operate/recruitment");
     window.localStorage.clear();
-    phoneViewport(true);
   });
 
-  it("sorts the cards by first name, last name and status, either way", async () => {
+  it("opens the bottom sheet from the phone bar with three rows, Clear and Done", () => {
     renderBoard(RECRUITS);
+    expect(screen.getByTestId("recruitment-sort-phone")).toHaveTextContent(/^Sort$/);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    const sheet = screen.getByTestId("recruitment-sort-sheet");
+    expect(within(sheet).getByText("Sort by")).toBeInTheDocument();
+    expect(within(sheet).getAllByText("Then by")).toHaveLength(2);
+    expect(within(sheet).getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
+  });
 
-    await choose("First name A–Z");
+  it("offers First name, Last name, Recruit and every visible column in board order", async () => {
+    renderBoard(RECRUITS);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    fireEvent.mouseDown(within(screen.getByTestId("sort-field-1")).getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+    expect(options.slice(0, 11)).toEqual([
+      "None",
+      "First name",
+      "Last name",
+      "Recruit",
+      "College",
+      "Matric",
+      "Grad",
+      "Degree field",
+      "Contactable",
+      "Status",
+      "First contact",
+    ]);
+  });
+
+  it("sorts by first name, last name and status, either way, and status alphabetically", async () => {
+    renderBoard(RECRUITS);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+
+    await pick("sort-field-1", "First name");
     expect(cardOrder()).toEqual(["p-amy", "p-mia", "p-zed"]);
-    await choose("Last name Z–A");
+    await pick("sort-order-1", "Z–A");
+    expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
+    await pick("sort-field-1", "Last name");
     expect(cardOrder()).toEqual(["p-amy", "p-mia", "p-zed"]);
-    await choose("Last name A–Z");
+    await pick("sort-order-1", "A–Z");
     expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
     // Committed, Identified, Joined — the alphabet, not the recruitment ladder.
-    await choose("Status A–Z");
+    await pick("sort-field-1", "Status");
     expect(cardOrder()).toEqual(["p-amy", "p-mia", "p-zed"]);
     expect(window.localStorage.getItem("lancers:board-phone-sort:recruitment")).toBe("status:asc");
-    expect(window.location.search).toContain("sort=status");
+    expect(window.location.search).toBe("?sort=status:asc");
   });
 
-  it("restores the remembered sort on a phone when the URL carries none", () => {
-    window.localStorage.setItem("lancers:board-phone-sort:recruitment", "lastName:asc");
+  it("words a date's orders by time and sorts First contact by instant, blank last", async () => {
     renderBoard(RECRUITS);
-
-    expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    await pick("sort-field-1", "First contact");
+    expect(await optionsOf("sort-order-1")).toEqual(["Oldest first", "Newest first"]);
+    fireEvent.click(screen.getByRole("option", { name: "Newest first" }));
+    expect(cardOrder()).toEqual(["p-zed", "p-amy", "p-mia"]);
   });
 
-  it("keeps the ladder order where the table is drawn", () => {
-    phoneViewport(false);
-    window.localStorage.setItem("lancers:board-phone-sort:recruitment", "lastName:asc");
+  it("applies a second key to the first key's ties, and the same order in table and cards", async () => {
     renderBoard(RECRUITS);
-
-    // Identified, Committed, Joined — the default W1 ladder order, unchanged.
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    await pick("sort-field-1", "College");
+    await pick("sort-field-2", "First name");
+    await pick("sort-order-2", "Z–A");
+    // Balliol (Mia, Amy — first name Z–A), then Keble.
     expect(cardOrder()).toEqual(["p-mia", "p-amy", "p-zed"]);
+    expect(tableOrder()).toEqual(cardOrder());
+    expect(window.location.search).toBe("?sort=college:asc,firstName:desc");
+    expect(screen.getByTestId("recruitment-sort-phone")).toHaveTextContent("Sort (2)");
+  });
+
+  it("does not offer a field chosen higher up", async () => {
+    renderBoard(RECRUITS);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    await pick("sort-field-1", "College");
+    const options = await optionsOf("sort-field-2");
+    expect(options).not.toContain("College");
+    expect(options).toContain("First name");
+  });
+
+  it("numbers the Sorted by chips, and removing one moves the later keys up", async () => {
+    renderBoard(RECRUITS);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    await pick("sort-field-1", "College");
+    await pick("sort-field-2", "First name");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    const chips = screen.getByTestId("recruitment-sort-chips");
+    expect(within(chips).getByText("Sorted by")).toBeInTheDocument();
+    expect(within(chips).getByText("1 College A–Z")).toBeInTheDocument();
+    expect(within(chips).getByText("2 First name A–Z")).toBeInTheDocument();
+
+    const first = within(chips).getByText("1 College A–Z").closest(".MuiChip-root")!;
+    fireEvent.click(first.querySelector(".MuiChip-deleteIcon")!);
+    expect(within(screen.getByTestId("recruitment-sort-chips")).getByText("1 First name A–Z"));
+    expect(window.location.search).toBe("?sort=firstName:asc");
+  });
+
+  it("Clear returns to the ladder, then newest first contact", async () => {
+    renderBoard(RECRUITS);
+    fireEvent.click(screen.getByTestId("recruitment-sort-phone"));
+    await pick("sort-field-1", "First name");
+    fireEvent.click(screen.getByTestId("recruitment-sort-clear"));
+    // Identified, Committed, Joined — the default W1 ladder order.
+    expect(cardOrder()).toEqual(["p-mia", "p-amy", "p-zed"]);
+    expect(window.location.search).toBe("");
+    expect(window.localStorage.getItem("lancers:board-phone-sort:recruitment")).toBeNull();
+    expect(screen.queryByTestId("recruitment-sort-chips")).not.toBeInTheDocument();
+  });
+
+  it("a heading's tap changes key 1 only and keeps the rest; a second tap flips it", () => {
+    window.history.replaceState(null, "", "/operate/recruitment?sort=college:asc,firstName:desc");
+    render(
+      <RecruitmentBoardView
+        operatorPersonId="operator-1"
+        season={SEASON}
+        rows={RECRUITS}
+        events={[]}
+        totalInSeason={RECRUITS.length}
+        initialSearch=""
+        initialFilters={{}}
+        initialSort={[
+          { key: "college", direction: "asc" },
+          { key: "firstName", direction: "desc" },
+        ]}
+      />,
+    );
+    const table = screen.getByTestId("recruitment-board-table");
+    fireEvent.click(within(table).getByRole("button", { name: /^Status/ }));
+    expect(window.location.search).toBe("?sort=status:asc,firstName:desc");
+    fireEvent.click(within(table).getByRole("button", { name: /^Status/ }));
+    expect(window.location.search).toBe("?sort=status:desc,firstName:desc");
+    // Every sorted column shows its arrow.
+    const active = table.querySelectorAll(".MuiTableSortLabel-root.Mui-active");
+    expect([...active].map((label) => label.textContent)).toEqual(["Status"]);
+  });
+
+  it("restores the remembered sort in every layout when the URL carries none", () => {
+    window.localStorage.setItem("lancers:board-phone-sort:recruitment", "lastName:asc");
+    renderBoard(RECRUITS);
+    expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
+    expect(tableOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
+    expect(window.location.search).toBe("?sort=lastName:asc");
+  });
+
+  it("drops a remembered key this viewer can no longer see", () => {
+    window.localStorage.setItem("lancers:board-phone-sort:recruitment", "status:desc,lastName:asc");
+    render(
+      <RecruitmentBoardView
+        operatorPersonId="operator-1"
+        season={SEASON}
+        rows={RECRUITS}
+        events={[]}
+        totalInSeason={RECRUITS.length}
+        initialSearch=""
+        initialFilters={{}}
+        initialSort={[]}
+        access={{ recruit_person: "edit", recruit_details: "none", recruit_events: "none" }}
+        mayMoveToJoined={false}
+      />,
+    );
+    expect(window.location.search).toBe("?sort=lastName:asc");
+    expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
   });
 });

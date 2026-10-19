@@ -51,3 +51,23 @@ Register of the same event.
 | -------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `LAN-493-recruits-first-contact-desktop.png` | Recruits table at 1440, scrolled to the Recruitment band: Status, First contact, Source |
 | `LAN-493-recruits-first-contact-375px.png`   | Recruits cards at 375, unchanged                                                        |
+
+## LAN-495 — Roster and Recruits: three-key Sort sheet
+
+Roster linked as `?sort=status:asc,college:asc,lastName:asc`; Recruits as
+`?sort=status:asc,firstContact:desc`. Phone landscape is 844×390, measured.
+
+| File                                            | Shows                                                            |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| `LAN-495-roster-sorted-desktop.png`             | Roster at 1440: Sort (3) ends the filter row, Sorted by chips    |
+| `LAN-495-roster-sort-dialog-desktop.png`        | The desktop dialog: Sort by, Then by, Then by, Clear, Done       |
+| `LAN-495-roster-sorted-375px.png`               | Roster at 375: Filters and Sort (3), chips above the cards       |
+| `LAN-495-roster-sort-sheet-375px.png`           | The bottom sheet open at 375                                     |
+| `LAN-495-roster-sorted-landscape-844.png`       | Phone on its side: one-row toolbar, chips, pinned Player table   |
+| `LAN-495-roster-sort-sheet-landscape-844.png`   | The bottom sheet open on its side                                |
+| `LAN-495-recruits-sorted-desktop.png`           | Recruits at 1440, two keys; First contact off screen in chips    |
+| `LAN-495-recruits-sort-dialog-desktop.png`      | The dialog: First contact's orders read Newest first; row 3 None |
+| `LAN-495-recruits-sorted-375px.png`             | Recruits at 375 with the chips                                   |
+| `LAN-495-recruits-sort-sheet-375px.png`         | The bottom sheet open at 375                                     |
+| `LAN-495-recruits-sorted-landscape-844.png`     | Recruits on its side, closed                                     |
+| `LAN-495-recruits-sort-sheet-landscape-844.png` | Recruits on its side, sheet open                                 |

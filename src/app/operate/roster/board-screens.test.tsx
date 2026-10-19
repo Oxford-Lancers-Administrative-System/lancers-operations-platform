@@ -1298,12 +1298,12 @@ describe("a season with no onboarding item types configured", () => {
 });
 
 /**
- * LAN-426 — the phone board's sort. Below `md` the board is cards, which have
- * no headings to press, so one select offers first name, last name and status,
- * each either way. It writes the same `sort` / `dir` the headings do, and is
- * remembered per board in `localStorage` for a return with no sort in the URL.
+ * LAN-495 — the Roster's Sort sheet. It replaced LAN-426's phone select, so
+ * the cases LAN-426 proved are kept here in its terms: first name, last name
+ * and status, either way; status alphabetical; composed with the search;
+ * remembered per board. The remembered sort now restores in every layout.
  */
-describe("LAN-426 — the phone board's sort", () => {
+describe("LAN-495 — the Roster's Sort sheet", () => {
   const PEOPLE = [
     row({
       membershipId: "m-zed",
@@ -1311,6 +1311,7 @@ describe("LAN-426 — the phone board's sort", () => {
       givenName: "Zed",
       familyName: "Adams",
       status: "active",
+      college: "Keble",
     }),
     row({
       membershipId: "m-amy",
@@ -1318,6 +1319,7 @@ describe("LAN-426 — the phone board's sort", () => {
       givenName: "Amy",
       familyName: "Young",
       status: "inactive",
+      college: "Balliol",
     }),
     row({
       membershipId: "m-mia",
@@ -1325,6 +1327,7 @@ describe("LAN-426 — the phone board's sort", () => {
       givenName: "Mia",
       familyName: "Brown",
       status: "onboarding",
+      college: "Balliol",
     }),
   ];
 
@@ -1335,116 +1338,153 @@ describe("LAN-426 — the phone board's sort", () => {
       .map((person) => person?.displayName ?? "?");
   }
 
-  function phoneViewport(matches: boolean) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        // A phone held upright: below md, and never the sideways (landscape) rule.
-        matches: matches && !query.includes("landscape"),
-        media: query,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    });
+  function tableNames(): string[] {
+    return screen
+      .getAllByTestId("roster-row")
+      .map((tableRow) =>
+        PEOPLE.find((person) => tableRow.textContent?.includes(person.displayName)),
+      )
+      .map((person) => person?.displayName ?? "?");
   }
 
-  async function choose(label: string) {
-    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+  async function pick(testId: string, label: string) {
+    fireEvent.mouseDown(within(screen.getByTestId(testId)).getByRole("combobox"));
     fireEvent.click(await screen.findByRole("option", { name: label }));
+  }
+
+  async function openSheet() {
+    fireEvent.click(screen.getByTestId("roster-sort-phone"));
+    return screen.getByTestId("roster-sort-sheet");
   }
 
   beforeEach(() => {
     signedInAs(["secretary"]);
     window.history.replaceState(null, "", "/operate/roster");
     window.localStorage.clear();
-    phoneViewport(true);
   });
 
-  it("offers first name, last name and status, each ascending and descending", async () => {
+  it("puts Sort beside Filters on a phone and at the end of the filter row on a desktop", async () => {
     givenBoard({ rows: PEOPLE, totalInSeason: 3 });
     render(await RosterPage(pageProps()));
 
-    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+    expect(within(screen.getByTestId("roster-phone-bar")).getByText("Sort")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("roster-sort-desktop"));
+    const dialog = screen.getByTestId("roster-sort-dialog");
+    expect(within(dialog).getByText("Sort by")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Then by")).toHaveLength(2);
+  });
+
+  it("offers First name, Last name, Player and the visible columns, naming a shared label's group", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+    await openSheet();
+
+    fireEvent.mouseDown(within(screen.getByTestId("sort-field-1")).getByRole("combobox"));
     const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
-    expect(options).toEqual([
-      "First name A–Z",
-      "First name Z–A",
-      "Last name A–Z",
-      "Last name Z–A",
-      "Status A–Z",
-      "Status Z–A",
-    ]);
+    expect(options.slice(0, 5)).toEqual(["None", "First name", "Last name", "Player", "College"]);
+    expect(options).toContain("Offensive assignments · Primary position");
+    expect(options).toContain("Defensive assignments · Primary position");
+    // A column in a folded group (Kit is folded by default) is still offered.
+    expect(options).toContain("Formalwear");
   });
 
-  it("sorts the cards by last name, and by first name the other way", async () => {
+  it("sorts by first name, last name and status, either way, and status alphabetically", async () => {
     givenBoard({ rows: PEOPLE, totalInSeason: 3 });
     render(await RosterPage(pageProps()));
+    await openSheet();
 
-    await choose("Last name A–Z");
+    await pick("sort-field-1", "Last name");
     expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
-
-    await choose("First name Z–A");
+    await pick("sort-field-1", "First name");
+    await pick("sort-order-1", "Z–A");
     expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
-
-    await choose("First name A–Z");
+    await pick("sort-order-1", "A–Z");
     expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
-  });
-
-  it("sorts status alphabetically, with no ladder of its own", async () => {
-    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
-    render(await RosterPage(pageProps()));
-
-    await choose("Status A–Z");
     // Active, Inactive, Onboarding — the alphabet, not the membership ladder.
+    await pick("sort-field-1", "Status");
     expect(cardNames()).toEqual(["Zed Adams", "Amy Young", "Mia Brown"]);
-    await choose("Status Z–A");
+    await pick("sort-order-1", "Z–A");
     expect(cardNames()).toEqual(["Mia Brown", "Amy Young", "Zed Adams"]);
   });
 
-  it("composes with the search, and puts the choice in the URL and in storage", async () => {
+  it("composes with the search, and puts the keys in the URL and in storage", async () => {
     givenBoard({ rows: PEOPLE, totalInSeason: 3 });
     render(await RosterPage(pageProps({ q: "m" })));
+    await openSheet();
 
     // "m" matches Amy and Mia (and Adams); the sort applies to what is left.
-    await choose("Last name Z–A");
+    await pick("sort-field-1", "College");
+    await pick("sort-field-2", "Last name");
+    await pick("sort-order-2", "Z–A");
     expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
-    expect(window.location.search).toContain("sort=lastName");
-    expect(window.location.search).toContain("dir=desc");
-    expect(window.location.search).toContain("q=m");
-    expect(window.localStorage.getItem("lancers:board-phone-sort:roster")).toBe("lastName:desc");
+    expect(tableNames()).toEqual(cardNames());
+    expect(window.location.search).toBe("?q=m&sort=college:asc,lastName:desc");
+    expect(window.localStorage.getItem("lancers:board-phone-sort:roster")).toBe(
+      "college:asc,lastName:desc",
+    );
+    expect(screen.getByTestId("roster-sort-phone")).toHaveTextContent("Sort (2)");
+    const chips = screen.getByTestId("roster-sort-chips");
+    expect(within(chips).getByText("1 College A–Z")).toBeInTheDocument();
+    expect(within(chips).getByText("2 Last name Z–A")).toBeInTheDocument();
   });
 
-  it("restores the remembered sort on a return with no sort in the URL", async () => {
+  it("Clear returns to Player A–Z", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps({ sort: "lastName:asc" })));
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+    await openSheet();
+    fireEvent.click(screen.getByTestId("roster-sort-clear"));
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(window.location.search).toBe("");
+    expect(screen.getByTestId("roster-sort-phone")).toHaveTextContent(/^Sort$/);
+  });
+
+  it("restores the remembered sort on a return with no sort in the URL, in every layout", async () => {
     window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
     givenBoard({ rows: PEOPLE, totalInSeason: 3 });
     render(await RosterPage(pageProps()));
 
     expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
-    expect(window.location.search).toContain("sort=lastName");
+    expect(tableNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(window.location.search).toBe("?sort=lastName:desc");
   });
 
-  it("leaves the desktop table's default order alone", async () => {
-    phoneViewport(false);
+  it("lets a sort in the URL win over the remembered one, and still reads an old single-key link", async () => {
     window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    window.history.replaceState(null, "", "/operate/roster?sort=firstName&dir=desc");
     givenBoard({ rows: PEOPLE, totalInSeason: 3 });
-    render(await RosterPage(pageProps()));
+    render(await RosterPage(pageProps({ sort: "firstName", dir: "desc" })));
 
-    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"].sort());
-    expect(window.location.search).not.toContain("sort=lastName");
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+    expect(within(screen.getByTestId("roster-sort-chips")).getByText("1 First name Z–A"));
   });
 
-  it("lets a sort in the URL win over the remembered one", async () => {
-    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
-    window.history.replaceState(null, "", "/operate/roster?sort=firstName&dir=asc");
+  it("drops a linked key this viewer cannot see", async () => {
     givenBoard({ rows: PEOPLE, totalInSeason: 3 });
-    render(await RosterPage(pageProps({ sort: "firstName", dir: "asc" })));
+    render(await RosterPage(pageProps({ sort: "noSuchColumn:asc,lastName:asc" })));
 
-    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+    expect(screen.getByTestId("roster-sort-phone")).toHaveTextContent("Sort (1)");
+  });
+
+  it("a heading's tap changes key 1 only, keeps keys 2 and 3, and every sorted column shows its arrow", async () => {
+    const linked = "college:asc,status:desc,lastName:desc";
+    window.history.replaceState(null, "", `/operate/roster?sort=${linked}`);
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps({ sort: linked })));
+
+    const board = screen.getByTestId("roster-board");
+    const active = () =>
+      [...board.querySelectorAll(".MuiTableSortLabel-root.Mui-active")].map(
+        (label) => label.textContent,
+      );
+    expect(active()).toEqual(["College", "Status"]);
+
+    fireEvent.click(within(board).getByRole("button", { name: /^Player/ }));
+    expect(window.location.search).toBe("?sort=displayName:asc,status:desc,lastName:desc");
+    fireEvent.click(within(board).getByRole("button", { name: /^Player/ }));
+    expect(window.location.search).toBe("?sort=displayName:desc,status:desc,lastName:desc");
+    expect(active()).toEqual(["Player", "Status"]);
   });
 });
 
@@ -1453,7 +1493,7 @@ describe("LAN-426 — the phone board's sort", () => {
  * cards. Brian, 2026-09-28: "on its side" is judged by height (landscape, at
  * most 500px tall), so 956×440 is treated exactly as 844×390. jsdom evaluates
  * no media query, so what is proved here is that the rule is written and that
- * the phone sort's restore reads only the upright cards. The rendering itself
+ * the remembered sort restores on its side as upright (LAN-495). The rendering itself
  * is measured in a real browser at 956×440, 844×390 and 667×375.
  */
 describe("LAN-427 — the table on a phone held sideways", () => {
@@ -1499,7 +1539,7 @@ describe("LAN-427 — the table on a phone held sideways", () => {
     render(await RosterPage(pageProps()));
 
     // The bar sits outside the upright cards, so a phone on its side still has it.
-    const bar = screen.getByTestId("phone-sort");
+    const bar = screen.getByTestId("roster-sort-phone");
     expect(screen.getByTestId("roster-phone-cards")).not.toContainElement(bar);
     // And the pinned search's wrapper carries a landscape rule hiding it.
     const search = screen.getByLabelText("Search name or alias");
@@ -1514,7 +1554,7 @@ describe("LAN-427 — the table on a phone held sideways", () => {
     expect(hidden).toBe(true);
   });
 
-  it("does not restore the phone sort when the phone is on its side", async () => {
+  it("restores the remembered sort when the phone is on its side too — LAN-495", async () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       writable: true,
@@ -1534,7 +1574,7 @@ describe("LAN-427 — the table on a phone held sideways", () => {
     givenBoard();
     render(await RosterPage(pageProps()));
 
-    expect(window.location.search).not.toContain("sort=lastName");
+    expect(window.location.search).toBe("?sort=lastName:desc");
   });
 
   it("gives a phone on its side a one-line heading, a one-row bar and a page-scrolled table", async () => {
