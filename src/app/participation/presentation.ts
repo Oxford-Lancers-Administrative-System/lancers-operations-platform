@@ -91,6 +91,8 @@ export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   retryable: "Retryable",
   held: "Held",
   cancelled: "Cancelled",
+  // LAN-501. Sent, and the outcome will never arrive.
+  unknown: "Unknown",
 });
 
 export const DELIVERY_NOT_QUEUED = "Nothing queued";

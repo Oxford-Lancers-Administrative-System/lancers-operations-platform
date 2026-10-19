@@ -9,7 +9,7 @@
 import { addClubDays } from "@/lib/club-time";
 
 /**
- * A row's state. The first seven are `DELIVERY_STATE_EXPRESSION`'s own
+ * A row's state. The first eight are `DELIVERY_STATE_EXPRESSION`'s own
  * vocabulary, unchanged. The last two are facts that expression cannot see
  * because it is only ever asked about one event:
  *
@@ -27,6 +27,7 @@ const MESSAGE_STATES = Object.freeze([
   "failed",
   "held",
   "cancelled",
+  "unknown",
   "not_sent",
   "withheld",
 ] as const);
@@ -40,6 +41,7 @@ export const STATUS_FILTERS = Object.freeze([
   "failed",
   "held",
   "cancelled",
+  "unknown",
   "not_sent",
   "withheld",
 ] as const);

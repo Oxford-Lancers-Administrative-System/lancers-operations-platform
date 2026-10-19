@@ -1415,6 +1415,98 @@ describe("provider callbacks", () => {
  * So expiry is an **absence**, not an event, and these tests stage it the only
  * way it occurs: an accepted attempt with no callback, aged past the window.
  */
+/**
+ * LAN-501. A send whose latest attempt was concluded with no recorded result
+ * — LAN-472's closeout of the sends made before WhatsApp receipts were
+ * subscribed — reads **Unknown**: it went, and its outcome will never arrive.
+ * Staged exactly as that closeout left production: the attempt concluded, no
+ * `delivery_results` row, the job still `processing`.
+ */
+describe("LAN-501 — a send concluded without an outcome reads Unknown", () => {
+  async function concludeWithoutOutcome(eventId: string) {
+    await observer.query(
+      `update public.delivery_attempts a
+          set concluded_at = now(),
+              failure_reason = 'Concluded without an outcome; nothing was resent.'
+         from public.notification_jobs j
+        where j.id = a.notification_job_id and j.event_id = $1`,
+      [eventId],
+    );
+  }
+
+  it("reads Attempted while the outcome can still arrive, and Unknown once it cannot", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}UNKNOWN`),
+    });
+    expect((await row(eventId)).state).toBe("attempted");
+
+    await concludeWithoutOutcome(eventId);
+
+    const delivery = await readEventDelivery(eventId);
+    const current = delivery.rows[0];
+    expect(current.state).toBe("unknown");
+    // No Retry: nothing is resent.
+    expect(current.retryable).toBe(false);
+    expect(current.notDelivered).toBe(false);
+    // Counted under none of Attempted, Delivered, Failed or Needs attention.
+    expect(delivery.counts.attempted).toBe(0);
+    expect(delivery.counts.delivered).toBe(0);
+    expect(delivery.counts.failed).toBe(0);
+    expect(delivery.counts.retryable).toBe(0);
+    expect(delivery.counts.notDelivered).toBe(0);
+
+    const attempts = await readEventDeliveryDiagnostics(eventId);
+    expect(attempts.map((attempt) => attempt.outcome)).toEqual(["unknown"]);
+  });
+
+  it("keeps a recorded outcome authoritative over the conclusion", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}KNOWN`),
+    });
+    const messageId = await observer.query<{ provider_message_id: string }>(
+      `select a.provider_message_id from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId.rows[0].provider_message_id}:delivered`,
+        providerMessageId: messageId.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    expect((await row(eventId)).state).toBe("delivered");
+  });
+
+  it("is never the thirty-day sweep's to conclude again", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}SWEPT`),
+    });
+    await observer.query(
+      `update public.delivery_attempts a set accepted_at = now() - interval '31 days'
+         from public.notification_jobs j
+        where j.id = a.notification_job_id and j.event_id = $1`,
+      [eventId],
+    );
+    await concludeWithoutOutcome(eventId);
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect((await row(eventId)).state).toBe("unknown");
+  });
+});
+
 describe("LAN-288 — an expired delivery becomes an actionable failure", () => {
   async function attemptRow(eventId: string) {
     const result = await observer.query<{

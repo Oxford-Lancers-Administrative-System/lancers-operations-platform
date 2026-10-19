@@ -194,7 +194,7 @@ register and the running application.
 | No received RSVP   | **No response** or **Outstanding**, by context                                                                                     |
 | Attendance         | **Present**, **Absent**, **Late**, **Excused**                                                                                     |
 | Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status                                                           |
-| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held**, **Cancelled**                                       |
+| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held**, **Cancelled**, **Unknown**                          |
 | Membership entry   | **Returning**                                                                                                                      |
 | Temporary attendee | **Walk-up**                                                                                                                        |
 | Weekly artifact    | **Monday exception and action report**                                                                                             |
@@ -212,6 +212,8 @@ Delivered never means responded. Attending is intent; Present is observed attend
 **Not delivered** is LAN-411's (Brian, 2026-09-21), and is not a provider status at all: it is the _absence_ of one. A member who has never accepted WhatsApp's terms never receives the club's messages, and Meta reports that by saying nothing — it accepts the send, answers success, and then sends no callback of any kind. There is no API, field or status that says why. A healthy send shows `delivered` within seconds, so a WhatsApp attempt Meta accepted more than an hour ago that has still said nothing has, in practice, not arrived. The app cannot tell that person from one whose phone is switched off, so nothing stops for him: the club is told, and the chase carries on exactly as it did.
 
 It is an exception label over **Attempted**, in the same idiom as **Not dispatched — no channel** and **WhatsApp unresponsive**, and ranked below both. WhatsApp only — email has no delivered signal to be absent. It is derived at read time and never written: a stored result is authoritative under invariant M4, so writing one at the hour mark would make the late `delivered` callback permanently superseded, and would fire the email fallback and the retry ladder at somebody the club cannot reach. Because it is derived, it clears itself the moment that callback lands.
+
+**Unknown** is LAN-501's (Brian, 2026-10-14): a message that was sent and whose outcome will never arrive, because its latest attempt was concluded with no recorded result. It is derived from that state, never from the reason's wording. It is not **Attempted**, since nothing is still on its way, and not **Failed**, since nothing says it failed; it is counted under neither, nor under Needs attention, and it offers no Retry.
 
 **College email** is a club rule as well as a word, recorded on LAN-268 (Brian,
 2026-09-09): only `ox.ac.uk` or a subdomain of it is accepted, case-insensitively,

@@ -804,6 +804,17 @@ a provider and asking again gives the same answer, so there is no next attempt
 under its time. **Retryable** is kept for a provider failure that another
 attempt might fix.
 
+**Unknown** (LAN-501) is a message that was sent and whose outcome will never
+arrive: its latest attempt was concluded and no delivered or failed result was
+ever recorded for it. The first of these are the WhatsApp sends made before
+delivery receipts were subscribed, which LAN-472 concluded on 5 October 2026.
+It is worked out from that state, not from the reason's wording, so any later
+conclusion without an outcome reads the same. An Unknown message is not counted
+under **Attempted**, **Delivered**, **Failed** or Needs attention — on this
+page, the event's Delivery screen or the person's record — and has no Retry;
+nothing is resent. **Attempted** therefore counts only messages whose outcome
+can still arrive.
+
 Two things the page computes rather than reads. **A queued message's "Sends
 07:00"** under its time is worked out when the page loads, from the lights-out
 hours, because the database does not record that a message was held overnight —

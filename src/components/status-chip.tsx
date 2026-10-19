@@ -69,6 +69,8 @@ export const STATUS_VOCABULARY: Readonly<
     chasing: filled("neutral"),
     queued: filled("neutral"),
     cancelled: filled("neutral"),
+    // LAN-501. Sent, outcome never arriving: nothing to act on.
+    unknown: filled("neutral"),
   }),
   recruitment: Object.freeze({
     joined: filled("success"),

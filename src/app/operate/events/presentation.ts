@@ -169,6 +169,7 @@ export interface DistributionCounts {
   retryable: number;
   held: number;
   cancelled: number;
+  unknown: number;
 }
 
 function describeDelivery(counts: DistributionCounts): string {
@@ -180,6 +181,7 @@ function describeDelivery(counts: DistributionCounts): string {
   if (counts.failed > 0) parts.push(`${counts.failed} failed`);
   if (counts.held > 0) parts.push(`${counts.held} held`);
   if (counts.cancelled > 0) parts.push(`${counts.cancelled} cancelled`);
+  if (counts.unknown > 0) parts.push(`${counts.unknown} unknown`);
   return parts.length === 0 ? NOTHING_DELIVERED_YET : parts.join(" · ");
 }
 
@@ -199,6 +201,7 @@ const NO_DELIVERY_COUNTS: DistributionCounts = Object.freeze({
   retryable: 0,
   held: 0,
   cancelled: 0,
+  unknown: 0,
 });
 
 export function countDeliveryStates(

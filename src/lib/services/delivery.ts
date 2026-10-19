@@ -191,7 +191,7 @@ export const JOB_HELD_MESSAGE = "This message is on hold after a change to the e
  * question, and was being answered with the state the job had before the hold.
  */
 export type DeliveryState =
-  "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled";
+  "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled" | "unknown";
 
 /**
  * What one dispatch did — LAN-394 added the fourth.
@@ -2187,8 +2187,9 @@ export interface EventDelivery {
  *
  * The mapping from the six job states to LAN-90's five operator states is the
  * whole of the provider neutrality on this screen: `processing` is
- * **Attempted** because we asked and do not yet know, and `failed` splits on
- * the attempt ceiling into **Retryable** and **Failed**.
+ * **Attempted** because we asked and do not yet know — or **Unknown** once the
+ * attempt was concluded with no outcome and none will come (LAN-501) — and
+ * `failed` splits on the attempt ceiling into **Retryable** and **Failed**.
  *
  * Exported for LAN-157, whose participation table carries the same **Delivery**
  * column at the operator tier. UX standard 7: two surfaces answering "did it
@@ -2211,6 +2212,22 @@ export const DELIVERY_STATE_EXPRESSION = `
     -- actually happened either.
     when j.status = 'cancelled' then 'cancelled'
     when j.status = 'completed' then 'delivered'
+    -- LAN-501. Sent, and the outcome will never arrive: the latest attempt was
+    -- concluded and no result was ever recorded for it (LAN-472's closeout of
+    -- the sends made before WhatsApp receipts were subscribed is the first
+    -- case). Derived from that state, never from the wording of the reason, so
+    -- any later conclusion without an outcome lands here too. Not Attempted,
+    -- because nothing is still on its way; not Failed, because nothing says it
+    -- failed; and nothing to retry.
+    when j.status = 'processing' and coalesce((
+      select a.concluded_at is not null and not exists (
+               select 1 from public.delivery_results r
+                where r.notification_job_id = a.notification_job_id
+                  and r.attempt_number = a.attempt_number)
+        from public.delivery_attempts a
+       where a.notification_job_id = j.id
+       order by a.attempt_number desc
+       limit 1), false) then 'unknown'
     when j.status = 'processing' then 'attempted'
     when j.status in ('pending', 'ready') then 'queued'
     -- A refusal the provider will never accept — a dead credential, a number
@@ -2502,7 +2519,9 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
           row.state !== "delivered" &&
           row.state !== "attempted" &&
           row.state !== "held" &&
-          row.state !== "cancelled",
+          row.state !== "cancelled" &&
+          // LAN-501. Sent; there is nothing to repair and nothing is resent.
+          row.state !== "unknown",
       };
     });
 
@@ -2538,7 +2557,7 @@ export interface DiagnosticsAttempt {
   readonly channel: string;
   readonly attemptNumber: number;
   readonly requestedAt: Date;
-  /** `'delivered' | 'failed' | 'rejected' | 'attempted' | 'sent'` — never a guess. */
+  /** `'delivered' | 'failed' | 'rejected' | 'attempted' | 'unknown' | 'sent'` — never a guess. */
   readonly outcome: string;
   /** LAN-411 — this attempt is one of the silent ones. Derived, exactly as the row's own label is. */
   readonly notDelivered: boolean;
@@ -2622,9 +2641,17 @@ export async function readEventDeliveryDiagnostics(
     return rows.rows.map((row): DiagnosticsAttempt => {
       const known = row.display_alias?.trim();
       const first = known && known !== "" ? known : row.given_name;
+      // LAN-501: accepted, then concluded with no result — the outcome will
+      // never arrive, exactly as the row's own state says.
       const outcome =
         row.recorded_outcome ??
-        (row.accepted_at ? "attempted" : row.concluded_at ? "failed" : "sent");
+        (row.accepted_at
+          ? row.concluded_at
+            ? "unknown"
+            : "attempted"
+          : row.concluded_at
+            ? "failed"
+            : "sent");
       return {
         attemptId: row.attempt_id,
         inviteeName: row.family_name ? `${first} ${row.family_name}` : first,

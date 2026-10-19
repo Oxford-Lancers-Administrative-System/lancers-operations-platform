@@ -743,6 +743,8 @@ describe("readParticipationFilters", () => {
       "retryable",
       "held",
       "cancelled",
+      // LAN-501.
+      "unknown",
       "none",
     ]);
   });

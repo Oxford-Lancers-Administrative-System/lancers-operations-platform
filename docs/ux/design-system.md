@@ -119,7 +119,7 @@ the word from the owning vocabulary module. Nothing here renames a state.
 | `warning` filled   | Inactive                           | —                  | Retryable, Held, WhatsApp unresponsive | Disengaged         | Late                      | Invitation pending, Email change pending |
 | `error` filled     | —                                  | —                  | Failed, Not dispatched (no channel)    | Declined           | Absent; No                | Delivery failed                          |
 | `error` outlined   | —                                  | Cancelled          | Escalated                              | —                  | —                         | —                                        |
-| `neutral` filled   | Departed, Archived, Recruit (type) | Draft, Occurred    | Queued, Cancelled (job)                | Identified, Void   | No response, Not recorded | Deactivated                              |
+| `neutral` filled   | Departed, Archived, Recruit (type) | Draft, Occurred    | Queued, Cancelled (job), Unknown       | Identified, Void   | No response, Not recorded | Deactivated                              |
 | `success` outlined | —                                  | Upcoming (derived) | —                                      | —                  | —                         | —                                        |
 | `primary` outlined | Player (type)                      | —                  | —                                      | —                  | —                         | —                                        |
 

@@ -65,6 +65,7 @@ export const STATUS_FILTER_LABELS: Readonly<Record<StatusFilter, string>> = Obje
   cancelled: DELIVERY_LABELS.cancelled!,
   not_sent: STATE_LABELS.not_sent!,
   withheld: STATE_LABELS.withheld!,
+  unknown: DELIVERY_LABELS.unknown!,
 });
 
 export const CHANNEL_FILTER_LABELS: Readonly<Record<ChannelFilter, string>> = Object.freeze({
