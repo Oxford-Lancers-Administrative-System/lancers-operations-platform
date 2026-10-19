@@ -745,6 +745,8 @@ describe("readParticipationFilters", () => {
       "cancelled",
       // LAN-501.
       "unknown",
+      // LAN-483.
+      "withheld",
       "none",
     ]);
   });

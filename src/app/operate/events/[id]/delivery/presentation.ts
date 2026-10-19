@@ -15,6 +15,8 @@ const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.fr
   cancelled: "Cancelled",
   // LAN-501. Sent, and the outcome will never arrive.
   unknown: "Unknown",
+  // LAN-483. Refused on purpose at claim time; the queue's own word.
+  withheld: "Withheld",
 });
 
 /** W6's two named exceptions to the plain five-state vocabulary — `REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`. */
@@ -164,6 +166,7 @@ export function describeRetryability(
   // LAN-156, R156-B3: says only what is true today — nothing here clears held_at.
   if (state === "held") return "Held since this event was changed.";
   if (state === "cancelled") return "Cancelled with the event. Nothing further will be sent.";
+  if (state === "withheld") return "Withheld. Nothing further will be sent.";
   if (!retryable) {
     return `${countAttempts(attempts)} used, and no further automatic attempt. Somebody has to fix the cause first.`;
   }

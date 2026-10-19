@@ -15,7 +15,11 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+import { DELIVERY_LATEST_RESULT_JOIN, DELIVERY_STATE_EXPRESSION } from "@/lib/services/delivery";
 import { openLocalClient, type Client } from "./helpers/domain-fixture";
 
 const root = resolve(import.meta.dirname, "..");
@@ -79,6 +83,18 @@ async function outcomeOf(jobId: string): Promise<string> {
   return result.rows[0].outcome;
 }
 
+/** LAN-483. What the event screen, the person record and the Messaging queue read for this job. */
+async function stateOf(jobId: string): Promise<string> {
+  const result = await client.query<{ state: string }>(
+    `select ${DELIVERY_STATE_EXPRESSION} as state
+       from public.notification_jobs j
+       ${DELIVERY_LATEST_RESULT_JOIN}
+      where j.id = $1`,
+    [jobId],
+  );
+  return result.rows[0].state;
+}
+
 async function runCorrection(): Promise<void> {
   const sql = readFileSync(SCRIPT, "utf8")
     .split("\n")
@@ -130,6 +146,17 @@ describe.runIf(configured)("the LAN-483 correction, against the local database",
 
     expect(await outcomeOf(refused)).toBe("rejected");
     expect(await outcomeOf(providerFailed)).toBe("failed");
+  });
+
+  it("leaves the corrected rows reading Withheld on every delivery surface, and a provider failure Retryable", async () => {
+    const refused = await failedJob("state", "claim_refusal");
+    const providerFailed = await failedJob("state-provider", "provider_failure");
+    expect(await stateOf(refused)).toBe("retryable");
+
+    await runCorrection();
+
+    expect(await stateOf(refused)).toBe("withheld");
+    expect(await stateOf(providerFailed)).toBe("retryable");
   });
 
   it("changes nothing the second time", async () => {

@@ -99,6 +99,8 @@ export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   cancelled: "Cancelled",
   // LAN-501. Sent, and the outcome will never arrive.
   unknown: "Unknown",
+  // LAN-483. Refused on purpose at claim time.
+  withheld: "Withheld",
 });
 
 export const DELIVERY_NOT_QUEUED = "Nothing queued";

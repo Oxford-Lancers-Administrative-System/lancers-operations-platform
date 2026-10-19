@@ -216,6 +216,7 @@ export const DELIVERY_FILTERS = Object.freeze([
   "held",
   "cancelled",
   "unknown",
+  "withheld",
   "none",
 ] as const);
 

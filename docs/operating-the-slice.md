@@ -876,17 +876,25 @@ Yesterday, Last 7 days, Next 7 days), **Status**, **Channel** and **Message**
 type. The list — fifty a page, cards on a phone — shows the time, who it is
 to (linked to the person where the viewer may open people), the message type,
 the channel, the event it belongs to and the status; no message text and no
-personal link. Two statuses the event's Delivery screen never needs: **Not sent
+personal link. One status the event's Delivery screen never needs: **Not sent
 — event passed** (queued against an event that has started or is no longer
-approved, so no sweep will ever send it) and **Withheld — no consent**.
+approved, so no sweep will ever send it). A message withheld for want of season
+consent reads **Withheld — no consent**.
 
 A message the scheduler refuses just before sending it, on purpose, reads
-**Failed** and never **Retryable** (LAN-483): a recruit who has already
-completed that track, a recruit who is no longer a prospect, no messaging
-consent, a membership that has gone, no usable number or email. Nothing went to
-a provider and asking again gives the same answer, so there is no next attempt
-under its time. **Retryable** is kept for a provider failure that another
-attempt might fix.
+**Withheld** (LAN-483): a recruit who has already completed that track, a
+recruit who is no longer a prospect, no messaging consent, a membership that has
+gone. Nothing went to a provider and asking again gives the same answer, so it
+is final, has no Retry and no next attempt, and is counted under neither
+**Failed today** nor the event's **Failed** or Needs attention — on this page,
+the event's Delivery screen or the person's record. It is recognised by the
+attempt's shape, not its wording: never accepted, no provider message id,
+requested and concluded in the same instant. Two refusals of the same shape
+stay **Failed** and under Needs attention, because a person fixes them and
+presses Retry: no usable number or email (**Not dispatched — no channel**) and
+an event with no start time. A provider's own refusal or a bounced email stays
+**Failed**; **Retryable** is kept for a provider failure that another attempt
+might fix.
 
 **Unknown** (LAN-501) is a message that was sent and whose outcome will never
 arrive: its latest attempt was concluded and no delivered or failed result was

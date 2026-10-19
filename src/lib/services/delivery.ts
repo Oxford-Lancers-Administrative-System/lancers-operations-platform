@@ -191,7 +191,16 @@ export const JOB_HELD_MESSAGE = "This message is on hold after a change to the e
  * question, and was being answered with the state the job had before the hold.
  */
 export type DeliveryState =
-  "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled" | "unknown";
+  | "queued"
+  | "attempted"
+  | "delivered"
+  | "failed"
+  | "retryable"
+  | "held"
+  | "cancelled"
+  | "unknown"
+  // LAN-483. Refused on purpose at claim time; final.
+  | "withheld";
 
 /**
  * What one dispatch did — LAN-394 added the fourth.
@@ -2196,6 +2205,50 @@ export interface EventDelivery {
  * reach them?" answer it identically, and the surest way is one definition
  * rather than two readings pinned together after the fact.
  */
+/** A SQL string literal. Only ever given this module's own reason constants. */
+function sqlLiteral(text: string): string {
+  return `'${text.replaceAll("'", "''")}'`;
+}
+
+/**
+ * The claim-time refusals a person has to act on — a missing route, a missing
+ * start time. Fix the record or the event, then Retry. Every other refusal
+ * made at claim time is a skip by design.
+ */
+const NEEDS_A_PERSON_REASONS = [
+  NO_USABLE_NUMBER_REASON,
+  NO_USABLE_EMAIL_REASON,
+  EVENT_HAS_NO_START_TIME_REASON,
+]
+  .map(sqlLiteral)
+  .join(", ");
+
+/**
+ * LAN-483. The job's latest result is a send refused on purpose at claim time.
+ *
+ * Recognised by the attempt's shape, never by its wording (reasons get
+ * reworded): no provider accepted it, it has no provider message id, it was
+ * requested and concluded in the same instant, and the result repeats the
+ * attempt's own reason. A provider failure is requested before the provider
+ * call and concluded after it, in another transaction, so it never has that
+ * shape. The same test LAN-483's one-off correction uses on the rows written
+ * before the change, so corrected rows read the same.
+ *
+ * A missing route or start time has the same shape and is not a skip, so
+ * {@link NEEDS_A_PERSON_REASONS} leaves those Failed. Needs
+ * {@link DELIVERY_LATEST_RESULT_JOIN}.
+ */
+const CLAIM_TIME_REFUSAL_PREDICATE = `exists (
+      select 1 from public.delivery_attempts a
+       where a.notification_job_id = j.id
+         and a.attempt_number = latest.attempt_number
+         and a.accepted_at is null
+         and a.provider_message_id is null
+         and a.concluded_at is not null
+         and a.requested_at = a.concluded_at
+         and latest.detail is not distinct from a.failure_reason
+         and a.failure_reason not in (${NEEDS_A_PERSON_REASONS}))`;
+
 export const DELIVERY_STATE_EXPRESSION = `
   case
     -- LAN-156, and FIRST, because a hold outranks whatever the job was doing
@@ -2236,6 +2289,12 @@ export const DELIVERY_STATE_EXPRESSION = `
     -- remain. Reading the ceiling alone reported those as **Retryable**, which
     -- tells an operator to press the button again on something that cannot
     -- succeed until a human fixes the cause.
+    -- LAN-483. A send refused on purpose at claim time — the recruit already
+    -- completed the track, is no longer a prospect, has no consent — is
+    -- **Withheld**: final, nothing to retry, and not among the messages that
+    -- need attention. See CLAIM_TIME_REFUSAL_PREDICATE.
+    when j.status = 'failed' and latest.outcome = 'rejected'
+     and ${CLAIM_TIME_REFUSAL_PREDICATE} then 'withheld'
     when j.status = 'failed' and latest.outcome = 'rejected' then 'failed'
     when j.status = 'failed' and j.attempt_count < ${MAX_ATTEMPTS} then 'retryable'
     else 'failed'
@@ -2310,7 +2369,7 @@ export const NOT_DELIVERED_EXPRESSION = `
  */
 export const DELIVERY_LATEST_RESULT_JOIN = `
   left join lateral (
-    select r.outcome::text as outcome
+    select r.outcome::text as outcome, r.attempt_number, r.detail
       from public.delivery_results r
      where r.notification_job_id = j.id
      order by r.attempt_number desc
@@ -2521,7 +2580,9 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
           row.state !== "held" &&
           row.state !== "cancelled" &&
           // LAN-501. Sent; there is nothing to repair and nothing is resent.
-          row.state !== "unknown",
+          row.state !== "unknown" &&
+          // LAN-483. Refused on purpose; a Retry would only refuse it again.
+          row.state !== "withheld",
       };
     });
 

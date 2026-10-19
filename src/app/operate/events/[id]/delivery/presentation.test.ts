@@ -35,3 +35,25 @@ describe("Unknown on the delivery screen — LAN-501", () => {
     expect(describeRetryability("unknown", 1, 5, false)).toBe("Sent — no outcome will arrive");
   });
 });
+
+describe("Withheld on the delivery screen — LAN-483", () => {
+  it("is labelled Withheld", () => {
+    expect(
+      deliveryRowLabel({ state: "withheld", noUsableRoute: false, whatsappUnresponsive: false }),
+    ).toBe("Withheld");
+  });
+
+  it("is not Needs attention, Failed or Retryable; a failure still is", () => {
+    for (const filter of ["attention", "failed", "retryable", "attempted", "delivered"]) {
+      expect(matchesStatusFilter("withheld", filter), filter).toBe(false);
+    }
+    expect(matchesStatusFilter("failed", "attention")).toBe(true);
+    expect(matchesStatusFilter("retryable", "attention")).toBe(true);
+  });
+
+  it("says nothing further will be sent", () => {
+    expect(describeRetryability("withheld", 1, 5, false)).toBe(
+      "Withheld. Nothing further will be sent.",
+    );
+  });
+});

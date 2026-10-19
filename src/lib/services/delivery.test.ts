@@ -877,6 +877,8 @@ describe("failure and retry", () => {
     });
 
     const current = await row(eventId);
+    // LAN-483: a provider's refusal is not a claim-time skip — still Failed,
+    // and still counted under Needs attention.
     expect(current.state).toBe("failed");
     expect(current.attemptCount).toBe(1);
     // Still offered, because a human may have corrected the roster since.
@@ -2475,6 +2477,23 @@ describe("the recruit consent gate — LAN-203", () => {
 
     expect(result).toBe("refused");
     expect((await row(eventId)).failureReason).toBe(NO_CONSENT_REASON);
+  });
+
+  it("reads the consent refusal as Withheld: no Retry, outside Failed and Needs attention (LAN-483)", async () => {
+    const { eventId, jobId } = await recruitFixture();
+    await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    const delivery = await readEventDelivery(eventId);
+    const current = delivery.rows[0];
+    expect(current.state).toBe("withheld");
+    expect(current.retryable).toBe(false);
+    expect(current.noUsableRoute).toBe(false);
+    expect(delivery.counts.failed).toBe(0);
+    expect(delivery.counts.retryable).toBe(0);
+    // The Needs attention section lists failed and retryable rows only.
+    expect(delivery.rows.filter((r) => r.state === "failed" || r.state === "retryable")).toEqual(
+      [],
+    );
   });
 
   it("refuses a recruit whose consent state is anything other than granted", async () => {

@@ -11,8 +11,10 @@ completed the track, is no longer a prospect, has no consent, or the membership
 is gone — nothing is sent. Before LAN-483 that refusal was recorded with outcome
 `failed`, which the delivery state reads as **Retryable** while attempts remain,
 so these messages sat in the Messaging queue as failures with a next attempt.
-The application now records them as `rejected`, which reads **Failed** (final).
-This script applies the same rule to the rows already stored.
+The application now records them as `rejected`, and the delivery state reads a
+`rejected` result with the claim-time shape as **Withheld** (final, no Retry,
+not counted under Failed or Needs attention). This script applies the same rule
+to the rows already stored.
 
 Read-only production inspection on 19 October 2026 found 130 such results: 128
 "already supplied this track's completing set" (77 of them on jobs reading
@@ -47,12 +49,14 @@ left `failed`.
    of the change.
 4. Let it finish. The last result shows every targeted result as `rejected`.
 
-Afterwards the Messaging queue shows these messages as **Failed**, with no next
-attempt line.
+Afterwards the Messaging queue shows these messages as **Withheld**, with no
+next attempt line, and they leave **Failed today**. Any no-route refusal among
+them (no usable number or email) reads **Not dispatched — no channel**, final,
+and still needs a person.
 
 ## Proof
 
 `tests/claim-refusal-correction.test.ts` runs this file against the local
 database, inside a transaction it rolls back, over synthetic rows: a claim-time
-refusal that changes, a provider failure that does not, and a second run that
-changes nothing.
+refusal that changes and then reads Withheld, a provider failure that does not
+change and still reads Retryable, and a second run that changes nothing.

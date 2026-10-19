@@ -215,6 +215,8 @@ It is an exception label over **Attempted**, in the same idiom as **Not dispatch
 
 **Unknown** is LAN-501's (Brian, 2026-10-14): a message that was sent and whose outcome will never arrive, because its latest attempt was concluded with no recorded result. It is derived from that state, never from the reason's wording. It is not **Attempted**, since nothing is still on its way, and not **Failed**, since nothing says it failed; it is counted under neither, nor under Needs attention, and it offers no Retry.
 
+**Withheld** is LAN-483's, the Messaging queue's existing word: a message the scheduler refused on purpose just before sending it — the recruit already completed the track, is no longer a prospect, has no consent. Nothing was offered to a provider and asking again gives the same answer. It is derived from the attempt's shape, never the reason's wording; a missing route or start time has the same shape and stays **Failed**, because a person fixes those. Withheld is final, is counted under neither **Failed** nor Needs attention, and offers no Retry.
+
 **College email** is a club rule as well as a word, recorded on LAN-268 (Brian,
 2026-09-09): only `ox.ac.uk` or a subdomain of it is accepted, case-insensitively,
 on the recruitment sign-up door, add-by-hand, the player questionnaire's step 1

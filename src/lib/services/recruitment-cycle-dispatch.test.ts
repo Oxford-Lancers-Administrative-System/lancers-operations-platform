@@ -652,8 +652,9 @@ describe("dispatchRecruitmentCycleJob", () => {
     );
     expect(job.rows[0].status).toBe("failed");
     expect(job.rows[0].last_error).toMatch(/consent/i);
-    // LAN-483: a deliberate refusal is final, never Retryable.
-    expect(await deliveryStateOf(jobId)).toBe("failed");
+    // LAN-483: a deliberate refusal is Withheld — final, never Retryable,
+    // and outside Failed.
+    expect(await deliveryStateOf(jobId)).toBe("withheld");
   });
 
   it("skips the interest reminder once the recruit answers B1-B5 in between declaration and dispatch (Brian, 2026-09-01: completion stops the cycle)", async () => {
@@ -689,8 +690,8 @@ describe("dispatchRecruitmentCycleJob", () => {
     );
     expect(job.rows[0].status).toBe("failed");
     expect(job.rows[0].last_error).toMatch(/completing set/i);
-    // LAN-483: skipped by design, so it reads Failed (final), not Retryable.
-    expect(await deliveryStateOf(jobId)).toBe("failed");
+    // LAN-483: skipped by design, so it reads Withheld, not Retryable or Failed.
+    expect(await deliveryStateOf(jobId)).toBe("withheld");
   });
 
   it("is claimed and dispatched by runMessagingSweep alongside every other job type", async () => {
@@ -1108,12 +1109,12 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     expect(
       attempts.rows.every((row) => row.last_error?.includes("no longer an open prospect")),
     ).toBe(true);
-    // LAN-483: ineligible is final, so none of them reads Retryable.
+    // LAN-483: ineligible is skipped by design, so each reads Withheld.
     const jobIds = await observer.query<{ id: string }>(
       "select id from public.notification_jobs where person_id = $1",
       [personId],
     );
-    for (const { id } of jobIds.rows) expect(await deliveryStateOf(id)).toBe("failed");
+    for (const { id } of jobIds.rows) expect(await deliveryStateOf(id)).toBe("withheld");
   });
 
   it("Questionnaire B's ask reaches the real local sink and its own link resolves to the recruit's own prospect", async () => {

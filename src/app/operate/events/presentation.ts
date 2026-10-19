@@ -170,6 +170,8 @@ export interface DistributionCounts {
   held: number;
   cancelled: number;
   unknown: number;
+  /** LAN-483. Refused on purpose at claim time. */
+  withheld: number;
 }
 
 function describeDelivery(counts: DistributionCounts): string {
@@ -182,6 +184,7 @@ function describeDelivery(counts: DistributionCounts): string {
   if (counts.held > 0) parts.push(`${counts.held} held`);
   if (counts.cancelled > 0) parts.push(`${counts.cancelled} cancelled`);
   if (counts.unknown > 0) parts.push(`${counts.unknown} unknown`);
+  if (counts.withheld > 0) parts.push(`${counts.withheld} withheld`);
   return parts.length === 0 ? NOTHING_DELIVERED_YET : parts.join(" · ");
 }
 
@@ -202,6 +205,7 @@ const NO_DELIVERY_COUNTS: DistributionCounts = Object.freeze({
   held: 0,
   cancelled: 0,
   unknown: 0,
+  withheld: 0,
 });
 
 export function countDeliveryStates(
