@@ -6,6 +6,7 @@ import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import FormLabel from "@mui/material/FormLabel";
+import ListSubheader from "@mui/material/ListSubheader";
 import MenuItem from "@mui/material/MenuItem";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
@@ -75,7 +76,10 @@ export function SelectField({
   options,
   field,
   ...props
-}: FieldProps & { options: ReadonlyArray<{ value: string; label: string }> }) {
+}: FieldProps & {
+  /** `group`, when given, heads each run of options with a `ListSubheader` (LAN-494). */
+  options: ReadonlyArray<{ value: string; label: string; group?: string }>;
+}) {
   return (
     <TextField
       select
@@ -85,11 +89,20 @@ export function SelectField({
       slotProps={{ inputLabel: { shrink: true } }}
       {...props}
     >
-      {options.map((option) => (
-        <MenuItem key={option.value} value={option.value}>
-          {option.label}
-        </MenuItem>
-      ))}
+      {options.flatMap((option, index) => {
+        const item = (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
+          </MenuItem>
+        );
+        const heading =
+          option.group !== undefined && option.group !== options[index - 1]?.group ? (
+            <ListSubheader key={`group:${option.group}`} sx={{ fontWeight: 700 }}>
+              {option.group}
+            </ListSubheader>
+          ) : null;
+        return heading ? [heading, item] : [item];
+      })}
     </TextField>
   );
 }

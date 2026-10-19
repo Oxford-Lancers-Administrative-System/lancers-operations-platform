@@ -87,6 +87,10 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     expectedGraduationYearSource: null,
     degreeField: null,
     degreeFieldSource: null,
+    degreeType: null,
+    degreeTypeSource: null,
+    degreeTypeOther: null,
+    degreeTypeOtherSource: null,
     studentNumber: null,
     studentNumberSource: null,
     bafaRegistrationNumber: null,
@@ -207,6 +211,7 @@ describe("the person record, for an authorized operator", () => {
         matriculationYear: 2024,
         expectedGraduationYear: 2028,
         degreeField: "Engineering Science",
+        degreeType: "MEng",
         studentNumber: "1234567",
         bafaRegistrationNumber: "BAFA-99",
         contacts: [
@@ -237,6 +242,7 @@ describe("the person record, for an authorized operator", () => {
       "2024",
       "2028",
       "Engineering Science",
+      "MEng — Master of Engineering",
       "1234567",
       "BAFA-99",
     ]) {
@@ -252,7 +258,7 @@ describe("the person record, for an authorized operator", () => {
     // College email first, the identifiers last, BAFA after the student number.
     const labels = within(student)
       .getAllByText(
-        /^(College email|College|Matriculation year|Expected graduation|Degree field|Student number|BAFA registration number)$/,
+        /^(College email|College|Matriculation year|Expected graduation|Degree field|Degree type|Student number|BAFA registration number)$/,
       )
       .map((node) => node.textContent);
     expect(labels).toEqual([
@@ -261,6 +267,7 @@ describe("the person record, for an authorized operator", () => {
       "Matriculation year",
       "Expected graduation",
       "Degree field",
+      "Degree type",
       "Student number",
       "BAFA registration number",
     ]);
@@ -296,6 +303,20 @@ describe("the person record, for an authorized operator", () => {
     expect(screen.getByRole("heading", { name: "Personal information" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Student information" })).toBeNull();
     expect(screen.queryByText("BAFA registration number")).toBeNull();
+  });
+
+  /** LAN-494: an Other type reads as its own name; a person with none reads not recorded. */
+  it("shows an Other degree type by the name entered for it", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({ degreeType: "Other", degreeTypeOther: "MRes (visiting)" }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    const student = sectionHeaded("Student information");
+    expect(within(student).getByText("Other — MRes (visiting)")).toBeTruthy();
   });
 
   it("shows Student information once a BAFA number is recorded for a non-playing coach", async () => {

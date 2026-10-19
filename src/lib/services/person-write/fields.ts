@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
 import { type PersonRecord, readPersonRecordIn } from "../person-record";
+import { isDegreeType } from "../oxford-degree-types";
 import { isDietaryPreference } from "../person-dietary";
 import { validateDateOfBirth } from "../person-validation";
 import {
@@ -24,6 +25,10 @@ export type PersonFieldUpdate =
   | { field: "matriculation_year"; value: number | null }
   | { field: "expected_graduation_year"; value: number | null }
   | { field: "degree_field"; value: string | null }
+  /** LAN-494. One of `DEGREE_TYPE_VALUES`, separate from the degree field. */
+  | { field: "degree_type"; value: string | null }
+  /** LAN-494. The name of an Other degree type; held only while the type is Other. */
+  | { field: "degree_type_other"; value: string | null }
   /** LAN-267: collected on the player questionnaire, printed on the BAFRA roster form. Free text. */
   | { field: "student_number"; value: string | null }
   /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
@@ -40,6 +45,8 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   matriculation_year: "the matriculation year",
   expected_graduation_year: "expected graduation",
   degree_field: "the degree field",
+  degree_type: "the degree type",
+  degree_type_other: "the Other degree type",
   student_number: "the student number",
   bafa_registration_number: "the BAFA registration number",
   date_of_birth: "date of birth",
@@ -54,6 +61,8 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   matriculation_year: "matriculation_year",
   expected_graduation_year: "expected_graduation_year",
   degree_field: "degree_field",
+  degree_type: "degree_type",
+  degree_type_other: "degree_type_other",
   student_number: "student_number",
   bafa_registration_number: "bafa_registration_number",
   date_of_birth: "date_of_birth",
@@ -98,6 +107,13 @@ export async function updatePersonField(
   if (field === "dietary_preference" && typeof value === "string" && !isDietaryPreference(value)) {
     throw new ConstraintViolated("Choose Vegan, Vegetarian or No dietary requirements.", {
       rule: "people_dietary_preference_known",
+    });
+  }
+
+  // LAN-494: the University's own list (`people_degree_type_known`).
+  if (field === "degree_type" && typeof value === "string" && !isDegreeType(value)) {
+    throw new ConstraintViolated("Choose a degree type from the list, or Other.", {
+      rule: "people_degree_type_known",
     });
   }
 

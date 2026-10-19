@@ -452,6 +452,8 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
             middle_name = null,
             college = null,
             degree_field = null,
+            degree_type_other = null,
+            degree_type = null,
             matriculation_year = null,
             expected_graduation_year = null,
             date_of_birth = null,

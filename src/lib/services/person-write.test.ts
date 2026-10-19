@@ -16,6 +16,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool } from "@/lib/db";
+import { DEGREE_TYPE_VALUES } from "./oxford-degree-types";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import {
   addPersonAlias,
@@ -445,6 +446,49 @@ describe("updatePersonField — every other field overwrites, with history in th
       reason: "Told the social secretary",
     });
     expect(changed.dietaryPreference).toBe("none");
+  });
+
+  /** LAN-494. The award type, beside the degree field and never derived from it. */
+  it("records a degree type and an Other name, holding the name only while the type is Other", async () => {
+    const personId = await insertPerson({ givenName: unique("DegreeType") });
+
+    await expect(
+      updatePersonField({ actorPersonId, personId, field: "degree_type", value: "PhD" }),
+    ).rejects.toMatchObject({ rule: "people_degree_type_known" });
+    // The name is refused by the database while the type is not Other.
+    await expect(
+      updatePersonField({ actorPersonId, personId, field: "degree_type_other", value: "MRes" }),
+    ).rejects.toThrow();
+
+    const typed = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "degree_type",
+      value: "Other",
+    });
+    expect(typed.degreeType).toBe("Other");
+    const named = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "degree_type_other",
+      value: "MRes",
+    });
+    expect(named.degreeTypeOther).toBe("MRes");
+    expect(named.degreeField).toBeNull();
+    expect((await latestAudit("people", personId))?.action).toBe(
+      "person_degree_type_other_updated",
+    );
+  });
+
+  it("accepts every degree type on the list, and the database holds no other — LAN-494", async () => {
+    const definition = await observer.query<{ def: string }>(
+      `select pg_get_constraintdef(oid) as def from pg_constraint
+        where conname = 'people_degree_type_known'`,
+    );
+    const inDatabase = [...definition.rows[0].def.matchAll(/'([^']+)'::text/g)].map(
+      (match) => match[1],
+    );
+    expect([...inDatabase].sort()).toEqual([...DEGREE_TYPE_VALUES].sort());
   });
 
   it("refuses to change an existing value without a reason", async () => {

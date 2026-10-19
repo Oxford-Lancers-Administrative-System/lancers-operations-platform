@@ -19,6 +19,10 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
+  // LAN-494: never asked on the questionnaire (the step posts neither, so the
+  // save skips them); listed so every person field has its source line.
+  "degree_type",
+  "degree_type_other",
   // LAN-267's two identifiers: same applyDisputableFieldIn path, same audit action, same source line.
   "student_number",
   "bafa_registration_number",
@@ -35,6 +39,8 @@ const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> 
   matriculation_year: "person_matriculation_year_updated",
   expected_graduation_year: "person_expected_graduation_year_updated",
   degree_field: "person_degree_field_updated",
+  degree_type: "person_degree_type_updated",
+  degree_type_other: "person_degree_type_other_updated",
   student_number: "person_student_number_updated",
   bafa_registration_number: "person_bafa_registration_number_updated",
   date_of_birth: "person_date_of_birth_updated",
@@ -100,6 +106,8 @@ const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof Person
     matriculation_year: "matriculationYearSource",
     expected_graduation_year: "expectedGraduationYearSource",
     degree_field: "degreeFieldSource",
+    degree_type: "degreeTypeSource",
+    degree_type_other: "degreeTypeOtherSource",
     student_number: "studentNumberSource",
     bafa_registration_number: "bafaRegistrationNumberSource",
     date_of_birth: "dateOfBirthSource",
@@ -115,6 +123,8 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     matriculation_year: "matriculationYear",
     expected_graduation_year: "expectedGraduationYear",
     degree_field: "degreeField",
+    degree_type: "degreeType",
+    degree_type_other: "degreeTypeOther",
     student_number: "studentNumber",
     bafa_registration_number: "bafaRegistrationNumber",
     date_of_birth: "dateOfBirth",
@@ -134,6 +144,10 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
     case "college":
       return { field, value };
     case "degree_field":
+      return { field, value };
+    case "degree_type":
+      return { field, value };
+    case "degree_type_other":
       return { field, value };
     case "student_number":
       return { field, value };

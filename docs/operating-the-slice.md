@@ -309,6 +309,27 @@ questionnaire again and never triggers a chase. `agent_readonly` cannot read the
 column — a diet can disclose a belief — so it is on the hidden list in
 `scripts/production/agent-readonly.sql`.
 
+**Degree type (LAN-494, Brian 2026-10-10).** Student information, on the
+person record and on Correct this record, has a **Degree type** row after Degree
+field. It is the kind of Oxford award, chosen from a grouped list —
+Undergraduate, Integrated master's, Postgraduate taught, Research,
+Certificates, diplomas and non-degree study (including **Visiting or recognised
+student (non-degree)**), Other Oxford awards, and **Other** — each shown as its
+abbreviation and full name ("DPhil — Doctor of Philosophy"). Choosing **Other**
+adds a required **Other degree type** box, and the record shows "Other —" and
+that name; moving off Other clears the name. **Not recorded** leaves it unset.
+It is separate from Degree field: setting one never touches the other, and no
+existing Degree field was copied into it. It is never required and is not asked
+during onboarding or recruitment; it is read and edited as Person, like the other
+student facts, and recorded on `people.degree_type` and
+`people.degree_type_other`. The list is the University's own, from the
+Examination Regulations' award list
+(https://examregs.admin.ox.ac.uk/Regulation?code=ronfm-p6obandfeeredu) and
+regulation titles (https://examregs.admin.ox.ac.uk/), checked on 19 October
+2026 against the list LAN-494 researched from the University style guide
+(https://www.ox.ac.uk/about/the-university/brand/style-guide/names-titles);
+that check added Certificate of Higher Education and Diploma in Legal Studies.
+
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
 board (and a phone on its side) an **Attendance** group sits immediately right
 of Availability with three read-only columns: **Mandatory**, **BPS** and **All

@@ -94,3 +94,22 @@ Barnaby carry the three answers; everyone else shows Not recorded.
 | `lan-502-player-record-phone375.png`                  | The same at 375                                                |
 | `lan-502-roster-desktop1440.png`                      | Roster board: Dietary preference column in the Person group    |
 | `lan-502-roster-phone375.png`                         | Roster at 375: cards, unchanged (columns are the wide board's) |
+
+## LAN-494 — degree type
+
+Synthetic people: Alaric Brindlewood (MEng, degree field Engineering Science)
+and Ambrose Pennycuick (Other — Diploma in Biblical Studies, degree field Human
+Sciences).
+
+| File                                          | Shows                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------ |
+| `lan-494-person-record-desktop1440.png`       | Student information: Degree type after Degree field                |
+| `lan-494-person-record-phone375.png`          | The same at 375                                                    |
+| `lan-494-person-edit-desktop1440.png`         | Correct this record, whole page                                    |
+| `lan-494-person-edit-phone375.png`            | The same at 375                                                    |
+| `lan-494-degree-type-options-desktop1440.png` | The grouped list open                                              |
+| `lan-494-degree-type-options-phone375.png`    | The same at 375                                                    |
+| `lan-494-person-record-other-desktop1440.png` | An Other type shown by its own name                                |
+| `lan-494-person-record-other-phone375.png`    | The same at 375                                                    |
+| `lan-494-person-edit-other-desktop1440.png`   | Correct this record with Other: the required Other degree type box |
+| `lan-494-person-edit-other-phone375.png`      | The same at 375                                                    |

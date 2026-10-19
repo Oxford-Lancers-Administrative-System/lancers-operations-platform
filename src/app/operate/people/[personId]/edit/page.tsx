@@ -59,6 +59,8 @@ export default async function EditPersonPage({
         matriculationYear: mayEditPerson ? record.matriculationYear : null,
         expectedGraduationYear: mayEditPerson ? record.expectedGraduationYear : null,
         degreeField: mayEditPerson ? record.degreeField : null,
+        degreeType: mayEditPerson ? record.degreeType : null,
+        degreeTypeOther: mayEditPerson ? record.degreeTypeOther : null,
         studentNumber: mayEditPerson ? record.studentNumber : null,
         bafaRegistrationNumber: mayEditPerson ? record.bafaRegistrationNumber : null,
         dateOfBirth: mayEditPerson ? record.dateOfBirth : null,

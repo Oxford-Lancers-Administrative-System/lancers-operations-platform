@@ -16,7 +16,11 @@ import {
   preventImplicitSubmit,
   SelectField,
 } from "@/components/field";
+import { DEGREE_TYPE_OPTIONS, DEGREE_TYPE_OTHER } from "@/lib/services/oxford-degree-types";
 import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
+
+/** LAN-494: the list, grouped, after a blank that leaves the type unrecorded. */
+const DEGREE_TYPE_CHOICES = [{ value: "", label: "Not recorded" }, ...DEGREE_TYPE_OPTIONS];
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -45,6 +49,8 @@ const STUDENT_FIELDS = [
   "matriculationYear",
   "expectedGraduationYear",
   "degreeField",
+  "degreeType",
+  "degreeTypeOther",
   "studentNumber",
   "bafaRegistrationNumber",
 ] as const satisfies readonly (keyof EditState["errors"])[];
@@ -68,6 +74,8 @@ export type EditablePersonRecord = Pick<
   | "matriculationYear"
   | "expectedGraduationYear"
   | "degreeField"
+  | "degreeType"
+  | "degreeTypeOther"
   | "studentNumber"
   | "bafaRegistrationNumber"
   | "dateOfBirth"
@@ -117,6 +125,8 @@ export default function EditPersonForm({
   const ec = record.emergencyContact;
   // A refused student field opens the section, so the error is never behind a closed disclosure.
   const studentFieldRefused = STUDENT_FIELDS.some((field) => Boolean(state.errors[field]));
+  // LAN-494: the Other name is asked for only while the type is Other.
+  const [degreeType, setDegreeType] = useState(record.degreeType ?? "");
 
   return (
     <Box
@@ -299,6 +309,26 @@ export default function EditPersonForm({
                   label="Degree field"
                   original={record.degreeField ?? ""}
                 />
+                {/* LAN-494: the award type, separate from the degree field above. */}
+                <CorrectableField
+                  name="degreeType"
+                  reasonName="degreeTypeReason"
+                  label="Degree type"
+                  options={DEGREE_TYPE_CHOICES}
+                  original={record.degreeType ?? ""}
+                  error={state.errors.degreeType}
+                  onValueChange={setDegreeType}
+                />
+                {degreeType === DEGREE_TYPE_OTHER ? (
+                  <CorrectableField
+                    name="degreeTypeOther"
+                    reasonName="degreeTypeOtherReason"
+                    label="Other degree type"
+                    required
+                    original={record.degreeTypeOther ?? ""}
+                    error={state.errors.degreeTypeOther}
+                  />
+                ) : null}
                 {/* LAN-365: BAFA is last because the club fills it in — a
                     student never knows their own registration number, so it is
                     never asked for in onboarding. Never required. */}
@@ -403,6 +433,7 @@ function CorrectableField({
   renderExtra,
   phone,
   options,
+  onValueChange,
 }: {
   name: string;
   reasonName: string;
@@ -416,9 +447,15 @@ function CorrectableField({
   /** LAN-211: the shared two-part control in place of one free-text box. */
   phone?: boolean;
   /** A fixed vocabulary (LAN-502, LAN-494): the shared `SelectField` in place of free text. */
-  options?: ReadonlyArray<{ value: string; label: string }>;
+  options?: ReadonlyArray<{ value: string; label: string; group?: string }>;
+  /** Told every change, for a field whose value decides what else is drawn (LAN-494). */
+  onValueChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(original);
+  const [value, setValueState] = useState(original);
+  const setValue = (next: string) => {
+    setValueState(next);
+    onValueChange?.(next);
+  };
   const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
   const changed = value.trim() !== original.trim();
   const needsReason = changed && original.trim() !== "";

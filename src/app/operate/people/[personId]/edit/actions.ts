@@ -13,6 +13,7 @@ import {
   updateEmergencyContactField,
   updatePersonField,
 } from "@/lib/services/person-write";
+import { DEGREE_TYPE_OTHER, isDegreeType } from "@/lib/services/oxford-degree-types";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import {
@@ -101,6 +102,16 @@ export async function submitPersonEdit(
   if (dateOfBirthChanged && values.dateOfBirth.trim() !== "") {
     const validation = validateDateOfBirth(values.dateOfBirth);
     if (!validation.valid) errors.dateOfBirth = validation.message;
+  }
+
+  // LAN-494: a listed type, and a name for Other.
+  const degreeType = values.degreeType.trim();
+  const degreeTypeOther = degreeType === DEGREE_TYPE_OTHER ? values.degreeTypeOther.trim() : "";
+  if (degreeType !== "" && !isDegreeType(degreeType)) {
+    errors.degreeType = "Choose a degree type from the list, or Other.";
+  }
+  if (degreeType === DEGREE_TYPE_OTHER && degreeTypeOther === "") {
+    errors.degreeTypeOther = "Other degree type is required.";
   }
 
   if (Object.keys(errors).length === 0) {
@@ -228,6 +239,39 @@ export async function submitPersonEdit(
         field: "degree_field",
         value: values.degreeField.trim() === "" ? null : values.degreeField.trim(),
         reason: values.degreeFieldReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    // LAN-494. `people_degree_type_other_only_for_other`: an Other name is
+    // cleared before the type moves off Other, and written after it moves on.
+    if (current.degreeTypeOther !== null && degreeTypeOther === "") {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "degree_type_other",
+        value: null,
+        reason:
+          values.degreeTypeOtherReason || values.degreeTypeReason || "The degree type changed.",
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    if (degreeType !== (current.degreeType ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "degree_type",
+        value: degreeType === "" ? null : degreeType,
+        reason: values.degreeTypeReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    if (degreeTypeOther !== "" && degreeTypeOther !== (current.degreeTypeOther ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "degree_type_other",
+        value: degreeTypeOther,
+        reason: values.degreeTypeOtherReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -489,6 +533,8 @@ const PERSON_FIELDS = Object.freeze([
   "matriculationYear",
   "expectedGraduationYear",
   "degreeField",
+  "degreeType",
+  "degreeTypeOther",
   "studentNumber",
   "bafaRegistrationNumber",
   "dateOfBirth",
@@ -548,6 +594,10 @@ function recordedValue(record: PersonRecord, field: EditableField): string {
       return record.expectedGraduationYear === null ? "" : String(record.expectedGraduationYear);
     case "degreeField":
       return record.degreeField ?? "";
+    case "degreeType":
+      return record.degreeType ?? "";
+    case "degreeTypeOther":
+      return record.degreeTypeOther ?? "";
     case "studentNumber":
       return record.studentNumber ?? "";
     case "bafaRegistrationNumber":

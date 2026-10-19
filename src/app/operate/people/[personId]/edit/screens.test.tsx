@@ -80,6 +80,10 @@ function populatedRecord() {
     expectedGraduationYearSource: null,
     degreeField: "Human Sciences",
     degreeFieldSource: null,
+    degreeType: null,
+    degreeTypeSource: null,
+    degreeTypeOther: null,
+    degreeTypeOtherSource: null,
     studentNumber: null,
     studentNumberSource: null,
     bafaRegistrationNumber: null,
@@ -157,6 +161,10 @@ describe("a four-role operator", () => {
       expectedGraduationYearSource: null,
       degreeField: null,
       degreeFieldSource: null,
+      degreeType: null,
+      degreeTypeSource: null,
+      degreeTypeOther: null,
+      degreeTypeOtherSource: null,
       studentNumber: null,
       studentNumberSource: null,
       bafaRegistrationNumber: null,
@@ -216,6 +224,7 @@ describe("a four-role operator", () => {
         "matriculationYear",
         "expectedGraduationYear",
         "degreeField",
+        "degreeType",
         "studentNumber",
         "bafaRegistrationNumber",
       ]);
@@ -225,6 +234,36 @@ describe("a four-role operator", () => {
         expect(input, name).not.toBeNull();
         expect(student.contains(input), name).toBe(false);
       }
+    });
+
+    // LAN-494: the Other name is a field only while the type is Other.
+    it("asks for the Other degree type's name only when the type is Other", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        degreeType: "Other",
+        degreeTypeOther: "MRes (visiting)",
+      } as never);
+
+      const { unmount } = render(await EditPersonPage(pageProps()));
+      const student = screen.getByTestId("section-student-information");
+      expect(fieldNamesIn(student)).toContain("degreeTypeOther");
+      expect(
+        (student.querySelector('input[name="degreeTypeOther"]') as HTMLInputElement).value,
+      ).toBe("MRes (visiting)");
+      expect((student.querySelector('input[name="degreeType"]') as HTMLInputElement).value).toBe(
+        "Other",
+      );
+      unmount();
+
+      vi.mocked(readPersonRecord).mockResolvedValue({ ...record, degreeType: "DPhil" } as never);
+      render(await EditPersonPage(pageProps()));
+      expect(fieldNamesIn(screen.getByTestId("section-student-information"))).not.toContain(
+        "degreeTypeOther",
+      );
     });
 
     it("is present but closed for a coach who has never played, so a BAFA number can still be entered", async () => {

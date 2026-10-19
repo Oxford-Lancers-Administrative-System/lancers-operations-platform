@@ -197,6 +197,11 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     expectedGraduationYearSource: "academic",
     degreeField: "academic",
     degreeFieldSource: "academic",
+    // LAN-494: a student fact like the degree field beside it.
+    degreeType: "academic",
+    degreeTypeSource: "academic",
+    degreeTypeOther: "academic",
+    degreeTypeOtherSource: "academic",
     // LAN-267's two identifiers. `academic` rather than `standing`, and
     // deliberately not a sixth category.
     //

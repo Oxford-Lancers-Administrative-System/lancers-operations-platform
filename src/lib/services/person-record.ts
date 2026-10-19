@@ -85,6 +85,12 @@ export interface PersonRecord {
   expectedGraduationYearSource: string | null;
   degreeField: string | null;
   degreeFieldSource: string | null;
+  /** LAN-494. A `DEGREE_TYPE_VALUES` code, separate from `degreeField`; `null` for none. */
+  degreeType: string | null;
+  degreeTypeSource: string | null;
+  /** LAN-494. The name of an Other degree type. */
+  degreeTypeOther: string | null;
+  degreeTypeOtherSource: string | null;
   /** LAN-267. Operator-editable as well as questionnaire-collected. */
   studentNumber: string | null;
   studentNumberSource: string | null;
@@ -138,6 +144,8 @@ interface PersonRow {
   matriculation_year: number | null;
   expected_graduation_year: number | null;
   degree_field: string | null;
+  degree_type: string | null;
+  degree_type_other: string | null;
   student_number: string | null;
   bafa_registration_number: string | null;
   date_of_birth: string | null;
@@ -156,6 +164,7 @@ async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
   const result = await tx.query<PersonRow>(
     `select p.id as person_id, p.given_name, p.middle_name, p.family_name,
             p.college, p.matriculation_year, p.expected_graduation_year, p.degree_field,
+            p.degree_type, p.degree_type_other,
             p.student_number, p.bafa_registration_number,
             to_char(p.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
             p.dietary_preference,
@@ -270,6 +279,8 @@ const DERIVED_PROVENANCE_FIELDS = [
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
+  "degree_type",
+  "degree_type_other",
   "student_number",
   "bafa_registration_number",
   "date_of_birth",
@@ -374,6 +385,10 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     expectedGraduationYearSource: fieldProvenance.expected_graduation_year,
     degreeField: row.degree_field,
     degreeFieldSource: fieldProvenance.degree_field,
+    degreeType: row.degree_type,
+    degreeTypeSource: fieldProvenance.degree_type,
+    degreeTypeOther: row.degree_type_other,
+    degreeTypeOtherSource: fieldProvenance.degree_type_other,
     studentNumber: row.student_number,
     studentNumberSource: fieldProvenance.student_number,
     bafaRegistrationNumber: row.bafa_registration_number,
