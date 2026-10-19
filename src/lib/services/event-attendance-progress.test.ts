@@ -41,7 +41,6 @@ describe("attendance per group", () => {
       noShow: 1,
       excused: 1,
       notRecorded: 2,
-      percent: 42,
     });
     expect(
       players.present + players.late + players.noShow + players.excused + players.notRecorded,
@@ -75,7 +74,7 @@ describe("attendance per group", () => {
     expect(attendance.map((block) => block.label)).toEqual(["Recruits", "Players", "Coaches"]);
     expect(attendance.map((block) => block.total)).toEqual(rsvp.map((block) => block.invited));
     expect(attendance[1]).toMatchObject({ late: 1, notRecorded: 1, total: 2 });
-    expect(attendance[2]).toMatchObject({ present: 2, total: 2, percent: 100 });
+    expect(attendance[2]).toMatchObject({ present: 2, total: 2 });
   });
 
   it("shows no block for a group nobody was invited under", () => {

@@ -1,6 +1,6 @@
 /**
  * LAN-504 — the attendance blocks as rendered: one per group, four values,
- * the not-recorded count, the percentage and the bar.
+ * the not-recorded count and the bar — and no percentage (D62, D74).
  */
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -41,10 +41,10 @@ describe("the attendance blocks", () => {
       "1 not recorded / 6 invited",
     );
     expect(within(players).getByText("No-show")).toBeTruthy();
-    expect(within(players).getByTestId("attendance-percent").textContent).toBe("50%");
+    expect(players.textContent).not.toContain("%");
 
     const coaches = screen.getByTestId("attendance-progress-coach");
-    expect(within(coaches).getByTestId("attendance-percent").textContent).toBe("50%");
+    expect(within(coaches).getByTestId("attendance-present").dataset.count).toBe("1");
     expect(screen.queryByTestId("attendance-progress-recruit")).toBeNull();
   });
 

@@ -13,7 +13,6 @@ import { PRESENCE_COLORS, PRESENCE_LABELS } from "../operate/events/[id]/attenda
 import {
   ATTENDANCE_NO_SHOW_LABEL,
   ATTENDANCE_NOT_RECORDED_LABEL,
-  ATTENDANCE_SHOWED_LABEL,
   HEADLINE_INVITED_LABEL,
 } from "./presentation";
 
@@ -79,21 +78,10 @@ function AttendanceBlock({ block }: { block: AttendanceProgressBlock }) {
       sx={{ p: 2, minWidth: 0 }}
       data-testid={`attendance-progress-${block.capacity}`}
     >
-      <Box
-        sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1 }}
-      >
-        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-          {block.label}
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{ fontWeight: 700 }}
-          data-testid="attendance-percent"
-          aria-label={`${block.percent}% ${ATTENDANCE_SHOWED_LABEL.toLowerCase()}`}
-        >
-          {`${block.percent}%`}
-        </Typography>
-      </Box>
+      {/* No percentage: Showed is never one (D62, D74), and the RSVP block shows none either. */}
+      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        {block.label}
+      </Typography>
 
       <Box
         sx={{ mt: 0.5, display: "grid", gap: 1, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}

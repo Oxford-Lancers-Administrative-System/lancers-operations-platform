@@ -37,8 +37,6 @@ export const FILTER_CAPACITIES: readonly string[] = Object.freeze(["recruit", "p
 /** Stored `absent`, in the words of the 16 October call. */
 export const ATTENDANCE_NO_SHOW_LABEL = "No-show";
 export const ATTENDANCE_NOT_RECORDED_LABEL = "Not recorded";
-/** What the top-right percentage counts: present plus late. */
-export const ATTENDANCE_SHOWED_LABEL = "Showed";
 
 // The table
 

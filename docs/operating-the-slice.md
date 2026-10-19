@@ -1185,13 +1185,14 @@ has passed, a second row of blocks appears, one per group the RSVP blocks show
 and in the same order. An upcoming event's page has nothing new. Each block
 reads:
 
-| Line         | What it says                                                                                  |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| Name         | Recruits, Players or Coaches, with the percentage who showed (present plus late) at top right |
-| Values       | **Present**, **Late**, **No-show** and **Excused**, each a count                              |
-| Not recorded | `2 not recorded / 20 invited` — the five counts add up to the group's invitations             |
-| Bar          | Present and Late from the left, No-show and Excused from the right, not recorded between      |
+| Line         | What it says                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| Name         | Recruits, Players or Coaches                                                             |
+| Values       | **Present**, **Late**, **No-show** and **Excused**, each a count                         |
+| Not recorded | `2 not recorded / 20 invited` — the five counts add up to the group's invitations        |
+| Bar          | Present and Late from the left, No-show and Excused from the right, not recorded between |
 
+There is no percentage, as on the RSVP blocks: Showed is never a percentage (D62, D74).
 The counts are the register's own records, never the RSVP: somebody who said
 No and was marked Present counts as Present. **No-show** is the register's
 **Absent**. The groups, the committee fold and the denominators are the RSVP

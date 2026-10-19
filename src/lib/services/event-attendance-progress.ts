@@ -40,8 +40,6 @@ export interface AttendanceProgressBlock {
   readonly noShow: number;
   readonly excused: number;
   readonly notRecorded: number;
-  /** `(present + late) / total`, truncated to a whole per cent — never claims somebody who did not come. */
-  readonly percent: number;
 }
 
 /** One block per group present in the audience, in the RSVP blocks' order. */
@@ -73,7 +71,6 @@ export function attendanceProgressByCapacity(
         noShow: held.absent,
         excused: held.excused,
         notRecorded: held.none,
-        percent: Math.floor(((held.present + held.late) / total) * 100),
       },
     ];
   });
