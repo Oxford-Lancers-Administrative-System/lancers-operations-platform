@@ -804,9 +804,12 @@ accepted reads Attempted, not Delivered**: the email provider sends no delivery
 confirmation, so acceptance is the most the club ever learns about an email. A
 WhatsApp message moves from Attempted to Delivered only when WhatsApp confirms
 it. So **Delivered today** counts confirmed WhatsApp deliveries; an accepted
-email is counted under **Attempted** — until `WHATSAPP_MESSAGE_TTL_HOURS` (720 by
-default) has passed, when the sweep concludes every accepted attempt that was
-never confirmed as failed, an email's included.
+email is counted under **Attempted**, and stays there. The sweep that concludes
+a silent message after `WHATSAPP_MESSAGE_TTL_HOURS` (720 by default) applies to
+WhatsApp only (LAN-480): the thirty-day window and the "assume it was dropped"
+rule are Meta's, so an accepted email is never marked failed for want of a
+receipt, and its **Delivery** column reads **Attempted** until the email
+provider itself reports an outcome.
 
 **Read cost** (measured on production through `npm run prod:inspect`, 2 October
 2026, 1,029 jobs): the summary and a day's page each run in about 6 ms on the

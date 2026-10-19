@@ -1482,6 +1482,38 @@ describe("LAN-288 — an expired delivery becomes an actionable failure", () => 
     expect(await resultCount(eventId)).toBe(1);
   });
 
+  it("never expires an accepted email, however old it is — LAN-480", async () => {
+    const { eventId, personId } = await fixture({ phone: null });
+    await addEmail(personId);
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+    const accepted = await observer.query<{ id: string }>(
+      `update public.delivery_attempts a
+          set accepted_at = now() - interval '31 days'
+         from public.notification_jobs j
+        where j.id = a.notification_job_id and j.event_id = $1
+          and a.channel = 'email' and a.accepted_at is not null and a.concluded_at is null
+        returning a.id`,
+      [eventId],
+    );
+    expect(accepted.rows.length).toBeGreaterThan(0);
+    const before = await resultCount(eventId);
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED_WITH_EMAIL })).toBe(0);
+
+    const after = await observer.query<{ concluded_at: Date | null }>(
+      "select concluded_at from public.delivery_attempts where id = any($1::uuid[])",
+      [accepted.rows.map((each) => each.id)],
+    );
+    for (const each of after.rows) expect(each.concluded_at).toBeNull();
+    expect(await resultCount(eventId)).toBe(before);
+    for (const each of (await readEventDelivery(eventId)).rows) {
+      expect(each.failureReason ?? "").not.toContain("delivery window");
+    }
+  });
+
   it("leaves an attempt still inside its window alone", async () => {
     const { eventId } = await fixture();
     await dispatchEventInvitations(eventId, {

@@ -2006,6 +2006,14 @@ export const DELIVERY_EXPIRED_REASON =
  *
  * Meta notes that a `failed` webhook "could be a minor delay", so the cut-off
  * is deliberately the full TTL rather than the TTL minus a margin.
+ *
+ * ## WhatsApp only — LAN-480
+ *
+ * The TTL and the "assume it was dropped" rule are Meta's, so only a WhatsApp
+ * attempt is swept. Without the channel filter every accepted email was marked
+ * failed thirty days on, with this WhatsApp wording, and read **Retryable**.
+ * An email's outcome comes from the email provider's own receipts or nowhere;
+ * an accepted email nothing has reported on stays **Attempted**.
  */
 export async function concludeExpiredDeliveries(
   options: { source?: EnvironmentSource } = {},
@@ -2022,7 +2030,8 @@ export async function concludeExpiredDeliveries(
     }>(
       `select a.id, a.notification_job_id, a.attempt_number, a.channel::text as channel, a.provider
          from public.delivery_attempts a
-        where a.accepted_at is not null
+        where a.channel = 'whatsapp'
+          and a.accepted_at is not null
           and a.concluded_at is null
           and a.accepted_at < now() - ($1 || ' hours')::interval
           and not exists (
