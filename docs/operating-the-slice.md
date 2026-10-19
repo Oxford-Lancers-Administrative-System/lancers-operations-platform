@@ -144,9 +144,10 @@ roster" and "May add recruits". Recruiting also carries **May move recruits to
 Joined** (No / Yes, help line "Moves them onto the roster as Onboarding.") after
 Event details (LAN-505, Brian 2026-10-16). It replaced the fixed rule that only
 the President, Vice-President, Secretary and General Manager could move a
-recruit to Joined, and the migration switched it on for exactly those four;
-every other seat starts at No, the IT Officer included, and on that fixed seat
-it stays No. A press saves at once; the Notice reads the
+recruit to Joined, and the migration switched it on for those four. The IT
+Officer holds it at Yes as well, like everything the General Manager holds
+(Brian, 2026-10-19), and on that fixed seat it stays Yes; every other seat
+starts at No. A press saves at once; the Notice reads the
 change back and the seat's **History** gains an "Access changed" entry. **Copy
 access from another seat** (choose the seat, read every line that would
 change, confirm) and **Grant everything** each write one History entry listing

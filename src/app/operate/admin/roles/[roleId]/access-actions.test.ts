@@ -119,9 +119,6 @@ afterEach(async () => {
   await observer.query(
     `update public.role_access_grants g
         set level = case
-              when g.subject_key = 'move_recruits_to_joined'
-                then case when r.code in ('president', 'general_manager', 'vice_president', 'secretary')
-                       then 'yes' else 'none' end
               when r.code in ('president', 'general_manager', 'it_officer', 'vice_president', 'secretary')
                 then case g.subject_kind
                        when 'event_template' then 'manage'

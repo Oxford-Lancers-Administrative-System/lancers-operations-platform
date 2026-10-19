@@ -1335,6 +1335,14 @@ describe("LAN-429 — the access floor and the coach's exit from the attendance 
     expect(seededGrantsFor(["head_coach"])).toBe(NO_GRANTS);
   });
 
+  // Brian, 19 October 2026: "IT Officer should always have that sort of access
+  // that the GM has. It should be equivalent." The database seed is held to the
+  // same rule line by line in `tests/printed-access.test.ts`.
+  it("seeds the IT Officer with everything the General Manager holds", () => {
+    expect(seededGrantsFor(["it_officer"])).toEqual(seededGrantsFor(["general_manager"]));
+    expect(seededGrantsFor(["it_officer"]).switches.move_recruits_to_joined).toBe("yes");
+  });
+
   it("takes a coach out of the attendance shell the moment one grant is set", () => {
     const oneGrant = mergeGrantRows([
       {

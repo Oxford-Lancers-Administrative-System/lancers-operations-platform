@@ -38,7 +38,7 @@ it_officer             roster_category attendance                   view
 it_officer             recruiting_category recruit_person           edit
 it_officer             recruiting_category recruit_details          edit
 it_officer             recruiting_category recruit_events           view
-it_officer             switch move_recruits_to_joined               none
+it_officer             switch move_recruits_to_joined               yes
 it_officer             event_template Chalk                         manage
 it_officer             event_template Game                          manage
 it_officer             event_template Meeting                       manage

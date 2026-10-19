@@ -981,11 +981,12 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
  * Here rather than in `./grants.ts` because this is the only module that may
  * name a seat.
  *
- * One line is the exception: May move recruits to Joined (LAN-505). Brian's
- * decision of 16 October 2026 switches it on for exactly the four offices that
- * could move a recruit to Joined before it existed, and every other seat
- * starts off — the IT Officer included, who never could. The fixed seats hold
- * it at that seeded value, and no write changes it either.
+ * There is no exception, May move recruits to Joined (LAN-505) included: the
+ * IT Officer holds everything the General Manager holds (Brian, 19 October
+ * 2026: "IT Officer should always have that sort of access that the GM has.
+ * It should be equivalent"; `20261019500000_it_officer_moves_recruits_to_joined.sql`).
+ * `tests/printed-access.test.ts` fails any line the General Manager holds
+ * above the IT Officer.
  */
 export const FIXED_ACCESS_SEATS: readonly string[] = Object.freeze([
   "president",
@@ -1005,19 +1006,6 @@ export const SEEDED_FULL_ACCESS_SEATS: readonly string[] = Object.freeze([
   "secretary",
 ]);
 
-/**
- * The seats `20261017090000_move_recruits_to_joined.sql` switches May move
- * recruits to Joined on for: the four offices the fixed rule it replaced named
- * (LAN-204's `W14`), so nobody who could move a recruit to Joined loses it.
- * Every other seat starts off (Brian, 16 October 2026, LAN-505).
- */
-export const SEEDED_MOVE_TO_JOINED_SEATS: readonly string[] = Object.freeze([
-  "president",
-  "vice_president",
-  "secretary",
-  "general_manager",
-]);
-
 /** Whether a seat's access is fixed. */
 export function isFixedAccessSeat(roleCode: string): boolean {
   return FIXED_ACCESS_SEATS.includes(roleCode);
@@ -1033,17 +1021,9 @@ export function seededGrantsFor(
   roleCodes: readonly string[],
   templateIds: readonly string[] = SEEDED_TEMPLATE_IDS,
 ): OperatorGrants {
-  const full = roleCodes.some((code) => SEEDED_FULL_ACCESS_SEATS.includes(code));
-  const movesToJoined = roleCodes.some((code) => SEEDED_MOVE_TO_JOINED_SEATS.includes(code));
-  if (!full && !movesToJoined) return NO_GRANTS;
-  const base = full ? fullGrants(templateIds) : NO_GRANTS;
-  return Object.freeze({
-    ...base,
-    switches: Object.freeze({
-      ...base.switches,
-      move_recruits_to_joined: movesToJoined ? "yes" : "none",
-    }),
-  });
+  return roleCodes.some((code) => SEEDED_FULL_ACCESS_SEATS.includes(code))
+    ? fullGrants(templateIds)
+    : NO_GRANTS;
 }
 
 /**

@@ -10,9 +10,10 @@
  * page renders, so nothing decided what the caller was allowed to click,
  * exactly the position a POST from a seat without the switch is in.
  *
- * The seeded switch (the migration's defaults) is on for the four offices
- * alone, so the four can still move a recruit to Joined with no setting
- * changed, and the IT Officer, who never could, still cannot.
+ * The seeded switch (the migrations' defaults) is on for the four offices,
+ * so they can still move a recruit to Joined with no setting changed, and for
+ * the IT Officer, who holds everything the General Manager holds (Brian,
+ * 19 October 2026).
  *
  * The service layer is mocked. What is under test is the guard, the actor it
  * passes on, and how a refusal is presented; the flip's own transaction
@@ -49,12 +50,14 @@ import { seededGrantsFor } from "@/lib/auth/capabilities";
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const PROSPECT_ID = "44444444-4444-4444-8444-444444444444";
 
-/** LAN-505: the seats the migration switches May move recruits to Joined on for. */
-const FLIP_ROLES = ["president", "vice_president", "secretary", "general_manager"];
+/**
+ * The seats the migrations switch May move recruits to Joined on for: the four
+ * offices (LAN-505) and the IT Officer (Brian, 19 October 2026).
+ */
+const FLIP_ROLES = ["president", "vice_president", "secretary", "general_manager", "it_officer"];
 
-/** Every other seat, `it_officer` included: seeded off. */
+/** Every other seat: seeded off. */
 const OTHER_ROLES = [
-  "it_officer",
   "treasurer",
   "social_secretary",
   "gameday_secretary",
@@ -170,17 +173,16 @@ describe("flipRecruitmentProspectAction — May move recruits to Joined (LAN-505
   }
 
   /**
-   * The IT Officer could never move a recruit to Joined, and the migration
-   * keeps it so: every other line of that seat is at its maximum, this one is
-   * seeded off.
+   * Brian, 19 October 2026: the IT Officer holds everything the General
+   * Manager holds, this switch included, like every other line of that seat.
    */
-  it("refuses an IT Officer-only operator on the seeded switch", async () => {
+  it("lets an IT Officer-only operator flip a recruit to joined on the seeded switch", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
-    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
+    const state = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-    expectFlipRefused(failure);
-    expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
+    expect(state).toEqual({ error: null });
+    expect(flipRecruitmentProspectToJoined).toHaveBeenCalledWith(OPERATOR_PERSON_ID, PROSPECT_ID);
   });
 
   it("refuses an operator holding no seat at all", async () => {

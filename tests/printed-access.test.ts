@@ -50,11 +50,11 @@ const SEEDED_TEMPLATES = [
 const FULL_SEATS = ["president", "general_manager", "it_officer", "vice_president", "secretary"];
 
 /**
- * LAN-505 (Brian, 2026-10-16): May move recruits to Joined is on for exactly
- * the four offices the fixed rule it replaced named, and off for every other
- * seat, the IT Officer included. Retyped, not imported.
+ * LAN-505 (Brian, 2026-10-16): May move recruits to Joined is on for the four
+ * offices the fixed rule it replaced named, and off for every other seat.
+ * Brian, 2026-10-19: the IT Officer holds it too, like everything the General
+ * Manager holds. So the switch follows the floor with no exception.
  */
-const MOVE_TO_JOINED_SEATS = ["president", "general_manager", "vice_president", "secretary"];
 const MOVE_TO_JOINED_LINE = "switch move_recruits_to_joined";
 
 /** The lines in the order the seat page lists them. Retyped, not imported. */
@@ -113,14 +113,6 @@ function rank(line: string): number {
   return index >= 0 ? (index < 16 ? index : index + 100) : 50;
 }
 
-/** The seeded level: the line's maximum for a full seat, except the Joined switch. */
-function seededLevelOf(row: MatrixRow): string {
-  if (lineOf(row) === MOVE_TO_JOINED_LINE) {
-    return MOVE_TO_JOINED_SEATS.includes(row.role_code) ? "yes" : "none";
-  }
-  return FULL_SEATS.includes(row.role_code) ? maximumOf(row) : "none";
-}
-
 function maximumOf(row: MatrixRow): string {
   if (row.subject_kind === "event_template") return "manage";
   if (row.subject_kind === "switch") return "yes";
@@ -167,9 +159,45 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     }
   });
 
-  it("holds the five named seats at the maximum of every line but the Joined switch", () => {
+  it("holds the five named seats at the maximum of every line", () => {
     for (const row of rows.filter((entry) => FULL_SEATS.includes(entry.role_code))) {
-      expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe(seededLevelOf(row));
+      expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe(maximumOf(row));
+    }
+  });
+
+  /**
+   * Brian, 2026-10-19: "IT Officer should always have that sort of access that
+   * the GM has. It should be equivalent." Every line on every template, not
+   * only the seeded seven, so a switch or template a later migration turns on
+   * for the General Manager fails here until the IT Officer holds it too.
+   */
+  it("holds the IT Officer at or above the General Manager on every line", async () => {
+    const all = (
+      await client.query<{
+        role_code: string;
+        line: string;
+        level: string;
+      }>(
+        `select roles.code as role_code,
+                grants.subject_kind || ' ' || coalesce(grants.subject_key, grants.template_id::text) as line,
+                grants.level
+           from public.role_access_grants grants
+           join public.roles on roles.id = grants.role_id
+          where roles.code in ('general_manager', 'it_officer')`,
+      )
+    ).rows;
+    const order = ["none", "view", "edit", "manage", "yes"];
+    const officer = new Map(
+      all.filter((row) => row.role_code === "it_officer").map((row) => [row.line, row.level]),
+    );
+    const general = all.filter((row) => row.role_code === "general_manager");
+    expect(general.length).toBeGreaterThan(0);
+    for (const row of general) {
+      const held = officer.get(row.line) ?? "none";
+      expect(
+        order.indexOf(held),
+        `IT Officer ${row.line}: ${held}, General Manager ${row.level}`,
+      ).toBeGreaterThanOrEqual(order.indexOf(row.level));
     }
   });
 
@@ -181,12 +209,12 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     }
   });
 
-  it("switches May move recruits to Joined on for the four offices alone — LAN-505", () => {
+  it("switches May move recruits to Joined on for the five named seats alone — LAN-505", () => {
     const holders = rows
       .filter((row) => lineOf(row) === MOVE_TO_JOINED_LINE && row.level === "yes")
       .map((row) => row.role_code)
       .sort();
-    expect(holders).toEqual([...MOVE_TO_JOINED_SEATS].sort());
+    expect(holders).toEqual([...FULL_SEATS].sort());
     expect(rows.filter((row) => lineOf(row) === MOVE_TO_JOINED_LINE)).toHaveLength(21);
   });
 
