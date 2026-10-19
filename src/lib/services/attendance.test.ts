@@ -22,6 +22,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
+import { NO_GRANTS, type OperatorGrants } from "@/lib/auth/grants";
 import {
   ATTENDANCE_CLOSED_MESSAGE,
   ATTENDANCE_TOO_EARLY_MESSAGE,
@@ -1949,5 +1950,100 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
       readSeasonMessagingConsentIn(tx, personId, event.seasonId),
     );
     expect(consent?.state).toBe("granted");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-497 — Group by values, read only for the families the viewer may see
+// ---------------------------------------------------------------------------
+
+describe("LAN-497 — the register's group values follow the viewer's roster grants", () => {
+  type Family = "coaching" | "offensive" | "defensive" | "warmup";
+
+  function grantsWith(levels: Partial<Record<Family, "view" | "edit">>): OperatorGrants {
+    return { ...NO_GRANTS, roster: { ...NO_GRANTS.roster, ...levels } };
+  }
+
+  /** What the roster's own tables hold for one membership, family by family — read independently. */
+  async function storedGroups(membershipId: string): Promise<Record<Family, string[]>> {
+    const one = async (sql: string) =>
+      (await observer.query<{ value: string }>(sql, [membershipId])).rows
+        .map((row) => row.value)
+        .sort();
+    return {
+      coaching: await one(
+        "select coach_group as value from public.coach_group_assignments where season_membership_id = $1",
+      ),
+      offensive: await one(
+        "select position_group as value from public.membership_position_groups where season_membership_id = $1 and side = 'offence'",
+      ),
+      defensive: await one(
+        "select position_group as value from public.membership_position_groups where season_membership_id = $1 and side = 'defence'",
+      ),
+      warmup: await one(
+        "select small_group as value from public.warmup_group_assignments where season_membership_id = $1",
+      ),
+    };
+  }
+
+  function membershipOf(key: string): string {
+    return key.slice(key.indexOf(":") + 1);
+  }
+
+  it("returns no families and no values to a viewer without the grants, or with none passed", async () => {
+    const event = await occurredEvent(12);
+
+    for (const board of [
+      await readAttendanceBoard(event.id),
+      await readAttendanceBoard(event.id, new Date(), NO_GRANTS),
+      await readAttendanceBoard(event.id, new Date(), grantsWith({})),
+    ]) {
+      expect(board.groupFamilies).toEqual([]);
+      expect(board.participants.length).toBe(12);
+      expect(board.participants.every((participant) => participant.groups === undefined)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("returns each family's values only where that family is granted, independently", async () => {
+    const event = await occurredEvent(12);
+
+    for (const granted of [["warmup"], ["offensive", "defensive"], ["coaching"]] as Family[][]) {
+      const board = await readAttendanceBoard(
+        event.id,
+        new Date(),
+        grantsWith(Object.fromEntries(granted.map((family) => [family, "view"]))),
+      );
+      expect(board.groupFamilies).toEqual(granted);
+      for (const participant of board.participants) {
+        expect(Object.keys(participant.groups ?? {}).sort()).toEqual([...granted].sort());
+      }
+    }
+  });
+
+  it("returns exactly what the roster holds, a player in several groups carrying all of them", async () => {
+    const event = await occurredEvent(12);
+    const board = await readAttendanceBoard(
+      event.id,
+      new Date(),
+      grantsWith({ coaching: "view", offensive: "edit", defensive: "view", warmup: "view" }),
+    );
+
+    expect(board.groupFamilies).toEqual(["coaching", "offensive", "defensive", "warmup"]);
+    let valuesSeen = 0;
+    for (const participant of board.participants) {
+      const stored = await storedGroups(membershipOf(participant.key));
+      const returned = participant.groups ?? {};
+      for (const family of board.groupFamilies) {
+        expect(
+          [...(returned[family] ?? [])].sort(),
+          `${participant.displayName} ${family}`,
+        ).toEqual(stored[family]);
+        valuesSeen += stored[family].length;
+      }
+    }
+    // A pass over twelve players with no assignment between them would prove nothing.
+    expect(valuesSeen).toBeGreaterThan(0);
   });
 });

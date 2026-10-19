@@ -1300,7 +1300,44 @@ and were not put on the roster", and a new **Walk-ups** group — "Turned up
 uninvited, recorded present, to reconcile" — containing them, tagged
 `Walk-up · never invited` and `Walk-on · in recruitment`.
 
-### 10a. What the coach cannot reach
+### 10a. Group the register by coaching, position or warmup group
+
+LAN-497 (build spec approved by Brian, 16 October 2026). A **Group by** select
+sits in the register's toolbar beside **Filters**, and on a sideways phone the
+toolbar is one row. Its options are **None** and each of **Coaching group**,
+**Offensive position group**, **Defensive position group** and **Warmup group**
+that the viewer's role holds View on, by the roster access categories
+`coaching`, `offensive`, `defensive` and `warmup`. There is no new permission.
+A viewer holding none of the four sees no **Group by** at all; that includes the
+Head Coach, OC and DC seats as seeded, which hold no roster grants until the
+owner gives them some in the role editor.
+
+The service enforces it: `readAttendanceBoard` takes the viewer's grants, reads
+a family's assignment table only when that family is granted, and returns group
+values for granted families only.
+
+**None** is the register as described above. Choosing a family turns the sheet
+into one collapsible section per value somebody holds, in the roster's own
+vocabulary order (for example Offensive Line, Quarterbacks, Runningbacks, Wide
+Receivers), each with its count and names A–Z. A player in several groups of
+that family is under **each** heading; every copy is the same attendance record,
+so a tap on either copy saves once and both copies show the committed value.
+Everyone with no value in that family (unassigned players, coaches, committee,
+guests, recruits) is in one final section, **No <family>**, for example **No
+warmup group**, closed on arrival. Every group section opens on arrival, and
+**Walk-ups** stays last and open. RSVP stays on each row's own line and is not a
+section while a family is chosen. Section counts are per section and can add up
+to more than the head count; the operator's headline counts stay event-wide.
+
+Search, RSVP and Attendance filters work as before and combine with Group by. A
+search opens every section. **Clear filters** keeps the family.
+
+The choice is in the link (`?by=coaching|offensive|defensive|warmup`) and is
+remembered in this browser for this viewer: a first visit opens on **None**, and
+a later visit to a link without `by` opens on the last choice. A family in a
+link that the viewer may not see is ignored, and the register opens on **None**.
+
+### 10b. What the coach cannot reach
 
 Still signed in as the coach, type these addresses directly. Hidden navigation is
 not an authorization boundary, so this is worth doing by hand.

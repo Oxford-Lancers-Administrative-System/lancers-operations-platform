@@ -1,6 +1,6 @@
 import "server-only";
 
-import { withTransaction } from "@/lib/db";
+import { withTransaction, type Tx } from "@/lib/db";
 import {
   isAttendancePresence,
   SHOWED_PRESENCES,
@@ -9,6 +9,8 @@ import {
   type AttendanceSummary,
 } from "../attendance-vocabulary";
 import { registerOpensAt } from "../attendance-window";
+import { visibleAttendanceGroupFamilies, type AttendanceGroupFamily } from "../attendance-group-by";
+import type { OperatorGrants } from "@/lib/auth/grants";
 import { readEventIn, type EventDetail } from "../events";
 import { personDisplayNameSql as displayName } from "../sql-text";
 import { closedReasonFor, participantKey, type AttendanceClosedReason } from "./shared";
@@ -27,6 +29,8 @@ export interface AttendanceBoard {
   recordedCount: number;
   walkUpCount: number;
   mismatchCount: number;
+  /** LAN-497: the families this viewer may group by — and the only ones whose values `participants` carry. */
+  groupFamilies: AttendanceGroupFamily[];
 }
 
 interface ParticipantRow {
@@ -127,10 +131,16 @@ function asIsoString(value: Date | string | null): string | null {
 
 // The board for one event, in whatever state it is in — does not refuse a non-occurred event (the
 // route renders UX-71 for one); isOpen is the answer, and write paths ask again for themselves.
+//
+// LAN-497: `grants` is the viewer's. Each Group by family's assignment table is read only where
+// they hold View on its roster category, and only those families' values are returned; with no
+// grants (the default) the board carries no group values at all.
 export async function readAttendanceBoard(
   eventId: string,
   now: Date = new Date(),
+  grants: OperatorGrants | null = null,
 ): Promise<AttendanceBoard> {
+  const groupFamilies = visibleAttendanceGroupFamilies(grants);
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
     const opensAt = registerOpensAt(event);
@@ -150,6 +160,7 @@ export async function readAttendanceBoard(
         recordedCount: 0,
         walkUpCount: 0,
         mismatchCount: 0,
+        groupFamilies,
       };
     }
 
@@ -177,8 +188,19 @@ export async function readAttendanceBoard(
       );
     }
 
+    const groupValues = await readGroupValues(
+      tx,
+      groupFamilies,
+      event.seasonId,
+      rows.rows.flatMap((row) => (row.season_membership_id ? [row.season_membership_id] : [])),
+    );
+
     const participants = rows.rows.map((row) => {
       const key = participantKey(row.capacity, row.season_membership_id, row.person_id);
+      const groups =
+        groupFamilies.length === 0
+          ? undefined
+          : groupsFor(groupFamilies, groupValues, row.season_membership_id);
       return {
         key,
         displayName: row.display_name ?? "Unnamed participant",
@@ -189,6 +211,7 @@ export async function readAttendanceBoard(
         recordedAt: asIsoString(row.recorded_at),
         recordedByName: row.recorded_by_name,
         mismatch: flagged.get(key) ?? null,
+        ...(groups ? { groups } : {}),
       } satisfies AttendanceParticipant;
     });
 
@@ -211,6 +234,9 @@ export async function readAttendanceBoard(
           recordedAt: null,
           recordedByName: null,
           mismatch: null,
+          ...(groupFamilies.length === 0
+            ? {}
+            : { groups: groupsFor(groupFamilies, groupValues, null) }),
         });
       }
     }
@@ -228,8 +254,68 @@ export async function readAttendanceBoard(
       recordedCount: summary.recorded,
       walkUpCount: summary.walkUps,
       mismatchCount: participants.filter((participant) => participant.mismatch !== null).length,
+      groupFamilies,
     };
   });
+}
+
+/** Each family's table and, for position groups, its side — the roster board's own sources. */
+const GROUP_VALUE_QUERIES: Readonly<Record<AttendanceGroupFamily, string>> = Object.freeze({
+  coaching: `select season_membership_id, coach_group as value
+               from public.coach_group_assignments
+              where season_id = $1::uuid and season_membership_id = any($2::uuid[])`,
+  offensive: `select season_membership_id, position_group as value
+                from public.membership_position_groups
+               where season_id = $1::uuid and side = 'offence'
+                 and season_membership_id = any($2::uuid[])`,
+  defensive: `select season_membership_id, position_group as value
+                from public.membership_position_groups
+               where season_id = $1::uuid and side = 'defence'
+                 and season_membership_id = any($2::uuid[])`,
+  warmup: `select season_membership_id, small_group as value
+             from public.warmup_group_assignments
+            where season_id = $1::uuid and season_membership_id = any($2::uuid[])`,
+});
+
+type GroupValueMap = Map<AttendanceGroupFamily, Map<string, string[]>>;
+
+/** Only the families passed in are queried; a family the viewer may not see is never read. */
+async function readGroupValues(
+  tx: Tx,
+  families: readonly AttendanceGroupFamily[],
+  seasonId: string,
+  membershipIds: readonly string[],
+): Promise<GroupValueMap> {
+  const values: GroupValueMap = new Map();
+  for (const family of families) {
+    const byMembership = new Map<string, string[]>();
+    if (membershipIds.length > 0) {
+      const result = await tx.query<{ season_membership_id: string; value: string }>(
+        GROUP_VALUE_QUERIES[family],
+        [seasonId, membershipIds],
+      );
+      for (const row of result.rows) {
+        const held = byMembership.get(row.season_membership_id) ?? [];
+        held.push(row.value);
+        byMembership.set(row.season_membership_id, held);
+      }
+    }
+    values.set(family, byMembership);
+  }
+  return values;
+}
+
+function groupsFor(
+  families: readonly AttendanceGroupFamily[],
+  values: GroupValueMap,
+  membershipId: string | null,
+): Partial<Record<AttendanceGroupFamily, readonly string[]>> {
+  return Object.fromEntries(
+    families.map((family) => [
+      family,
+      membershipId === null ? [] : (values.get(family)?.get(membershipId) ?? []),
+    ]),
+  );
 }
 
 interface SummaryRow {

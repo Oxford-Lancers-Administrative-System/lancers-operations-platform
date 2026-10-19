@@ -2,6 +2,11 @@ import type {
   AttendanceParticipant,
   AttendancePresence,
 } from "@/lib/services/attendance-vocabulary";
+import {
+  ATTENDANCE_GROUP_VALUES,
+  ATTENDANCE_NO_GROUP_LABELS,
+  type AttendanceGroupFamily,
+} from "@/lib/services/attendance-group-by";
 
 // The words the attendance screens use — UX-70 through UX-75, LAN-80. `docs/ux/slice-ux.md` § 6 is the authority.
 
@@ -137,9 +142,9 @@ export const ATTENDANCE_HEADLINE_PREFIX = "Attendance ·";
 export const NOT_MARKED = "Not marked";
 
 // The board's reading groups — Brian, 14 Aug 2026 (W12, D11, LAN-205, `OWNER-WALKUP-GROUP-ORDER`).
-export type ParticipantGroupKey = "recruits" | "attending" | "everyone_else" | "walk_ups";
+type ParticipantGroupKey = "recruits" | "attending" | "everyone_else" | "walk_ups";
 
-export interface ParticipantGroup {
+interface ParticipantGroup {
   key: ParticipantGroupKey;
   label: string;
   detail: string;
@@ -166,7 +171,7 @@ function byName(left: AttendanceParticipant, right: AttendanceParticipant): numb
 }
 
 // Groups in reading order, each sorted by name (W12, D11, LAN-205).
-export function groupParticipants(
+function groupParticipants(
   participants: AttendanceParticipant[],
   eventType: string,
 ): ParticipantGroup[] {
@@ -219,6 +224,97 @@ export function groupParticipants(
   if (!isRecruitmentEvent) groups.push(walkUps);
   return groups;
 }
+
+/**
+ * One section of the register as drawn — the None view's reading groups, or
+ * one Group by value (LAN-497). `key` is unique within one view and is also
+ * the section's test id suffix.
+ */
+export interface RegisterSection {
+  key: string;
+  label: string;
+  detail?: string;
+  participants: AttendanceParticipant[];
+  defaultOpen: boolean;
+}
+
+/** Recruits/Attending/Walk-ups open, Everyone else closed — Brian, fidelity mockup. */
+const NONE_VIEW_DEFAULT_OPEN: Readonly<Record<ParticipantGroupKey, boolean>> = Object.freeze({
+  recruits: true,
+  attending: true,
+  everyone_else: false,
+  walk_ups: true,
+});
+
+/** A Group by value's section key — `group-offensive-line`. */
+function groupSectionKey(value: string): string {
+  return `group-${value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;
+}
+
+/**
+ * The register's sections. `groupBy` null is today's register, unchanged.
+ *
+ * With a family chosen (LAN-497, Brian's build spec of 16 October 2026): one
+ * section per value somebody holds, in roster vocabulary order, names A–Z; a
+ * player in several groups is in each of them, the same participant object
+ * and so the same record. Everyone with no value goes in one "No <family>"
+ * section, closed; walk-ups keep their own section, last. A value outside the
+ * vocabulary still gets its section, after the vocabulary's, so nobody is lost.
+ */
+export function registerSections(
+  participants: AttendanceParticipant[],
+  eventType: string,
+  groupBy: AttendanceGroupFamily | null,
+): RegisterSection[] {
+  if (groupBy === null) {
+    return groupParticipants(participants, eventType).map((group) => ({
+      ...group,
+      defaultOpen: NONE_VIEW_DEFAULT_OPEN[group.key],
+    }));
+  }
+
+  const invited = participants.filter((participant) => !participant.isWalkUp);
+  const vocabulary = ATTENDANCE_GROUP_VALUES[groupBy];
+  const held = new Set(invited.flatMap((participant) => participant.groups?.[groupBy] ?? []));
+  const outside = [...held]
+    .filter((value) => !vocabulary.includes(value))
+    .sort((left, right) => left.localeCompare(right, "en-GB"));
+  const values = [...vocabulary.filter((value) => held.has(value)), ...outside];
+
+  const sections: RegisterSection[] = values.map((value) => ({
+    key: groupSectionKey(value),
+    label: value,
+    participants: invited
+      .filter((participant) => participant.groups?.[groupBy]?.includes(value))
+      .sort(byName),
+    defaultOpen: true,
+  }));
+
+  sections.push(
+    {
+      key: "no-group",
+      label: ATTENDANCE_NO_GROUP_LABELS[groupBy],
+      participants: invited
+        .filter((participant) => (participant.groups?.[groupBy] ?? []).length === 0)
+        .sort(byName),
+      defaultOpen: false,
+    },
+    {
+      key: "walk_ups",
+      label: WALK_UP_GROUP_LABEL,
+      detail: WALK_UP_GROUP_DETAIL,
+      participants: participants.filter((participant) => participant.isWalkUp).sort(byName),
+      defaultOpen: true,
+    },
+  );
+  return sections;
+}
+
+export const GROUP_BY_LABEL = "Group by";
+export const GROUP_BY_NONE = "None";
 
 export const NOBODY_INVITED =
   "Nobody was invited to this event, and nothing has been recorded. Anyone who turned up can " +

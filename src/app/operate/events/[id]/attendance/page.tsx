@@ -10,6 +10,11 @@ import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { readAttendanceBoard, type AttendanceBoard } from "@/lib/services/attendance";
 import { readEventTemplateLevel } from "@/lib/services/events";
+import {
+  attendanceGroupByStorageKey,
+  parseAttendanceGroupBy,
+} from "@/lib/services/attendance-group-by";
+import { SIDEWAYS_PHONE } from "@/theme-tokens";
 import { gateShellPage } from "../../../gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AttendanceFilters } from "./attendance-filters";
@@ -71,7 +76,8 @@ export default async function AttendancePage({
 
   let board: AttendanceBoard;
   try {
-    board = await readAttendanceBoard(id);
+    // LAN-497: the viewer's grants decide which Group by families' values are read at all.
+    board = await readAttendanceBoard(id, new Date(), gate.operator.grants);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -128,6 +134,8 @@ export default async function AttendancePage({
 
   const visible = filterParticipants(board.participants, { search, rsvp, attendance });
   const basePath = `/operate/events/${event.id}/attendance`;
+  // LAN-497: a family the viewer may not see is ignored, as if the link named none.
+  const groupBy = parseAttendanceGroupBy(query.by, board.groupFamilies);
 
   return (
     <OutcomeSlotProvider>
@@ -161,13 +169,21 @@ export default async function AttendancePage({
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}
-          sx={{ alignItems: { md: "center" }, justifyContent: "space-between" }}
+          useFlexGap
+          sx={{
+            alignItems: { md: "center" },
+            justifyContent: "space-between",
+            [SIDEWAYS_PHONE]: { flexDirection: "row", alignItems: "center" },
+          }}
         >
           <AttendanceFilters
             basePath={basePath}
             search={search}
             rsvp={rsvp}
             attendance={attendance}
+            groupFamilies={board.groupFamilies}
+            groupBy={groupBy}
+            storageKey={attendanceGroupByStorageKey(gate.operator.personId)}
           />
           <Button
             variant="outlined"
@@ -193,11 +209,16 @@ export default async function AttendancePage({
             <EmptyState
               title={NO_MATCHING_PARTICIPANTS}
               searched={search || undefined}
-              action={{ href: basePath, label: "Clear filters" }}
+              action={{
+                href: groupBy ? `${basePath}?by=${groupBy}` : basePath,
+                label: "Clear filters",
+              }}
               testId="attendance-filter-empty"
             />
           ) : (
             <AttendanceGroups
+              key={groupBy ?? "none"}
+              groupBy={groupBy}
               eventId={event.id}
               eventType={event.eventType}
               participants={visible}
