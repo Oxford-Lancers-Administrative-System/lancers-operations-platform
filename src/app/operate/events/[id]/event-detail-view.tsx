@@ -37,6 +37,8 @@ import { ApprovedEventActions, CancelledPanel, ChangeHistoryPanel } from "./chan
 import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
 import { ResponseProgress } from "../../../participation/response-progress";
+import { AttendanceProgress } from "../../../participation/attendance-progress";
+import { showsAttendanceProgress } from "@/lib/services/event-attendance-progress";
 import { AudienceList } from "./audience-list";
 import { responseNamePanels } from "./response-names";
 import { QuestionList } from "./question-list";
@@ -262,6 +264,12 @@ export function EventDetailView({
             people={participation.people}
             panels={responseNamePanels(participation.people)}
           />
+        ) : null}
+
+        {/* LAN-504: once the event has occurred, what the register recorded,
+            per group, directly below the RSVP blocks. Upcoming events show nothing new. */}
+        {participation && showsAttendanceProgress(event, todayInClubZone()) ? (
+          <AttendanceProgress people={participation.people} />
         ) : null}
 
         {mayApprove && changeWentOutSilently && lastAmendment ? (
