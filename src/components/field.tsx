@@ -104,6 +104,7 @@ export function ChoiceField({
   error,
   field,
   row = false,
+  required = false,
 }: {
   label: string;
   name: string;
@@ -114,10 +115,12 @@ export function ChoiceField({
   error?: boolean;
   field?: string;
   row?: boolean;
+  /** The asterisk every required `Field` carries, on the group's label. */
+  required?: boolean;
 }) {
   const id = `${name}-label`;
   return (
-    <FormControl error={error} data-field={field ?? name}>
+    <FormControl error={error} required={required} data-field={field ?? name}>
       <FormLabel id={id}>{label}</FormLabel>
       <RadioGroup
         aria-labelledby={id}

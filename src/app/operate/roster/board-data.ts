@@ -68,6 +68,8 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.expectedGraduationYear;
     case "degree":
       return row.degreeField;
+    case "dietary":
+      return row.dietaryPreference;
     case "contactable":
       return [row.hasMobile ? "Mobile" : "", row.hasEmail ? "Email" : ""].filter(Boolean);
     case "missing":
@@ -230,7 +232,11 @@ export function filterOptions(
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  if (column.options && !column.itemCode) return [...column.options];
+  // LAN-502: a fixed vocabulary answered on the record (Dietary preference) is
+  // blank for everyone who has not answered, and that is filterable too.
+  if (column.options && !column.itemCode) {
+    return column.edit === "record" ? [...column.options, NOT_RECORDED] : [...column.options];
+  }
 
   const seen = new Set<string>();
   let blanks = false;
@@ -341,7 +347,13 @@ export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
     if (value.length === 0) return column.edit === "none" ? "—" : NOT_RECORDED;
     return value.map((entry) => optionLabel(column, entry)).join(", ");
   }
-  if (column.edit === "select" || column.edit === "onboarding" || column.itemCode)
+  // LAN-502: a record-edited column with a fixed vocabulary shows its label too.
+  if (
+    column.edit === "select" ||
+    column.edit === "onboarding" ||
+    column.itemCode ||
+    column.optionLabels
+  )
     return optionLabel(column, String(value));
   return String(value);
 }

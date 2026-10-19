@@ -88,6 +88,8 @@ const VALID_FIELDS: Record<string, string> = {
   // LAN-268: required on step 1, alongside the name and the phone.
   college_email: "jordan.ashworth@stpeters.ox.ac.uk",
   personal_email: "jordan@example.com",
+  // LAN-502: required, one of three.
+  dietary_preference: "vegan",
   college: "St Peter's",
   matriculation_year: "2023",
   expected_graduation_year: "2026",
@@ -220,6 +222,7 @@ describe("saveDetails — field validation (B-009)", () => {
       "family_name",
       "mobile",
       "personal_email",
+      "dietary_preference",
       "college",
       "matriculation_year",
       "expected_graduation_year",

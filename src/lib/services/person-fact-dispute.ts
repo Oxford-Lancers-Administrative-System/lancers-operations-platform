@@ -141,6 +141,8 @@ function updateFor(
       return { ...common, field, value: text };
     case "date_of_birth":
       return { ...common, field, value: text };
+    case "dietary_preference":
+      return { ...common, field, value: text };
     case "matriculation_year": {
       const parsed = Number(text);
       return { ...common, field, value: Number.isFinite(parsed) ? parsed : null };

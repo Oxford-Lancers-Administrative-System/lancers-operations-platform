@@ -154,6 +154,8 @@ function personRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     bafaRegistrationNumberSource: null,
     dateOfBirth: null,
     dateOfBirthSource: null,
+    dietaryPreference: null,
+    dietaryPreferenceSource: null,
     emergencyContact: null,
     contacts: [],
     isPastMember: false,
@@ -191,6 +193,7 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
       student_number: null,
       bafa_registration_number: null,
       date_of_birth: null,
+      dietary_preference: null,
     },
     agreements: { code_of_conduct: null, photo_release: null },
     agreementVersions: {
@@ -544,6 +547,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
           student_number: null,
           bafa_registration_number: null,
           date_of_birth: null,
+          dietary_preference: null,
         },
       }),
     );
@@ -569,6 +573,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
           student_number: null,
           bafa_registration_number: null,
           date_of_birth: null,
+          dietary_preference: null,
         },
       }),
     );
@@ -589,6 +594,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
           student_number: null,
           bafa_registration_number: null,
           date_of_birth: null,
+          dietary_preference: null,
         },
       }),
     );
@@ -614,6 +620,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
           student_number: null,
           bafa_registration_number: null,
           date_of_birth: null,
+          dietary_preference: null,
         },
       }),
     );

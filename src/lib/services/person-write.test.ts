@@ -418,6 +418,35 @@ describe("updatePersonField — every other field overwrites, with history in th
     expect(record.middleName).toBe("Aloysius");
   });
 
+  /** LAN-502. Three answers; an operator sets it, and changes it with a reason. */
+  it("sets and changes a dietary preference, refusing any answer outside the three", async () => {
+    const personId = await insertPerson({ givenName: unique("Diet") });
+
+    await expect(
+      updatePersonField({ actorPersonId, personId, field: "dietary_preference", value: "halal" }),
+    ).rejects.toMatchObject({ rule: "people_dietary_preference_known" });
+
+    const set = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "dietary_preference",
+      value: "vegan",
+    });
+    expect(set.dietaryPreference).toBe("vegan");
+    expect((await latestAudit("people", personId))?.action).toBe(
+      "person_dietary_preference_updated",
+    );
+
+    const changed = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "dietary_preference",
+      value: "none",
+      reason: "Told the social secretary",
+    });
+    expect(changed.dietaryPreference).toBe("none");
+  });
+
   it("refuses to change an existing value without a reason", async () => {
     const personId = await insertPerson({ givenName: unique("HasCollege"), college: "Merton" });
 

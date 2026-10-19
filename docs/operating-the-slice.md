@@ -291,6 +291,24 @@ with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
 **Add recruits** (Add one recruit, Bulk import recruits) and **QR code** only with "May
 add recruits"; their pages and actions refuse without it.
 
+**Dietary preference (LAN-502, Brian 2026-10-15).** The player's onboarding
+details step (`/onboarding/<t>`, under Who you are, after Personal email) asks
+**Dietary preference**, one of **Vegan**, **Vegetarian** or **No dietary
+requirements**, required like the other details: left unanswered, the step stays
+with **Dietary preference is required.** under the choice. The answer is stored
+on the person (`people.dietary_preference`), so it carries across seasons. It is
+shown in the person record's Personal information and the player record's Person
+section, and the operator sets or changes it on **Correct this record** (a
+reason is needed to change an answer already recorded, as for every person
+fact). The roster board has a **Dietary preference** column in the Person group,
+read as Person, routed to the person record like the other Person columns,
+sortable and filterable by each answer or by **Not recorded**. Everyone who
+onboarded before it was asked shows **Not recorded**: it is not part of the
+required facts, so it adds nothing to Missing data, opens no completed
+questionnaire again and never triggers a chase. `agent_readonly` cannot read the
+column — a diet can disclose a belief — so it is on the hidden list in
+`scripts/production/agent-readonly.sql`.
+
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
 board (and a phone on its side) an **Attendance** group sits immediately right
 of Availability with three read-only columns: **Mandatory**, **BPS** and **All

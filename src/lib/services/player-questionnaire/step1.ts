@@ -1,6 +1,7 @@
 import { isServiceError, withTransaction } from "@/lib/db";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
+import { isDietaryPreference } from "../person-dietary";
 import { recordOnboardingActivityIn } from "../onboarding-activity-log";
 import {
   grantSeasonMessagingConsentIn,
@@ -101,6 +102,12 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   if (input.fields.date_of_birth) {
     const validation = validateDateOfBirth(input.fields.date_of_birth);
     if (!validation.valid) errors.date_of_birth = validation.message;
+  }
+
+  // LAN-502: one of three answers. A blank one is required-ness, the form's to refuse.
+  const dietary = input.fields.dietary_preference?.trim() ?? "";
+  if (dietary !== "" && !isDietaryPreference(dietary)) {
+    errors.dietary_preference = "Choose one of the three answers.";
   }
 
   if (input.grantConsent) {

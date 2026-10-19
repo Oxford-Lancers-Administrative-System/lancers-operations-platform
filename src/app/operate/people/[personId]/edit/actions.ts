@@ -200,6 +200,17 @@ export async function submitPersonEdit(
         expectedVersion: nextExpectedVersion(),
       });
     }
+    // LAN-502. One of three codes; clearing it is a legitimate correction.
+    if (values.dietaryPreference.trim() !== (current.dietaryPreference ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "dietary_preference",
+        value: values.dietaryPreference.trim() === "" ? null : values.dietaryPreference.trim(),
+        reason: values.dietaryPreferenceReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
     if (values.college.trim() !== (current.college ?? "")) {
       await updatePersonField({
         actorPersonId: operator.personId,
@@ -473,6 +484,7 @@ const PERSON_FIELDS = Object.freeze([
   "givenName",
   "middleName",
   "familyName",
+  "dietaryPreference",
   "college",
   "matriculationYear",
   "expectedGraduationYear",
@@ -526,6 +538,8 @@ function recordedValue(record: PersonRecord, field: EditableField): string {
       return record.middleName ?? "";
     case "familyName":
       return record.familyName ?? "";
+    case "dietaryPreference":
+      return record.dietaryPreference ?? "";
     case "college":
       return record.college ?? "";
     case "matriculationYear":

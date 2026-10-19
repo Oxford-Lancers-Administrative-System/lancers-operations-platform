@@ -51,6 +51,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     matriculationYear: 2024,
     expectedGraduationYear: 2027,
     degreeField: "Engineering",
+    dietaryPreference: null,
     hasMobile: true,
     hasEmail: true,
     missingCount: 0,

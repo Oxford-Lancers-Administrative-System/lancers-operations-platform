@@ -69,6 +69,7 @@ const CONCURRENT_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze(
   person_expected_graduation_year_updated: "Expected graduation",
   person_degree_field_updated: "Degree field",
   person_date_of_birth_updated: "Date of birth",
+  person_dietary_preference_updated: "Dietary preference",
   person_contact_superseded: "A contact value",
   person_contact_recorded: "A contact value",
   person_alias_added: "Aliases",

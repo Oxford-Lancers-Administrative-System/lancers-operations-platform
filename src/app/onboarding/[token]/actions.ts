@@ -213,6 +213,7 @@ export async function saveDetails(
       degree_field: values.degree_field,
       student_number: values.student_number,
       date_of_birth: values.date_of_birth,
+      dietary_preference: values.dietary_preference,
     },
     mobile: values.mobile,
     collegeEmail: values.college_email,

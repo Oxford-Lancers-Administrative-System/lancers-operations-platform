@@ -93,6 +93,9 @@ export interface PersonRecord {
   /** `REQ-restricted-fields`: four-role only, and never on a list, board or queue. */
   dateOfBirth: string | null;
   dateOfBirthSource: string | null;
+  /** LAN-502. A `DIETARY_PREFERENCE_VALUES` code; `null` for no answer, which is everyone who onboarded before it was asked. */
+  dietaryPreference: string | null;
+  dietaryPreferenceSource: string | null;
   /** `REQ-restricted-fields`: structurally isolated; four-role only. `null` when none is recorded. */
   emergencyContact: EmergencyContact | null;
   contacts: PersonContactValue[];
@@ -138,6 +141,7 @@ interface PersonRow {
   student_number: string | null;
   bafa_registration_number: string | null;
   date_of_birth: string | null;
+  dietary_preference: string | null;
   merged_into_person_id: string | null;
   display_alias: string | null;
   status: AssembledStatus;
@@ -154,6 +158,7 @@ async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
             p.college, p.matriculation_year, p.expected_graduation_year, p.degree_field,
             p.student_number, p.bafa_registration_number,
             to_char(p.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
+            p.dietary_preference,
             p.merged_into_person_id,
             ${personDisplayAliasSql("p")} as display_alias,
             ${personAssembledStatusSql("p")} as status,
@@ -268,6 +273,7 @@ const DERIVED_PROVENANCE_FIELDS = [
   "student_number",
   "bafa_registration_number",
   "date_of_birth",
+  "dietary_preference",
 ] as const;
 
 type DerivedProvenanceField = (typeof DERIVED_PROVENANCE_FIELDS)[number];
@@ -374,6 +380,8 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     bafaRegistrationNumberSource: fieldProvenance.bafa_registration_number,
     dateOfBirth: row.date_of_birth,
     dateOfBirthSource: fieldProvenance.date_of_birth,
+    dietaryPreference: row.dietary_preference,
+    dietaryPreferenceSource: fieldProvenance.dietary_preference,
     emergencyContact,
     contacts,
     isPastMember: row.is_past_member ?? false,

@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { selectMobileNumber } from "@/lib/delivery/phone-shape";
 import { DEFAULT_CALLING_CODE } from "@/lib/services/person-validation";
+import { dietaryPreferenceLabel } from "@/lib/services/person-dietary";
 import type { PersonRecord } from "@/lib/services/person-record";
 
 /**
@@ -195,6 +196,16 @@ export function PersonalInformationSection({
   return (
     <Section variant="banded" band="person" title="Personal information">
       {record.givenName !== undefined ? <NameRows record={record} /> : null}
+      {/* LAN-502: blank for everyone who onboarded before it was asked. */}
+      {record.dietaryPreference !== undefined ? (
+        <Fact label="Dietary preference">
+          {record.dietaryPreference != null ? (
+            <>{dietaryPreferenceLabel(record.dietaryPreference)}</>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
+      ) : null}
       {record.contacts !== undefined ? (
         <>
           <PersonalContactRows record={record} currentSeasonLabel={currentSeasonLabel} />

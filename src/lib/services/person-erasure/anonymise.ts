@@ -457,6 +457,7 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
             date_of_birth = null,
             student_number = null,
             bafa_registration_number = null,
+            dietary_preference = null,
             merge_reason = null,
             erased_at = now(),
             updated_at = now()

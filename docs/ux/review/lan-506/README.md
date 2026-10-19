@@ -71,3 +71,26 @@ Roster linked as `?sort=status:asc,college:asc,lastName:asc`; Recruits as
 | `LAN-495-recruits-sort-sheet-375px.png`         | The bottom sheet open at 375                                     |
 | `LAN-495-recruits-sorted-landscape-844.png`     | Recruits on its side, closed                                     |
 | `LAN-495-recruits-sort-sheet-landscape-844.png` | Recruits on its side, sheet open                                 |
+
+## LAN-502 — dietary preference
+
+Synthetic people: the onboarding link is Lysander Croft's local seed link;
+the records are Alaric Brindlewood (Vegan). On the roster Alaric, Ambrose and
+Barnaby carry the three answers; everyone else shows Not recorded.
+
+| File                                                  | Shows                                                          |
+| ----------------------------------------------------- | -------------------------------------------------------------- |
+| `lan-502-onboarding-details-desktop1440.png`          | Onboarding details step, whole page                            |
+| `lan-502-onboarding-details-phone375.png`             | The same at 375                                                |
+| `lan-502-onboarding-dietary-desktop1440.png`          | The required Dietary preference choice                         |
+| `lan-502-onboarding-dietary-phone375.png`             | The same at 375                                                |
+| `lan-502-person-record-desktop1440.png`               | Person record, Personal information with Dietary preference    |
+| `lan-502-person-record-phone375.png`                  | The same at 375                                                |
+| `lan-502-person-edit-desktop1440.png`                 | Correct this record, whole page                                |
+| `lan-502-person-edit-phone375.png`                    | The same at 375                                                |
+| `lan-502-person-edit-dietary-options-desktop1440.png` | Correct this record, the three answers open                    |
+| `lan-502-person-edit-dietary-options-phone375.png`    | The same at 375                                                |
+| `lan-502-player-record-desktop1440.png`               | Player record, Person section                                  |
+| `lan-502-player-record-phone375.png`                  | The same at 375                                                |
+| `lan-502-roster-desktop1440.png`                      | Roster board: Dietary preference column in the Person group    |
+| `lan-502-roster-phone375.png`                         | Roster at 375: cards, unchanged (columns are the wide board's) |

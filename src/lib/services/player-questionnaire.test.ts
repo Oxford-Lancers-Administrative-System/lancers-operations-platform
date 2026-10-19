@@ -472,6 +472,48 @@ describe("saveDetailsStep", () => {
     expect(view?.person.matriculationYear).toBe(2024);
   });
 
+  it("saves the dietary preference on the person, with the player as its source — LAN-502", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const input = baseDetailsInput(personId, openSeasonId, membershipId);
+
+    const result = await saveDetailsStep({
+      ...input,
+      fields: { ...input.fields, dietary_preference: "vegetarian" },
+    });
+
+    expect(result.errors).toEqual({});
+    expect(result.outcomes.dietary_preference).toBe("filled");
+    const record = await readPersonRecord(personId);
+    expect(record.dietaryPreference).toBe("vegetarian");
+    expect(record.dietaryPreferenceSource).not.toBeNull();
+  });
+
+  it("refuses an answer outside the three inline, keeping the rest of the submission — LAN-502", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const input = baseDetailsInput(personId, openSeasonId, membershipId);
+
+    const result = await saveDetailsStep({
+      ...input,
+      fields: { ...input.fields, dietary_preference: "pescatarian" },
+    });
+
+    expect(result.errors.dietary_preference).toBe("Choose one of the three answers.");
+    const record = await readPersonRecord(personId);
+    expect(record.dietaryPreference).toBeNull();
+    expect(record.college).toBe("Brasenose");
+  });
+
+  it("completes the details step without a dietary preference, so nobody already onboarded is reopened — LAN-502", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.person.dietaryPreference).toBeNull();
+    expect(view?.missingRequiredFields).toEqual([]);
+    expect(view?.detailsComplete).toBe(true);
+  });
+
   /**
    * LAN-413. Production, 2026-09-22 17:16 UTC: Stewart submitted the details
    * step with an email another record already held, `supersedeContactPoint`

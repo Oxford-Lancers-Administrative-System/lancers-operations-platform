@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/notice";
-import { Field, CheckField, DateField } from "@/components/field";
+import { Field, CheckField, ChoiceField, DateField } from "@/components/field";
+import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
 import { PhoneField } from "@/components/phone-field";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
@@ -27,6 +28,7 @@ import {
   FIELD_COLLEGE_EMAIL_HINT,
   FIELD_DATE_OF_BIRTH,
   FIELD_DEGREE_FIELD,
+  FIELD_DIETARY_PREFERENCE,
   FIELD_EC_EMAIL,
   FIELD_EC_FAMILY_NAME,
   FIELD_EC_GIVEN_NAME,
@@ -102,6 +104,7 @@ export function DetailsForm({
   const [birthDate, setBirthDate] = useState<Date | null>(() =>
     initialValues.date_of_birth ? new Date(`${initialValues.date_of_birth}T00:00:00`) : null,
   );
+  const [dietaryPreference, setDietaryPreference] = useState(initialValues.dietary_preference);
   const firstInvalid = firstInvalidDetailsField(errors);
   const focusTarget = useRef<HTMLInputElement | null>(null);
 
@@ -197,6 +200,17 @@ export function DetailsForm({
               hint: FIELD_COLLEGE_EMAIL_HINT,
             })}
             {field("personal_email", FIELD_PERSONAL_EMAIL, { type: "email" })}
+            {/* LAN-502: one of three, required. Carried on the person, not the season. */}
+            <ChoiceField
+              name="dietary_preference"
+              label={FIELD_DIETARY_PREFERENCE}
+              required
+              value={dietaryPreference}
+              onChange={setDietaryPreference}
+              options={DIETARY_PREFERENCE_OPTIONS}
+              error={Boolean(errors.dietary_preference)}
+              helperText={errors.dietary_preference}
+            />
           </Stack>
         </Section>
         <Section title={SECTION_WHERE_YOU_STUDY}>

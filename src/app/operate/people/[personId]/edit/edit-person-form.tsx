@@ -9,7 +9,14 @@ import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { Field, DateField, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
+import {
+  Field,
+  DateField,
+  NO_AUTOFILL,
+  preventImplicitSubmit,
+  SelectField,
+} from "@/components/field";
+import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -56,6 +63,7 @@ export type EditablePersonRecord = Pick<
   | "middleName"
   | "familyName"
   | "aliases"
+  | "dietaryPreference"
   | "college"
   | "matriculationYear"
   | "expectedGraduationYear"
@@ -194,6 +202,15 @@ export default function EditPersonForm({
                     error={state.errors.familyName}
                   />
                   <AliasesEditor personId={personId} record={record} />
+                  {/* LAN-502: the onboarding step's three answers. */}
+                  <CorrectableField
+                    name="dietaryPreference"
+                    reasonName="dietaryPreferenceReason"
+                    label="Dietary preference"
+                    options={DIETARY_PREFERENCE_OPTIONS}
+                    original={record.dietaryPreference ?? ""}
+                    error={state.errors.dietaryPreference}
+                  />
                 </>
               ) : null}
               {mayEditContact ? (
@@ -385,6 +402,7 @@ function CorrectableField({
   unchangedHelperText,
   renderExtra,
   phone,
+  options,
 }: {
   name: string;
   reasonName: string;
@@ -397,6 +415,8 @@ function CorrectableField({
   renderExtra?: (value: string, changed: boolean) => React.ReactNode;
   /** LAN-211: the shared two-part control in place of one free-text box. */
   phone?: boolean;
+  /** A fixed vocabulary (LAN-502, LAN-494): the shared `SelectField` in place of free text. */
+  options?: ReadonlyArray<{ value: string; label: string }>;
 }) {
   const [value, setValue] = useState(original);
   const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
@@ -415,6 +435,17 @@ function CorrectableField({
           error={Boolean(error)}
           helperText={error ?? (changed ? undefined : unchangedHelperText)}
           onValueChange={setValue}
+        />
+      ) : options ? (
+        <SelectField
+          name={name}
+          label={label}
+          required={required}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          options={options}
+          error={Boolean(error)}
+          helperText={error ?? (changed ? undefined : unchangedHelperText)}
         />
       ) : type === "date" ? (
         <DateField

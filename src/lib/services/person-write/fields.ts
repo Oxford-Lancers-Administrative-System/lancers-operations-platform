@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
 import { type PersonRecord, readPersonRecordIn } from "../person-record";
+import { isDietaryPreference } from "../person-dietary";
 import { validateDateOfBirth } from "../person-validation";
 import {
   assertNoConcurrentPersonChange,
@@ -27,7 +28,9 @@ export type PersonFieldUpdate =
   | { field: "student_number"; value: string | null }
   /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
   | { field: "bafa_registration_number"; value: string | null }
-  | { field: "date_of_birth"; value: string | null };
+  | { field: "date_of_birth"; value: string | null }
+  /** LAN-502. One of `DIETARY_PREFERENCE_VALUES`; cleared by saving it blank. */
+  | { field: "dietary_preference"; value: string | null };
 
 const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
   given_name: "the first name",
@@ -40,6 +43,7 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   student_number: "the student number",
   bafa_registration_number: "the BAFA registration number",
   date_of_birth: "date of birth",
+  dietary_preference: "the dietary preference",
 });
 
 const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
@@ -53,6 +57,7 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   student_number: "student_number",
   bafa_registration_number: "bafa_registration_number",
   date_of_birth: "date_of_birth",
+  dietary_preference: "dietary_preference",
 });
 
 function normalisedFieldValue(update: PersonFieldUpdate): string | number | null {
@@ -87,6 +92,13 @@ export async function updatePersonField(
     if (!validation.valid) {
       throw new ConstraintViolated(validation.message, { rule: validation.rule });
     }
+  }
+
+  // LAN-502: three answers and no others (`people_dietary_preference_known`).
+  if (field === "dietary_preference" && typeof value === "string" && !isDietaryPreference(value)) {
+    throw new ConstraintViolated("Choose Vegan, Vegetarian or No dietary requirements.", {
+      rule: "people_dietary_preference_known",
+    });
   }
 
   return withTransaction(async (tx) => {

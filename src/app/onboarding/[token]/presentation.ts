@@ -103,6 +103,8 @@ export const FIELD_MATRICULATION_YEAR = "Matriculation year";
 export const FIELD_EXPECTED_GRADUATION = "Expected graduation";
 export const FIELD_DEGREE_FIELD = "Degree field";
 export const FIELD_DATE_OF_BIRTH = "Date of birth";
+/** LAN-502. Required; the three answers are `DIETARY_PREFERENCE_OPTIONS`. */
+export const FIELD_DIETARY_PREFERENCE = "Dietary preference";
 
 /**
  * LAN-267's identifiers, reduced to one by LAN-365.

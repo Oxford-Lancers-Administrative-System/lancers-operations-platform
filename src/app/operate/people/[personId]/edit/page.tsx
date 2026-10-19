@@ -54,6 +54,7 @@ export default async function EditPersonPage({
         middleName: mayEditPerson ? record.middleName : null,
         familyName: mayEditPerson ? record.familyName : null,
         aliases: mayEditPerson ? record.aliases : [],
+        dietaryPreference: mayEditPerson ? record.dietaryPreference : null,
         college: mayEditPerson ? record.college : null,
         matriculationYear: mayEditPerson ? record.matriculationYear : null,
         expectedGraduationYear: mayEditPerson ? record.expectedGraduationYear : null,

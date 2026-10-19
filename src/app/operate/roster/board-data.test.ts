@@ -33,6 +33,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     matriculationYear: null,
     expectedGraduationYear: null,
     degreeField: null,
+    dietaryPreference: null,
     hasMobile: false,
     hasEmail: false,
     missingCount: 0,
@@ -529,5 +530,68 @@ describe("LAN-495 — three sort keys over the roster", () => {
       "a",
       "z",
     ]);
+  });
+});
+
+// LAN-502. The onboarding step's answer, a Person column edited on the record.
+describe("Dietary preference — a Person column with three answers and a blank", () => {
+  const DIETARY_COLUMN = COLUMNS.find((c) => c.key === "dietary")!;
+
+  it("sits in the Person group and routes its edit to the person record", () => {
+    expect(DIETARY_COLUMN).toMatchObject({
+      band: "person",
+      category: "person",
+      edit: "record",
+      sortable: true,
+      filterable: true,
+    });
+  });
+
+  it("shows the label, never the stored code, and Not recorded for no answer", () => {
+    expect(displayOf(row({ dietaryPreference: "none" }), DIETARY_COLUMN)).toBe(
+      "No dietary requirements",
+    );
+    expect(displayOf(row({ dietaryPreference: "vegan" }), DIETARY_COLUMN)).toBe("Vegan");
+    expect(displayOf(row({ dietaryPreference: null }), DIETARY_COLUMN)).toBe(NOT_RECORDED);
+  });
+
+  it("filters by each answer, and by Not recorded for those who were never asked", () => {
+    expect(filterOptions(DIETARY_COLUMN, [])).toEqual([
+      "vegan",
+      "vegetarian",
+      "none",
+      NOT_RECORDED,
+    ]);
+    const rows = [
+      row({ membershipId: "a", dietaryPreference: "vegan" }),
+      row({ membershipId: "b", dietaryPreference: null }),
+      row({ membershipId: "c", dietaryPreference: "vegetarian" }),
+    ];
+    const sort = [{ key: "displayName", direction: "asc" as const }];
+    const vegan = applyBoard(rows, { search: "", filters: { dietary: "vegan" }, sort });
+    expect(vegan.visible.map((r) => r.membershipId)).toEqual(["a"]);
+    const blank = applyBoard(rows, { search: "", filters: { dietary: NOT_RECORDED }, sort });
+    expect(blank.visible.map((r) => r.membershipId)).toEqual(["b"]);
+  });
+
+  it("sorts with no answer last, and is offered by the Sort sheet", () => {
+    const rows = [
+      row({ membershipId: "a", dietaryPreference: null }),
+      row({ membershipId: "b", dietaryPreference: "vegetarian" }),
+      row({ membershipId: "c", dietaryPreference: "vegan" }),
+      row({ membershipId: "d", dietaryPreference: "none" }),
+    ];
+    const sorted = applyBoard(rows, {
+      search: "",
+      filters: {},
+      sort: [{ key: "dietary", direction: "asc" }],
+      columns: COLUMNS,
+    });
+    expect(sorted.visible.map((r) => r.membershipId)).toEqual(["d", "c", "b", "a"]);
+    expect(rosterSortFields(COLUMNS)).toContainEqual({
+      key: "dietary",
+      label: "Dietary preference",
+      kind: "text",
+    });
   });
 });

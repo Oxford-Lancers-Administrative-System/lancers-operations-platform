@@ -4,6 +4,7 @@ export interface EditFieldErrors {
   givenName?: string;
   middleName?: string;
   familyName?: string;
+  dietaryPreference?: string;
   mobile?: string;
   mobileReason?: string;
   personalEmail?: string;
@@ -33,6 +34,8 @@ interface CorrectionReasonFormValues {
   /** LAN-366. Optional everywhere, so a reason is required only to change one that is already recorded. */
   middleNameReason: string;
   familyNameReason: string;
+  /** LAN-502. Required to change an answer already recorded, never to fill a blank one. */
+  dietaryPreferenceReason: string;
   collegeReason: string;
   matriculationYearReason: string;
   expectedGraduationYearReason: string;
@@ -83,6 +86,8 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   givenName: string;
   middleName: string;
   familyName: string;
+  /** LAN-502. A `DIETARY_PREFERENCE_VALUES` code, or blank. */
+  dietaryPreference: string;
   mobile: string;
   mobileReason: string;
   personalEmail: string;
@@ -113,6 +118,8 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     middleNameReason: optional(formData.get("middleNameReason")),
     familyName: optional(formData.get("familyName")),
     familyNameReason: optional(formData.get("familyNameReason")),
+    dietaryPreference: optional(formData.get("dietaryPreference")),
+    dietaryPreferenceReason: optional(formData.get("dietaryPreferenceReason")),
     mobile: optional(formData.get("mobile")),
     mobileReason: optional(formData.get("mobileReason")),
     personalEmail: optional(formData.get("personalEmail")),

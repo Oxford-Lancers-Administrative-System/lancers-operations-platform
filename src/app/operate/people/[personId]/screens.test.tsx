@@ -93,6 +93,8 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     bafaRegistrationNumberSource: null,
     dateOfBirth: null,
     dateOfBirthSource: null,
+    dietaryPreference: null,
+    dietaryPreferenceSource: null,
     emergencyContact: null,
     contacts: [],
     isPastMember: false,
@@ -262,6 +264,24 @@ describe("the person record, for an authorized operator", () => {
       "Student number",
       "BAFA registration number",
     ]);
+  });
+
+  /** LAN-502: the onboarding answer, in Personal information, by its label. */
+  it("shows the dietary preference in Personal information, and not recorded when unanswered", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ dietaryPreference: "none" }));
+    stubReads();
+
+    const { unmount } = render(await PersonRecordPage(pageProps("p1")));
+    const personal = sectionHeaded("Personal information");
+    expect(within(personal).getByText("Dietary preference")).toBeTruthy();
+    expect(within(personal).getByText("No dietary requirements")).toBeTruthy();
+    unmount();
+
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ dietaryPreference: null }));
+    render(await PersonRecordPage(pageProps("p1")));
+    const row = within(sectionHeaded("Personal information")).getByText("Dietary preference");
+    expect(row.parentElement?.textContent).toContain("not recorded");
   });
 
   it("shows no Student information for a coach who has never played and has no student fact", async () => {

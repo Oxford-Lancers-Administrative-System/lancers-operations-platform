@@ -23,6 +23,8 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "student_number",
   "bafa_registration_number",
   "date_of_birth",
+  // LAN-502: asked, and required, on the details step.
+  "dietary_preference",
 ]);
 
 const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> = Object.freeze({
@@ -36,6 +38,7 @@ const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> 
   student_number: "person_student_number_updated",
   bafa_registration_number: "person_bafa_registration_number_updated",
   date_of_birth: "person_date_of_birth_updated",
+  dietary_preference: "person_dietary_preference_updated",
 });
 
 /** Who last changed this field. `null` covers "never audited" and, defensively, an actor somehow not recorded. */
@@ -100,6 +103,7 @@ const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof Person
     student_number: "studentNumberSource",
     bafa_registration_number: "bafaRegistrationNumberSource",
     date_of_birth: "dateOfBirthSource",
+    dietary_preference: "dietaryPreferenceSource",
   });
 
 const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonRecord>> =
@@ -114,6 +118,7 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     student_number: "studentNumber",
     bafa_registration_number: "bafaRegistrationNumber",
     date_of_birth: "dateOfBirth",
+    dietary_preference: "dietaryPreference",
   });
 
 export type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "overwritten";
@@ -135,6 +140,8 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
     case "bafa_registration_number":
       return { field, value };
     case "date_of_birth":
+      return { field, value };
+    case "dietary_preference":
       return { field, value };
     case "matriculation_year":
       return { field, value: Number.parseInt(value, 10) };

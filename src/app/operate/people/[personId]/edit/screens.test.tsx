@@ -86,6 +86,8 @@ function populatedRecord() {
     bafaRegistrationNumberSource: null,
     dateOfBirth: "2003-08-08",
     dateOfBirthSource: null,
+    dietaryPreference: null,
+    dietaryPreferenceSource: null,
     emergencyContact: {
       givenName: "Barnaby",
       familyName: "Netherby",
@@ -161,6 +163,8 @@ describe("a four-role operator", () => {
       bafaRegistrationNumberSource: null,
       dateOfBirth: null,
       dateOfBirthSource: null,
+      dietaryPreference: null,
+      dietaryPreferenceSource: null,
       emergencyContact: null,
       contacts: [],
       isPastMember: false,

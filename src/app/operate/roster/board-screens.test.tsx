@@ -122,6 +122,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     matriculationYear: null,
     expectedGraduationYear: null,
     degreeField: null,
+    dietaryPreference: null,
     hasMobile: true,
     hasEmail: true,
     missingCount: 0,
@@ -221,7 +222,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("70 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("71 columns");
   });
 
   it("groups the columns the way the 2026-09-16 call settled (LAN-387)", async () => {

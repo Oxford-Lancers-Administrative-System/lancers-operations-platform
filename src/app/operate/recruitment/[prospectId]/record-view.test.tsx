@@ -108,6 +108,8 @@ const FULL_PERSON: PersonRecord = {
   bafaRegistrationNumberSource: null,
   dateOfBirth: "2006-04-12",
   dateOfBirthSource: null,
+  dietaryPreference: null,
+  dietaryPreferenceSource: null,
   emergencyContact: {
     givenName: "Rosalind",
     familyName: "Kittiwake",

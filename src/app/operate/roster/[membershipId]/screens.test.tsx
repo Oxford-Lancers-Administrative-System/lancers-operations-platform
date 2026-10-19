@@ -203,6 +203,8 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       bafaRegistrationNumberSource: null,
       dateOfBirth: null,
       dateOfBirthSource: null,
+      dietaryPreference: null,
+      dietaryPreferenceSource: null,
       emergencyContact: null,
       contacts: [
         {
