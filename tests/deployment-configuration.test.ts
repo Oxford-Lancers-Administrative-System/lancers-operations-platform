@@ -32,6 +32,7 @@ vi.mock("server-only", () => ({}));
 
 import {
   EMAIL_ENVIRONMENT_VARIABLES,
+  EMAIL_WEBHOOK_ENVIRONMENT_VARIABLES,
   OUTBOUND_ENVIRONMENT_VARIABLES,
   WEBHOOK_ENVIRONMENT_VARIABLES,
 } from "@/lib/delivery/config";
@@ -215,6 +216,10 @@ describe("the deploy turns on what the code refuses to run without", () => {
     ],
     ["EMAIL_API_KEY", "the email fallback has no provider credential and refuses (LAN-169)"],
     [
+      "EMAIL_WEBHOOK_SECRET",
+      "Resend's delivery receipts cannot be verified and the email webhook answers 503 (LAN-484)",
+    ],
+    [
       SCHEDULER_TOKEN_VARIABLE,
       "the scheduler route has no trigger token and refuses every sweep with 503",
     ],
@@ -241,6 +246,7 @@ describe("the deploy turns on what the code refuses to run without", () => {
       ...OUTBOUND_ENVIRONMENT_VARIABLES,
       ...WEBHOOK_ENVIRONMENT_VARIABLES,
       ...EMAIL_ENVIRONMENT_VARIABLES,
+      ...EMAIL_WEBHOOK_ENVIRONMENT_VARIABLES,
       SCHEDULER_TOKEN_VARIABLE,
     ];
     for (const variable of everyDeliveryVariable) {

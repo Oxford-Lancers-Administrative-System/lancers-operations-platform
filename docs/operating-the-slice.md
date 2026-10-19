@@ -815,20 +815,24 @@ page, the event's Delivery screen or the person's record — and has no Retry;
 nothing is resent. **Attempted** therefore counts only messages whose outcome
 can still arrive.
 
-Two things the page computes rather than reads. **A queued message's "Sends
+One thing the page computes rather than reads. **A queued message's "Sends
 07:00"** under its time is worked out when the page loads, from the lights-out
 hours, because the database does not record that a message was held overnight —
-reload after 07:00 and it reads differently. And **an email the provider
-accepted reads Attempted, not Delivered**: the email provider sends no delivery
-confirmation, so acceptance is the most the club ever learns about an email. A
-WhatsApp message moves from Attempted to Delivered only when WhatsApp confirms
-it. So **Delivered today** counts confirmed WhatsApp deliveries; an accepted
-email is counted under **Attempted**, and stays there. The sweep that concludes
-a silent message after `WHATSAPP_MESSAGE_TTL_HOURS` (720 by default) applies to
-WhatsApp only (LAN-480): the thirty-day window and the "assume it was dropped"
-rule are Meta's, so an accepted email is never marked failed for want of a
-receipt, and its **Delivery** column reads **Attempted** until the email
-provider itself reports an outcome.
+reload after 07:00 and it reads differently.
+
+**Delivered comes from the provider's own receipt, on both channels.** A
+WhatsApp message moves from Attempted to Delivered when WhatsApp confirms it.
+An email does the same when Resend reports it (LAN-484, `/api/webhooks/email`):
+**Delivered** means the recipient's mail server accepted it, not that it reached
+the inbox rather than spam. A bounce, or an email Resend could not send, reads
+**Failed** — final, never Retryable, because the same email to the same address
+gets the same answer — and counts under Needs attention. A delay changes
+nothing, and a spam complaint is acknowledged and changes nothing. An accepted
+email Resend has not reported on reads **Attempted**, and stays there: the
+sweep that concludes a silent message after `WHATSAPP_MESSAGE_TTL_HOURS` (720
+by default) applies to WhatsApp only (LAN-480), because the thirty-day window
+and the "assume it was dropped" rule are Meta's. Emails sent before the receipt
+webhook was set up stay **Attempted**.
 
 **Read cost** (measured on production through `npm run prod:inspect`, 2 October
 2026, 1,029 jobs): the summary and a day's page each run in about 6 ms on the

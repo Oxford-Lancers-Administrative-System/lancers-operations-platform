@@ -40,6 +40,7 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
  * accurate.
  */
 export const DATABASE_TEST_SUITES: readonly string[] = [
+  "src/app/api/webhooks/email/route.test.ts",
   "src/app/api/webhooks/whatsapp/route.test.ts",
   "src/app/join/[code]/actions.test.ts",
   "src/app/operate/admin/permissions.test.ts",
