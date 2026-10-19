@@ -1273,7 +1273,8 @@ describe("F-B1, mechanisms 2 and 3 — a failed escalation is visible, in diagno
     // reads: `attempts` is `[]`. This is the assertion that actually fails —
     // the job's own row above stays green either way.
     expect(attempts.length).toBeGreaterThanOrEqual(1);
-    expect(attempts.some((attempt) => attempt.outcome === "failed")).toBe(true);
+    // LAN-483: a claim-time refusal is recorded as `rejected` — final, never Retryable.
+    expect(attempts.some((attempt) => attempt.outcome === "rejected")).toBe(true);
   });
 });
 

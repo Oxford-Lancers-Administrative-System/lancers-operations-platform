@@ -122,6 +122,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/auth-flow.test.ts",
   "tests/auth-recovery-flow.test.ts",
   "tests/calendar-feed-side-effects.test.ts",
+  "tests/claim-refusal-correction.test.ts",
   "tests/email-classification-correction.test.ts",
   "tests/event-audience-payload.test.tsx",
   "tests/hosted-role-posture.test.ts",

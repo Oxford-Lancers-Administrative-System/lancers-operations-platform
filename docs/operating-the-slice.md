@@ -796,6 +796,14 @@ personal link. Two statuses the event's Delivery screen never needs: **Not sent
 — event passed** (queued against an event that has started or is no longer
 approved, so no sweep will ever send it) and **Withheld — no consent**.
 
+A message the scheduler refuses just before sending it, on purpose, reads
+**Failed** and never **Retryable** (LAN-483): a recruit who has already
+completed that track, a recruit who is no longer a prospect, no messaging
+consent, a membership that has gone, no usable number or email. Nothing went to
+a provider and asking again gives the same answer, so there is no next attempt
+under its time. **Retryable** is kept for a provider failure that another
+attempt might fix.
+
 Two things the page computes rather than reads. **A queued message's "Sends
 07:00"** under its time is worked out when the page loads, from the lights-out
 hours, because the database does not record that a message was held overnight —
