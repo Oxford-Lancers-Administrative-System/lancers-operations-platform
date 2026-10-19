@@ -860,15 +860,26 @@ dispatchers, an operator's Retry, a reissue, a nudge, a chase, a recruitment ask
 — passes one admission guard before it reaches a provider. Nothing is off by
 default; the guard is on from the first deploy with the values below.
 
-| Control                | Value                                        | What happens                                                        |
-| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
-| Shared pacing          | 50 admitted attempts per rolling 5 minutes   | extra messages wait, then go on their own                           |
-| Per person, per number | 1 admission per rolling 5 minutes            | the next one waits                                                  |
-| Person or number limit | 10 per 24 hours, 30 per 7 days               | that recipient is held until somebody resumes it                    |
-| Emergency stop         | 3,000 admitted attempts per rolling 24 hours | all messaging pauses until somebody resumes it                      |
-| Capacity warning       | 2,400 in 24 hours                            | a warning; nothing stops                                            |
-| Provider cooldown      | 5 provider-side faults in 5 minutes          | that transport rests for 5 minutes, then one probe, then 10, 20, 30 |
-| Queue warning          | oldest waiting over 60 minutes               | a warning; nothing stops                                            |
+| Control                 | Value                                        | What happens                                                        |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| Shared pacing           | 50 admitted attempts per rolling 5 minutes   | extra messages wait, then go on their own                           |
+| Per person, per number  | 1 admission per rolling 5 minutes            | the next one waits                                                  |
+| Player or recruit limit | 10 per 24 hours, 30 per 7 days               | that recipient is held until somebody resumes it                    |
+| Operator limit          | 50 per 24 hours, 150 per 7 days              | that operator is held until somebody resumes it                     |
+| Emergency stop          | 3,000 admitted attempts per rolling 24 hours | all messaging pauses until somebody resumes it                      |
+| Capacity warning        | 2,400 in 24 hours                            | a warning; nothing stops                                            |
+| Provider cooldown       | 5 provider-side faults in 5 minutes          | that transport rests for 5 minutes, then one probe, then 10, 20, 30 |
+| Queue warning           | oldest waiting over 60 minutes               | a warning; nothing stops                                            |
+
+**Operators have their own limit (LAN-503, Brian 2026-10-16).** Anyone holding
+a committee or coaching seat at the moment of the send is an operator, and is
+sent staff messages — attendance sheets, chase escalations — on top of a
+player's. Their ceiling is 50 in 24 hours and 150 in 7 days, applied to the
+person and to the number or address that send goes to. Everybody else, players
+and recruits, keeps 10 and 30, and a send to anybody else at a number still
+counts every message there against 10 and 30. Taking up or leaving a seat moves
+the person between the two on their next send; a hold already latched stays
+until somebody resumes it.
 
 **What this looks like while you are walking the slice.** A message the guard
 holds back is **queued**, not failed. It keeps its attempt count, it keeps its

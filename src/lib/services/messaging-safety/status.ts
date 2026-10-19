@@ -8,18 +8,20 @@ import {
   GLOBAL_EMERGENCY_LIMIT,
   GLOBAL_EMERGENCY_WINDOW_HOURS,
   POLICY_DECISION,
+  OPERATOR_LIMITS,
+  PLAYER_LIMITS,
   QUEUE_WARNING_MINUTES,
-  RECIPIENT_DAILY_LIMIT,
   RECIPIENT_DAILY_WINDOW_HOURS,
   RECIPIENT_PACING_LIMIT,
   RECIPIENT_PACING_WINDOW_MINUTES,
-  RECIPIENT_WEEKLY_LIMIT,
   RECIPIENT_WEEKLY_WINDOW_DAYS,
+  recipientLimits,
   SAFETY_FIELD_RETENTION_DAYS,
   SHARED_PACING_LIMIT,
   SHARED_PACING_WINDOW_MINUTES,
   UNRESOLVED_ATTEMPT_MINUTES,
 } from "./policy";
+import { isOperatorRecipientIn } from "./operator-recipient";
 import type { SafetyReasonCode } from "./reasons";
 import { MAX_ATTEMPTS } from "../delivery";
 import { DUE_JOB_PREDICATE, lightsOutAdmitsSql, sendableSinceSql } from "../messaging-queue";
@@ -172,8 +174,13 @@ export function safetyThresholds(): readonly SafetyThresholdRow[] {
       effect: "Extra messages wait",
     },
     {
-      control: "Person or number limit",
-      value: `${RECIPIENT_DAILY_LIMIT} per ${RECIPIENT_DAILY_WINDOW_HOURS} hours, ${RECIPIENT_WEEKLY_LIMIT} per ${RECIPIENT_WEEKLY_WINDOW_DAYS} days`,
+      control: "Player or recruit limit",
+      value: `${PLAYER_LIMITS.daily} per ${RECIPIENT_DAILY_WINDOW_HOURS} hours, ${PLAYER_LIMITS.weekly} per ${RECIPIENT_WEEKLY_WINDOW_DAYS} days`,
+      effect: "Held until resumed",
+    },
+    {
+      control: "Operator limit",
+      value: `${OPERATOR_LIMITS.daily} per ${RECIPIENT_DAILY_WINDOW_HOURS} hours, ${OPERATOR_LIMITS.weekly} per ${RECIPIENT_WEEKLY_WINDOW_DAYS} days`,
       effect: "Held until resumed",
     },
     {
@@ -217,8 +224,12 @@ async function limitReachedFor(
     [scopeKey, `${RECIPIENT_DAILY_WINDOW_HOURS} hours`, `${RECIPIENT_WEEKLY_WINDOW_DAYS} days`],
   );
 
-  if (Number(counted.rows[0].day) >= RECIPIENT_DAILY_LIMIT) return "daily";
-  if (Number(counted.rows[0].week) >= RECIPIENT_WEEKLY_LIMIT) return "weekly";
+  // LAN-503. A person is read against the limits they hold now. A number is
+  // read against the player ceiling, the lower of the two, which every held
+  // number has reached whichever ceiling latched it.
+  const limits = recipientLimits(kind === "person" && (await isOperatorRecipientIn(tx, scopeKey)));
+  if (Number(counted.rows[0].day) >= limits.daily) return "daily";
+  if (Number(counted.rows[0].week) >= limits.weekly) return "weekly";
   return null;
 }
 

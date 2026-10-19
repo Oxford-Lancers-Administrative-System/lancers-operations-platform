@@ -77,6 +77,49 @@ export const RECIPIENT_DAILY_WINDOW_HOURS = 24;
 export const RECIPIENT_WEEKLY_LIMIT = 30;
 export const RECIPIENT_WEEKLY_WINDOW_DAYS = 7;
 
+/**
+ * An operator's own ceiling. LAN-503, Brian, 16 October 2026.
+ *
+ * An operator is sent player messages *and* staff messages — attendance sheets,
+ * chase escalations — so the player ceiling is reachable by an ordinary busy
+ * day: the President was held at ten on 15 October with every message
+ * legitimate. Fifty in a day or a hundred and fifty in a week is still a brake
+ * on a runaway; it is not a number a busy day reaches.
+ *
+ * "Operator" is anyone holding a currently-effective seat at the moment of the
+ * send (`isOperatorRecipientIn`). Same windows, same latch, same resume;
+ * pacing, the shared allowance and the emergency stop are unchanged.
+ *
+ * `POLICY_VERSION` is deliberately not moved for this. The version guards the
+ * club-wide ceilings, where two revisions disagreeing would be two ceilings.
+ * This is one recipient's allowance: a revision still enforcing ten for an
+ * operator during a deploy overlap is merely stricter for a few minutes, and a
+ * version bump would turn every rollback past this change into a full stop.
+ */
+export const OPERATOR_DAILY_LIMIT = 50;
+export const OPERATOR_WEEKLY_LIMIT = 150;
+
+/** The two ceilings that apply to one recipient. */
+export interface RecipientLimits {
+  readonly daily: number;
+  readonly weekly: number;
+}
+
+export const PLAYER_LIMITS: RecipientLimits = Object.freeze({
+  daily: RECIPIENT_DAILY_LIMIT,
+  weekly: RECIPIENT_WEEKLY_LIMIT,
+});
+
+export const OPERATOR_LIMITS: RecipientLimits = Object.freeze({
+  daily: OPERATOR_DAILY_LIMIT,
+  weekly: OPERATOR_WEEKLY_LIMIT,
+});
+
+/** The ceilings for a recipient, by whether they hold a seat at the time of the send. */
+export function recipientLimits(isOperator: boolean): RecipientLimits {
+  return isOperator ? OPERATOR_LIMITS : PLAYER_LIMITS;
+}
+
 // ---------------------------------------------------------------------------
 // The global emergency stop
 // ---------------------------------------------------------------------------
