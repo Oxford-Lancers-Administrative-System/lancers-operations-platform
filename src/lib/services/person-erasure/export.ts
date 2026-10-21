@@ -68,6 +68,8 @@ const PERSON_EXPORT_SOURCES: readonly ExportSource[] = Object.freeze([
   DIRECT("public.attendance_records"),
   DIRECT("public.event_audience_members"),
   DIRECT("public.notification_jobs"),
+  // LAN-508. Which event briefs went to them.
+  DIRECT("public.event_message_send_recipients"),
   DIRECT("public.recruitment_prospects"),
   DIRECT("public.follow_up_actions", "subject_person_id"),
   VIA_MEMBERSHIP("public.onboarding_items"),

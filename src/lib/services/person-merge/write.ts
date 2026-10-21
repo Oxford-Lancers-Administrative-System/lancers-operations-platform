@@ -110,6 +110,11 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   // not reset a person's recent allowance, so the loser's admitted attempts
   // become the survivor's and the total usage is preserved.
   { table: "delivery_attempts", column: "safety_person_id" },
+  // LAN-508. Who an event message send went to, and who pressed Save and send
+  // again. Neither carries a per-person uniqueness to collide on, so a resend
+  // after a merge goes to the survivor.
+  { table: "event_message_send_recipients", column: "person_id" },
+  { table: "event_message_sends", column: "resent_by_person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
   { table: "special_teams_assignments", column: "recorded_by_person_id" },
