@@ -113,3 +113,17 @@ Sciences).
 | `lan-494-person-record-other-phone375.png`    | The same at 375                                                    |
 | `lan-494-person-edit-other-desktop1440.png`   | Correct this record with Other: the required Other degree type box |
 | `lan-494-person-edit-other-phone375.png`      | The same at 375                                                    |
+
+## LAN-509 — the round crest everywhere in the app
+
+Production build (`npm run build`, `next start`). Each crest is
+`/brand/icon-mark.svg`, loaded, 48×48 in the sidebar and public masthead, 32×32
+in the phone header.
+
+| File                                      | Shows                                              |
+| ----------------------------------------- | -------------------------------------------------- |
+| `lan-509-operator-header-desktop1440.png` | Operator sidebar, 48px round crest beside the name |
+| `lan-509-operator-header-phone375.png`    | Phone top bar, 32px round crest beside the name    |
+| `lan-509-sign-in-desktop1440.png`         | Sign-in masthead                                   |
+| `lan-509-sign-in-phone375.png`            | Sign-in masthead at 375                            |
+| `lan-509-player-onboarding-phone375.png`  | Player onboarding page masthead at 375             |

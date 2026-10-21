@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 /**
  * Derives every committed brand artefact from the files Brian supplied on
- * 9 September 2026 — LAN-277, LAN-278, LAN-269, LAN-279 — and on
- * 16 September 2026 — LAN-383, LAN-385.
+ * 9 September 2026 — LAN-277, LAN-269, LAN-279 — and on 16 September 2026 —
+ * LAN-383, LAN-385.
  *
  * The supplied originals are not in the repository. They live on the review
  * machine at `~/.local/state/lancers-operations-platform/brand/` (Downloads is
  * not durable), and each has exactly one job:
  *
- *   app-logo-group-2454.svg   the application mark  -> public/brand/crest*.svg
- *   award-sticker.svg         the icons and email   -> public/brand/icon-mark.svg, crest-email*.png
+ *   award-sticker.svg         the application mark, icons and email
+ *                                                   -> public/brand/icon-mark.svg, crest-email*.png
  *   og-image.png              the link preview      -> src/app/opengraph-image.png
  *   join-og-image.png         the sign-up preview   -> src/app/join/[code]/opengraph-image.png
+ *
+ * The square crest (`app-logo-group-2454.svg`, LAN-278) was the application
+ * mark until LAN-509 put the round crest in its place; nothing reads it now.
  *
  * Both preview images are copied byte for byte and never re-encoded: LAN-269
  * and LAN-383 are one decision — the club supplied a picture, and the picture
@@ -51,11 +54,10 @@ function sourceDir() {
  * The tight bounding box of everything an SVG actually draws, in its own user
  * units.
  *
- * Figma exports the artboard, not the mark, so both supplied files carry
- * transparent margin — 153 user units of it down the left of Group 2454. The
- * header boxes are square and fixed (48px, 32px) and the mark is centred inside
- * them by `preserveAspectRatio`, so margin baked into the viewBox is margin
- * inside the box: the mark renders smaller than the box and sits off-centre.
+ * Figma exports the artboard, not the mark, so a supplied file can carry
+ * transparent margin. The header boxes are square and fixed (48px, 32px), so
+ * margin baked into the viewBox is margin inside the box: the mark renders
+ * smaller than the box and sits off-centre.
  * Cropping the viewBox is the "adjust the crop, not the box" LAN-278 asks for.
  *
  * Measured by rasterising at 4x and trimming, rather than by parsing path data:
@@ -110,70 +112,6 @@ function crop(svg, box, header) {
     "</svg>",
     "",
   ].join("\n");
-}
-
-/**
- * Put back the two side crowns Figma's SVG export drops.
- *
- * Group 2454 is a three-crown mark — one above the cross, one to each side —
- * and Figma's PNG export of the very same group draws all three
- * (`app-logo-group-2454.png`, kept beside the SVG as the reference). Its SVG
- * export, three times over on 9 and 10 September 2026, writes only the top
- * crown: eighteen paths, no hidden group, no transform, no clip that could
- * account for the other two. Brian's decision (2026-09-10): the mark is the
- * PNG, so the SVG gets the crowns back from its own geometry.
- *
- * The top crown is the one `fill-rule="evenodd"` path. In the PNG, rendered at
- * the artboard's own 1094×864, that crown's white spans x 359–733, y 26–172 —
- * exactly the SVG path's bounding box — and the side crowns are the same
- * 375×147 glyph at x 38–413, y 324–469 and x 680–1054, y 325–470. So each side
- * crown is the top crown translated by (∓321, +298), nothing redrawn. Rendered
- * back at 1094×864 the composed SVG's white ink agrees with the PNG's on 98.3%
- * of pixels; the remainder is anti-aliasing and the lances' outline hairline,
- * which the PNG flattens.
- */
-function restoreSideCrowns(svg) {
-  if (svg.includes('transform="translate(')) return svg; // already composed
-  // The football's paths are evenodd too, but they all come after the mask;
-  // the crown is the only evenodd path drawn before it.
-  const beforeMask = svg.slice(0, svg.indexOf("<mask"));
-  const crowns = beforeMask.match(/<path\b[^>]*fill-rule="evenodd"[^>]*>/g) ?? [];
-  if (crowns.length !== 1) {
-    throw new Error(
-      `expected exactly one evenodd crown path in Group 2454, found ${crowns.length}`,
-    );
-  }
-  const [crown] = crowns;
-  const placed = (dx) => crown.replace("<path ", `<path transform="translate(${dx} 298)" `);
-  return svg.replace(crown, `${crown}\n${placed(-321)}\n${placed(321)}`);
-}
-
-/**
- * Recolour the mark's white for a light ground, without touching the mask.
- *
- * The supplied file carries a Figma outside-stroke mask, and a mask's own
- * `fill="black"` and its `<rect fill="white">` are machinery, not ink: they say
- * which pixels the mask passes. Recolouring those would silently blank the
- * masked path. So the swap runs only on `<path>` elements outside
- * `<mask>…</mask>`.
- *
- * The football keeps its brown (`#492820`) in both variants — it is a brown
- * football on either ground, and it was never the white being swapped.
- */
-function recolourWhite(svg, colour) {
-  let insideMask = false;
-  return svg
-    .split("\n")
-    .map((line) => {
-      if (line.includes("<mask ")) insideMask = true;
-      const out =
-        !insideMask && line.trimStart().startsWith("<path")
-          ? line.replaceAll('fill="white"', `fill="${colour}"`)
-          : line;
-      if (line.includes("</mask>")) insideMask = false;
-      return out;
-    })
-    .join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -259,29 +197,7 @@ async function main() {
     wrote.push(path.relative(REPO, file));
   };
 
-  // -- LAN-278: the application mark ---------------------------------------
-  const logo = restoreSideCrowns(
-    await readFile(path.join(source, "app-logo-group-2454.svg"), "utf8"),
-  );
-  const logoView = attribute(openTag(logo), "viewBox").split(/\s+/).map(Number);
-  const logoBox = await inkBox(Buffer.from(logo), logoView[2]);
-
-  const provenance =
-    "Brian's Group 2454.svg, exported 10 September 2026. Geometry untouched except the " +
-    "two side crowns Figma's SVG export omits, restored as translated copies of the file's " +
-    "own crown path (Brian, 2026-09-10); viewBox cropped to the mark. Regenerate with " +
-    "scripts/generate-brand-assets.mjs.";
-
-  const crestWhite = crop(logo, logoBox, `White. ${provenance}`);
-  await put(path.join(brand, "crest.svg"), crestWhite);
-  const crestBlue = crop(
-    recolourWhite(logo, NAVY),
-    logoBox,
-    `Oxford Blue ${NAVY}, for light grounds. ${provenance}`,
-  );
-  await put(path.join(brand, "crest-blue.svg"), crestBlue);
-
-  // -- LAN-269, LAN-385: the icons -----------------------------------------
+  // -- LAN-269, LAN-385, LAN-509: the application mark and the icons ------
   // Everything below is one SVG rendered at six sizes. The badge already is an
   // icon — a white crest on a navy disc inside a gold ring, transparent outside
   // the circle — so there is no navy square to compose it onto and no inset to
@@ -295,12 +211,13 @@ async function main() {
     sticker,
     stickerBox,
     "Brian's Award Sticker.svg, supplied 16 September 2026 (LAN-385). The " +
-      "favicon and app icons only; the header mark is crest.svg. Used as " +
+      "application mark, the favicon and the app icons (LAN-509). Used as " +
       "supplied: viewBox cropped to the mark, nothing redrawn or recoloured.",
   );
 
   // The name is unchanged from LAN-269 so every reader keeps working; what it
-  // holds is the badge now, not the gold outline.
+  // holds is the badge now, not the gold outline. Since LAN-509 it is also the
+  // application mark `BrandMark` draws, on dark and light grounds alike.
   await put(path.join(brand, "icon-mark.svg"), badge);
   await put(path.join(app, "icon.svg"), badge);
 
@@ -355,7 +272,7 @@ async function main() {
   );
 
   // The sign-up door's own card — the one link the club pushes at strangers.
-  // It was drawn in code from crest.svg until LAN-383 replaced it with Brian's
+  // It was drawn in code from the old square crest until LAN-383 replaced it with Brian's
   // recruitment image, which is used whole: no words drawn over it, and it
   // still reads nothing from `params`.
   await preview(

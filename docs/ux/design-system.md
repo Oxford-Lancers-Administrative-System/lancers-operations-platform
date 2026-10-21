@@ -180,8 +180,8 @@ They take the tokens and the band colours and are otherwise untouched.
   LAN-195's three dismiss paths and drawer width are unchanged.
 - The public masthead is the same Oxford Blue, full bleed, with the crest and
   the name, on every page reached without a session.
-- The crest file is `public/brand/crest.svg`, supplied by Brian from the Figma;
-  the wordmark is set in Geist unless the export brings one.
+- The crest is the club's round crest, `public/brand/icon-mark.svg` (LAN-509),
+  on dark and light grounds alike; the wordmark is set in Geist.
 - **Email carries the round badge and the same palette, in its own shell.** Every
   message the app sends through Resend is wrapped by
   `src/lib/delivery/email-shell.ts`: the crest at 48px and "Oxford Lancers" over
