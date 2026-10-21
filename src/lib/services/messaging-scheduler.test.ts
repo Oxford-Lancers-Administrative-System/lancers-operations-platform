@@ -260,11 +260,35 @@ async function resumeAllMessaging(): Promise<void> {
 }
 
 afterEach(async () => {
+  try {
+    await removeThisSuitesRows();
+  } finally {
+    // The seeded President goes back on the seat even when a delete above
+    // failed: a club left with no President fails later suites that have
+    // nothing to do with this one. See `vacatedPresidencies`.
+    if (vacatedPresidencies.length > 0) {
+      await observer.query(
+        "update public.role_assignments set effective_to = null where id = any($1::uuid[])",
+        [vacatedPresidencies],
+      );
+      vacatedPresidencies = [];
+    }
+  }
+});
+
+async function removeThisSuitesRows(): Promise<void> {
   // LAN-394: this suite's holds and provider circuit go with its fixtures.
   await clearRecipientSafetyState(observer);
   const scope = `${MARKER}%`;
   const events = "(select id from public.events where name like $1)";
-  const jobs = `(select id from public.notification_jobs where event_id in ${events})`;
+  // Every job on this suite's events, and every job addressed to this suite's
+  // people wherever it hangs. The second half is not redundant: the sweep is
+  // global, and a fixture person seated as President receives the
+  // attendance-sheet email (LAN-465) for any seeded event starting within the
+  // hour, a job on an event this suite did not create.
+  const jobs = `(select id from public.notification_jobs
+                  where event_id in ${events}
+                     or person_id in (select id from public.people where given_name like $1))`;
   const invitations = `(select id from public.invitations where event_id in ${events})`;
   const people = "(select id from public.people where given_name = $1)";
 
@@ -280,7 +304,7 @@ afterEach(async () => {
     [scope],
   );
   await observer.query(`delete from public.audit_events where entity_id in ${jobs}`, [scope]);
-  await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
+  await observer.query(`delete from public.notification_jobs where id in ${jobs}`, [scope]);
   await observer.query(`delete from public.schedule_changes where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
     scope,
@@ -326,16 +350,7 @@ afterEach(async () => {
   ]);
   await observer.query(`delete from public.audit_events where entity_id in ${people}`, [MARKER]);
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
-
-  // The seeded President goes back on the seat. See `vacatedPresidencies`.
-  if (vacatedPresidencies.length > 0) {
-    await observer.query(
-      "update public.role_assignments set effective_to = null where id = any($1::uuid[])",
-      [vacatedPresidencies],
-    );
-    vacatedPresidencies = [];
-  }
-});
+}
 
 afterAll(async () => {
   await observer.query("delete from public.seasons where label = $1", [`${MARKER} season`]);
@@ -1202,13 +1217,33 @@ describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient 
     await makePresident(target.personId);
 
     const { sent, transport } = acceptingTransport();
-    // LAN-394. The fixture's President is also this event's invitee, so the
-    // invitation rung is admitted first and the escalation's email fallback is
-    // paced behind it. Two ticks, with the window cleared between, is what a
-    // real five minutes would do.
+    // LAN-394. One message per person per five minutes, and the fixture's
+    // President is owed more than one: the invitation rung (they are also this
+    // event's invitee), and — whenever a seeded event starts within the hour —
+    // that event's attendance-sheet email (LAN-465), declared at the top of
+    // every tick. The escalation's email fallback is paced behind whichever of
+    // those goes first, so the sweep runs tick by tick, the window cleared
+    // between ticks as a real five minutes would, until the fallback has gone.
+    // Bounded: a fallback that was never minted ends the loop just the same,
+    // and the assertions below report it.
+    const fallbackStatus = async () =>
+      (
+        await observer.query<{ status: string }>(
+          `select status::text as status from public.notification_jobs
+            where event_id = $1 and job_type = 'escalation'
+              and idempotency_key like '%${EMAIL_FALLBACK_SUFFIX}'`,
+          [target.eventId],
+        )
+      ).rows[0]?.status;
     await runMessagingSweep({ source: CONFIGURED, transport });
-    await agePastSafetyPacing(observer);
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    for (
+      let tick = 0;
+      tick < 4 && [undefined, "pending"].includes(await fallbackStatus());
+      tick += 1
+    ) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     const original = await observer.query<{
       id: string;
@@ -1238,7 +1273,7 @@ describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient 
     );
     expect(fallback.rows).toHaveLength(1);
     expect(fallback.rows[0].channel).toBe("email");
-    // Dispatched inline, in the same call — not merely created, actually sent.
+    // Not merely created: actually sent.
     expect(["processing", "completed"]).toContain(fallback.rows[0].status);
     expect(sent.some((request) => request.url.endsWith("/emails"))).toBe(true);
   });
