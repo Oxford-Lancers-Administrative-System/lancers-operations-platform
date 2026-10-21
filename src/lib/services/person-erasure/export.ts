@@ -68,8 +68,18 @@ const PERSON_EXPORT_SOURCES: readonly ExportSource[] = Object.freeze([
   DIRECT("public.attendance_records"),
   DIRECT("public.event_audience_members"),
   DIRECT("public.notification_jobs"),
-  // LAN-508. Which event briefs went to them.
-  DIRECT("public.event_message_send_recipients"),
+  // LAN-508. Which event briefs went to them, including under a record merged
+  // into theirs: a merge leaves these rows on the merged-away record.
+  {
+    table: "public.event_message_send_recipients",
+    sql: `with recursive merged (id) as (
+            select $1::uuid
+            union
+            select p.id from public.people p join merged on p.merged_into_person_id = merged.id
+          )
+          select * from public.event_message_send_recipients
+           where person_id in (select id from merged)`,
+  },
   DIRECT("public.recruitment_prospects"),
   DIRECT("public.follow_up_actions", "subject_person_id"),
   VIA_MEMBERSHIP("public.onboarding_items"),

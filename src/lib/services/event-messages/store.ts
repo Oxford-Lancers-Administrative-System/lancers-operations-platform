@@ -244,11 +244,25 @@ export async function saveApprovedEventMessages(
     for (const before of resending) {
       const message = messages.find((candidate) => candidate.id === before.id);
       if (!message || !before.lastSend) continue;
+      // A person merge leaves the recipient rows where they are, so each is
+      // followed to the record it was merged into, through any chain of
+      // merges, and the surviving record is the one sent to, once.
       const people = await tx.query<{ person_id: string }>(
-        `select distinct coalesce(p.merged_into_person_id, p.id) as person_id
-           from public.event_message_send_recipients r
-           join public.people p on p.id = r.person_id
-          where r.send_id = $1 and p.erased_at is null
+        `with recursive resolved (person_id, merged_into, depth) as (
+           select p.id, p.merged_into_person_id, 0
+             from public.event_message_send_recipients r
+             join public.people p on p.id = r.person_id
+            where r.send_id = $1
+           union all
+           select p.id, p.merged_into_person_id, resolved.depth + 1
+             from resolved
+             join public.people p on p.id = resolved.merged_into
+            where resolved.depth < 32
+         )
+         select distinct resolved.person_id
+           from resolved
+           join public.people p on p.id = resolved.person_id
+          where resolved.merged_into is null and p.erased_at is null
           order by 1`,
         [before.lastSend.id],
       );

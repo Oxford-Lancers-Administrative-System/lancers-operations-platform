@@ -133,9 +133,9 @@ create table public.event_message_send_recipients (
   person_id uuid not null references public.people (id) on delete restrict
 );
 
--- No unique (send_id, person_id): a person merge re-points person_id blindly,
--- and two merged records that both received one send must not refuse it.
--- Readers take distinct people.
+-- A person merge leaves person_id where it is (history, never rewritten):
+-- readers resolve it through people.merged_into_person_id and take distinct
+-- people, so two merged records that both received one send count once.
 create index event_message_send_recipients_send_idx
   on public.event_message_send_recipients (send_id);
 create index event_message_send_recipients_person_idx

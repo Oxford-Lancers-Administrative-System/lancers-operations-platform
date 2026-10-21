@@ -48,6 +48,7 @@ import {
   saveApprovedEventMessages,
 } from "./event-messages";
 import { createEventDraft } from "./events";
+import { mergePersons } from "./person-merge";
 import type { EventMessageInput } from "./event-messages-input";
 import type { EventDraftInput } from "./event-input";
 import { saveApprovedEventEdit } from "./approved-event-edit";
@@ -183,6 +184,11 @@ afterEach(async () => {
   );
   await observer.query("delete from public.events where name like $1", [scope]);
   const people = "(select id from public.people where given_name = $1)";
+  await observer.query(
+    `delete from public.audit_events where entity_table = 'people' and entity_id in ${people}`,
+    [MARKER],
+  );
+  await observer.query(`delete from public.person_aliases where person_id in ${people}`, [MARKER]);
   await observer.query(
     `delete from public.season_messaging_consents where person_id in ${people}`,
     [MARKER],
@@ -654,7 +660,88 @@ describe("saving an approved event's messages", () => {
       rule: "event_message_sent_cannot_be_removed",
     });
   });
+
+  it("sends again to the surviving record of a merged recipient, once", async () => {
+    const eventId = await approvedEvent("30 hours");
+    const survivor = (await invitee(eventId)).personId;
+    const other = await invitee(eventId);
+    const duplicate = { personId: await uninvitedPerson() };
+    await message(eventId, { channel: "both" });
+    await declare();
+    const [first] = await sendsFor(eventId);
+    // The duplicate record had been sent it too, before anyone saw it was one person.
+    await observer.query(
+      "insert into public.event_message_send_recipients (send_id, person_id) values ($1, $2)",
+      [first.id, duplicate.personId],
+    );
+
+    // The duplicate presses Save and send again, so it has a resend row as well.
+    let [stored] = await readEventMessages(eventId);
+    await saveApprovedEventMessages(
+      duplicate.personId,
+      eventId,
+      [asInput(stored, { body: "Kick-off moved to 15:00" })],
+      { resend: true },
+    );
+
+    await mergePersons({
+      actorPersonId: anchorPersonId,
+      survivorPersonId: survivor,
+      loserPersonId: duplicate.personId,
+      reason: `${MARKER} same person`,
+      fieldChoices: { mobile: "survivor", personal_email: "survivor", college_email: "survivor" },
+    });
+
+    // History is not rewritten: both rows still name the merged-away record.
+    const kept = await sendsFor(eventId);
+    expect(kept[1].resent_by_person_id).toBe(duplicate.personId);
+    expect(kept[1].people).toContain(duplicate.personId);
+
+    [stored] = await readEventMessages(eventId);
+    await saveApprovedEventMessages(
+      anchorPersonId,
+      eventId,
+      [asInput(stored, { body: "Kick-off moved to 16:00" })],
+      { resend: true },
+    );
+
+    const sends = await sendsFor(eventId);
+    expect(sends.map((send) => send.version)).toEqual([1, 2, 3]);
+    expect(sends[2].people).toEqual([other.personId, survivor].sort());
+    const copies = await observer.query<{ person_id: string; channel: string }>(
+      `select person_id, channel::text as channel from public.notification_jobs
+        where idempotency_key like $1 order by person_id, channel`,
+      [`event-message:${sends[2].id}:%`],
+    );
+    expect(copies.rows.filter((row) => row.person_id === survivor)).toEqual([
+      { person_id: survivor, channel: "email" },
+      { person_id: survivor, channel: "whatsapp" },
+    ]);
+    expect(copies.rows.some((row) => row.person_id === duplicate.personId)).toBe(false);
+  });
 });
+
+/** A person with a phone, an email and season consent, invited to nothing. */
+async function uninvitedPerson(): Promise<string> {
+  sequence += 1;
+  const suffix = String(500 + sequence).padStart(3, "0");
+  const person = await observer.query<{ id: string }>(
+    "insert into public.people (given_name, family_name) values ($1, 'Player') returning id",
+    [MARKER],
+  );
+  const personId = person.rows[0].id;
+  await observer.query(
+    `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+     values ($1, 'phone', $2, true), ($1, 'email', $3, true)`,
+    [personId, `07700 900${suffix}`, `lan508.${suffix}@example.org`],
+  );
+  await observer.query(
+    `insert into public.season_messaging_consents (person_id, season_id, state, source)
+     values ($1, $2, 'granted', 'operator_recorded')`,
+    [personId, seasonId],
+  );
+  return personId;
+}
 
 describe("one save of the edit page", () => {
   it("leaves the details as they were when the messages half is refused", async () => {

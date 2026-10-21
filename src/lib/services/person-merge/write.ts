@@ -110,11 +110,6 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   // not reset a person's recent allowance, so the loser's admitted attempts
   // become the survivor's and the total usage is preserved.
   { table: "delivery_attempts", column: "safety_person_id" },
-  // LAN-508. Who an event message send went to, and who pressed Save and send
-  // again. Neither carries a per-person uniqueness to collide on, so a resend
-  // after a merge goes to the survivor.
-  { table: "event_message_send_recipients", column: "person_id" },
-  { table: "event_message_sends", column: "resent_by_person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
   { table: "special_teams_assignments", column: "recorded_by_person_id" },
@@ -216,6 +211,19 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
       "'the newer answer supersedes the waiting one' rule a single person's own repeated " +
       "answer already follows (raisePersonFactDisputeIn's own upsert); never auto-resolved, " +
       "since resolving is a four-role decision this merge does not make on anybody's behalf",
+  },
+  // LAN-508. Both tables are granted select and insert only, so the server
+  // role could not re-point them; the resend's recipient query resolves the
+  // survivor instead (`event-messages/store.ts`).
+  {
+    table: "event_message_send_recipients",
+    column: "person_id",
+    reason: "append-only history; resolved through merged_into_person_id at read time",
+  },
+  {
+    table: "event_message_sends",
+    column: "resent_by_person_id",
+    reason: "append-only history; resolved through merged_into_person_id at read time",
   },
   {
     table: "season_memberships",

@@ -926,9 +926,12 @@ shell.
   `event_messages (id, event_id)` is `on delete restrict`: a sent message
   cannot be removed.
 - **`event_message_send_recipients`** — append-only. The people one send went
-  to; a resend goes to exactly the previous send's people. Deliberately no
-  unique `(send_id, person_id)`, so a person merge can re-point `person_id`
-  blindly; readers take distinct people.
+  to; a resend goes to exactly the previous send's people. A person merge
+  re-points neither this `person_id` nor `event_message_sends.resent_by_person_id`
+  (append-only, no `update` grant): the resend resolves each recipient through
+  `people.merged_into_person_id` to the surviving record at read time, and
+  takes distinct people, so a survivor who was sent it under two records gets
+  it once.
 - **No stored send time.** It is derived: the event start less the hours, held
   to the next 07:00 when it falls between 22:00 and 07:00 (LAN-433). So a moved
   event moves every unsent message and a cancelled event sends none, with no
