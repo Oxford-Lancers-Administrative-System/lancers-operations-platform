@@ -70,6 +70,8 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     queueUrl: "https://lancers.example/operate/follow-ups",
     formUrl: "https://lancers.example/onboarding/abc",
     stopUrl: "https://lancers.example/stop/def",
+    // LAN-508. The event brief's Markdown.
+    brief: "## Itinerary\n- 8:30 AM Bus",
     ...overrides,
   };
 }
@@ -87,14 +89,15 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all sixteen kinds and gives each one a distinct canonical name", () => {
+  it("covers all seventeen kinds and gives each one a distinct canonical name", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
     // `recruit_event_followup` and the four capture-cycle templates below —
     // plus LAN-215's one door-independent onboarding welcome, plus LAN-218's
     // chase and its own escalation, plus LAN-367's question-change notice, plus LAN-464's recruit event reminder.
-    expect(MESSAGE_KINDS).toHaveLength(16);
+    // LAN-508 adds the event brief.
+    expect(MESSAGE_KINDS).toHaveLength(17);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(16);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(17);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -591,7 +594,7 @@ describe("the button labels", () => {
   });
 });
 
-describe("the sixteen canonical template names", () => {
+describe("the seventeen canonical template names", () => {
   // LAN-348. Every name carries `_v2` or `_v3`, and that is not decoration:
   // the unsuffixed and `_v1` names are the club's original Marketing
   // submissions, which Meta will not reclassify and will not let anyone edit
@@ -626,6 +629,8 @@ describe("the sixteen canonical template names", () => {
       "onboarding_welcome_v2",
       "onboarding_chase_v2",
       "onboarding_chase_escalation_v2",
+      // LAN-508. Born Utility with an image header.
+      "lancers_event_brief_image_v1",
     ]);
     for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v[123]$/);
   });

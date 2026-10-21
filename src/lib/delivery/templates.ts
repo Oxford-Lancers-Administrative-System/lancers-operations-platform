@@ -2,6 +2,8 @@ import "server-only";
 
 import type { EnvironmentSource, OutboundConfig } from "./config";
 import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "./provider";
+import { briefEmailHtml } from "@/lib/event-brief/email";
+import { briefPlainText } from "@/lib/event-brief/markdown";
 
 /**
  * The declared template registry. LAN-169.
@@ -92,6 +94,14 @@ import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "./provi
  * name rather than a guess assembled from a prefix, because a name assembled
  * at runtime is a name nobody ever approved.
  */
+/**
+ * LAN-508. The event brief's template, held in this one constant: a Utility
+ * template with an image header, which Brian creates in WhatsApp Manager from
+ * the checked-in submission record. Its `_test` twin on Meta's
+ * test account proved the shape on 16 October 2026.
+ */
+export const EVENT_BRIEF_TEMPLATE_NAME = "lancers_event_brief_image_v1";
+
 export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.freeze({
   invitation: "lancers_event_invitation_v3",
   reminder: "lancers_event_reminder_v2",
@@ -117,6 +127,7 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   onboarding_welcome: "onboarding_welcome_v2",
   onboarding_chase: "onboarding_chase_v2",
   onboarding_chase_escalation: "onboarding_chase_escalation_v2",
+  event_brief: EVENT_BRIEF_TEMPLATE_NAME,
 });
 
 /**
@@ -214,6 +225,20 @@ export interface MessageTemplate {
    * approved template holds the fixed prefix, the host included.
    */
   buttonUrls?(message: OutboundMessage): readonly string[] | null;
+  /**
+   * LAN-508. The approved template's header is an image, sent by Meta media
+   * id. The adapter uploads `headerImage` and refuses a message without one.
+   */
+  readonly headerImage?: true;
+  /**
+   * LAN-508. The email's HTML body, when it is more than the escaped lines of
+   * `body()`: opening lines, then markup the template builds itself with every
+   * character of the coach's text escaped. `body()` stays the text part.
+   */
+  emailHtml?(message: OutboundMessage): {
+    readonly lines: readonly string[];
+    readonly html: string;
+  };
 }
 
 function required(value: string | null | undefined, name: string): string {
@@ -629,6 +654,34 @@ const RECRUIT_EVENT_REMINDER: MessageTemplate = {
 };
 
 /**
+ * LAN-508. `Hello {{1}}, your brief for {{2}} on {{3}} is attached. It has the
+ * itinerary and what to bring.` under an image header: the brief, drawn as a
+ * 900px PNG. Brian's body, on the ticket's approved build spec (21 October
+ * 2026); the `_test` twin on Meta's test account was accepted as Utility on
+ * 16 October. The email is the same brief, in the club shell.
+ */
+function briefGreeting(message: OutboundMessage): string {
+  return `Hello ${message.inviteeName}, your brief for ${message.eventName} on ${message.whenLabel}.`;
+}
+
+const EVENT_BRIEF: MessageTemplate = {
+  kind: "event_brief",
+  parameterNames: ["inviteeName", "eventName", "whenLabel"],
+  parameters: (message) => [
+    required(message.inviteeName, "name"),
+    required(message.eventName, "event name"),
+    required(message.whenLabel, "date and time"),
+  ],
+  subject: (message) => `Your brief for ${message.eventName}`,
+  body: (message) => [briefGreeting(message), briefPlainText(required(message.brief, "brief"))],
+  headerImage: true,
+  emailHtml: (message) => ({
+    lines: [briefGreeting(message)],
+    html: briefEmailHtml(required(message.brief, "brief")),
+  }),
+};
+
+/**
  * The six person-following bodies share one parameter shape: the reader's name,
  * the fixed subject naming their own record, and the day it was opened. That is
  * rule 2 of the classifier — `for {thing} on {date}` — satisfied by a message
@@ -826,6 +879,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   onboarding_welcome: ONBOARDING_WELCOME,
   onboarding_chase: ONBOARDING_CHASE,
   onboarding_chase_escalation: ONBOARDING_CHASE_ESCALATION,
+  event_brief: EVENT_BRIEF,
 });
 
 /** Every kind, in ladder order. The manifest LAN-168 generates walks this. */
@@ -846,6 +900,7 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "onboarding_welcome",
   "onboarding_chase",
   "onboarding_chase_escalation",
+  "event_brief",
 ] as const);
 
 /**

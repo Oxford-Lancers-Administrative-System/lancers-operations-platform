@@ -20,7 +20,7 @@ import {
   BRIEF_TITLE_SIZE,
 } from "./style";
 
-export function escapeBriefHtml(value: string): string {
+function escapeBriefHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

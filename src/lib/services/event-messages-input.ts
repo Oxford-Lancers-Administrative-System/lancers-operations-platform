@@ -78,7 +78,7 @@ export type EventMessagesValidation =
   { ok: true; value: EventMessageInput[] } | { ok: false; issues: EventMessageIssue[] };
 
 /** Line endings normalised and the end trimmed; the start is the coach's own layout. */
-export function normaliseBriefBody(body: string | null | undefined): string {
+function normaliseBriefBody(body: string | null | undefined): string {
   return typeof body === "string" ? body.replace(/\r\n|\r/g, "\n").trimEnd() : "";
 }
 
@@ -235,7 +235,7 @@ export function clubEventStart(scheduledOn: string | null, startsAt: string | nu
 }
 
 /** The send time before lights-out: the event start less the hours. */
-export function eventMessageNominalSendAt(eventStart: Date, hoursBefore: number): Date {
+function eventMessageNominalSendAt(eventStart: Date, hoursBefore: number): Date {
   return new Date(eventStart.getTime() - hoursBefore * 60 * 60 * 1000);
 }
 
@@ -282,7 +282,7 @@ export function formatEventMessageMoment(at: Date): string {
 }
 
 /** "6 November at 14:00" — the Send again? dialog (W1-05). */
-export function formatEventMessageSentOn(at: Date): { date: string; time: string } {
+function formatEventMessageSentOn(at: Date): { date: string; time: string } {
   return { date: part(at, { day: "numeric", month: "long" }), time: clubTime(at) };
 }
 

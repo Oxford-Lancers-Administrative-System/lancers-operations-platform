@@ -629,3 +629,74 @@ describe("parsing a callback", () => {
     expect(parseCallbackPayload(payload([{ status: "delivered" }]))).toEqual([]);
   });
 });
+
+describe("LAN-508 — the event brief's image header", () => {
+  const BRIEF: InvitationMessage = {
+    kind: "event_brief",
+    recipient: "447700900123",
+    inviteeName: "Alex",
+    eventName: "Varsity Bowl",
+    whenLabel: "Saturday 7 November, 14:00",
+    rsvpUrl: "",
+    brief: "## Itinerary\n- 8:30 AM Bus",
+    headerImage: new Uint8Array([137, 80, 78, 71, 1, 2, 3]),
+  };
+
+  it("uploads the PNG as media, then sends the template with the header by id", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const transport = async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return url.includes("/media")
+        ? respond(200, { id: "media-1" })
+        : respond(200, { messages: [{ id: "wamid.brief" }] });
+    };
+    const outcome = await createWhatsAppCloudProvider(config(), transport).send(BRIEF);
+    expect(outcome).toEqual({ status: "accepted", providerMessageId: "wamid.brief" });
+    expect(calls.map((call) => new URL(call.url).pathname)).toEqual([
+      "/v21.0/5550001/media",
+      "/v21.0/5550001/messages",
+    ]);
+    const upload = calls[0].init.body as FormData;
+    expect(upload.get("messaging_product")).toBe("whatsapp");
+    expect((upload.get("file") as Blob).type).toBe("image/png");
+    const body = JSON.parse(calls[1].init.body as string);
+    expect(body.template.name).toBe("lancers_event_brief_image_v1");
+    expect(body.template.components).toEqual([
+      { type: "header", parameters: [{ type: "image", image: { id: "media-1" } }] },
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: "Alex" },
+          { type: "text", text: "Varsity Bowl" },
+          { type: "text", text: "Saturday 7 November, 14:00" },
+        ],
+      },
+    ]);
+  });
+
+  it("sends nothing when the upload is refused", async () => {
+    let messages = 0;
+    const transport = async (url: string) => {
+      if (url.includes("/messages")) messages += 1;
+      return respond(500, { error: { code: 131000, message: "boom" } });
+    };
+    const outcome = await createWhatsAppCloudProvider(config(), transport).send(BRIEF);
+    expect(outcome.status).toBe("refused");
+    expect(messages).toBe(0);
+  });
+
+  it("refuses a brief with no image rather than sending a header-less template", async () => {
+    let called = 0;
+    const transport = async () => {
+      called += 1;
+      return respond(200, {});
+    };
+    const outcome = await createWhatsAppCloudProvider(config(), transport).send({
+      ...BRIEF,
+      headerImage: null,
+    });
+    expect(outcome).toMatchObject({ status: "refused", retryable: true });
+    expect(called).toBe(0);
+    expect(() => buildMessageBody(config(), BRIEF)).toThrow(/header is an image/);
+  });
+});

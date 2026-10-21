@@ -61,6 +61,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/event-audience-amendment.test.ts",
   "src/lib/services/event-audience-rule.test.ts",
   "src/lib/services/event-import.test.ts",
+  "src/lib/services/event-messages.test.ts",
   "src/lib/services/event-questions.test.ts",
   "src/lib/services/event-templates.test.ts",
   "src/lib/services/events.test.ts",

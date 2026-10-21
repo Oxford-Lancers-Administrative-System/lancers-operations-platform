@@ -200,7 +200,8 @@ describe("what changed", () => {
   it("counts the hours, the channel, the recipients and the brief, and nothing else", () => {
     expect(eventMessageChanged(stored, { ...stored })).toBe(false);
     expect(eventMessageChanged(stored, { ...stored, body: "Brief\r\n" })).toBe(false);
-    expect(eventMessageChanged(stored, { ...stored, fromTemplate: true })).toBe(false);
+    const fromTemplate: EventMessageInput = { ...stored, fromTemplate: true };
+    expect(eventMessageChanged(stored, fromTemplate)).toBe(false);
     expect(eventMessageChanged(stored, { ...stored, hoursBefore: 24 })).toBe(true);
     expect(eventMessageChanged(stored, { ...stored, channel: "email" })).toBe(true);
     expect(eventMessageChanged(stored, { ...stored, recipients: "yes" })).toBe(true);

@@ -138,6 +138,7 @@ describe("exactly four message kinds go at any hour", () => {
         "cancellation",
         "change_notice",
         "escalation",
+        "event_brief",
         "invitation",
         "nudge",
         "onboarding_chase",
@@ -183,6 +184,7 @@ describe("exactly four message kinds go at any hour", () => {
     expect(OTHER_JOB_KEY_PREFIX_KINDS).toEqual({
       [ATTENDANCE_SHEET_KEY_PREFIX]: "attendance_sheet",
       [RECRUIT_EVENT_REMINDER_KEY_PREFIX]: "recruit_event_reminder",
+      "event-message:": "event_brief",
     });
     expect(LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES).toEqual([ATTENDANCE_SHEET_KEY_PREFIX]);
     expect(isJobLightsOutExempt("other", "attendance-sheet:e1:p1")).toBe(true);
@@ -192,6 +194,9 @@ describe("exactly four message kinds go at any hour", () => {
     // LAN-464: the recruit reminder is named by its prefix and still waits for 07:00.
     expect(LIGHTS_OUT_EXEMPT.recruit_event_reminder).toBe(false);
     expect(isJobLightsOutExempt("other", "recruit-event-reminder:e1:i1")).toBe(false);
+    // LAN-508: an event message waits for 07:00 like any other automated send.
+    expect(LIGHTS_OUT_EXEMPT.event_brief).toBe(false);
+    expect(isJobLightsOutExempt("other", "event-message:s1:p1:whatsapp")).toBe(false);
     expect(isJobLightsOutExempt("other", null)).toBe(false);
     // The prefix is honoured only on the job type that routes by it.
     expect(isJobLightsOutExempt("reminder", "attendance-sheet:e1:p1")).toBe(false);

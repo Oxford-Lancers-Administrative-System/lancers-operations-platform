@@ -137,7 +137,7 @@ export function briefPlainText(markdown: string): string {
 export type BriefFormat = "heading" | "bold" | "bullet" | "itinerary";
 
 /** What the Itinerary line button starts a line with; the coach types over the time. */
-export const ITINERARY_PLACEHOLDER = "- 12:00 ";
+const ITINERARY_PLACEHOLDER = "- 12:00 ";
 
 const LINE_PREFIXES: Readonly<Record<Exclude<BriefFormat, "bold">, string>> = Object.freeze({
   heading: "## ",
