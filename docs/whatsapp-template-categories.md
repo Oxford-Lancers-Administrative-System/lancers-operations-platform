@@ -251,7 +251,23 @@ event, when, and the venue — formatted the same way, with no buttons, no heade
 and no footer, and a twelve-hour validity. Until Meta approves it, a send
 against it is refused with `132001`.
 
-Twelve of the sixteen carry URL buttons — three carry a Yes/No pair, nine
+LAN-508 adds a seventeenth, `lancers_event_brief_image_v1`, the game day
+brief — the only template with a **header**, an image. It is drafted, not
+created: Brian creates it in WhatsApp Manager from the submission record
+(Utility, English, image header, no buttons). Its twin
+`lancers_event_brief_image_v1_test` on Meta's test account was accepted as
+Utility on 16 October 2026 (`docs/whatsapp-test-account.md`). The body states
+a status, with the `for {thing} on {date}` anchor:
+
+> Hello {{1}}, your brief for {{2}} on {{3}} is attached. It has the itinerary
+> and what to bring.
+
+The slots are the reader's name, the event and its date and time. The header
+is the coach's brief, drawn by the application as a 900px-wide PNG, uploaded
+as WhatsApp media for each send and named in the header by its media id. Until
+Meta approves the template, a send against it is refused with `132001`.
+
+Twelve of the seventeen carry URL buttons — three carry a Yes/No pair, nine
 carry one — and each button's base names its own destination:
 
 | Template                                        | Base                |
@@ -263,8 +279,8 @@ carry one — and each button's base names its own destination:
 | recruit interest ask, recruit interest reminder | `/background/`      |
 | onboarding welcome, onboarding chase            | `/onboarding/`      |
 
-The two escalations, the cancellation and the recruit event reminder carry no
-button at all. Both
+The two escalations, the cancellation, the recruit event reminder and the event
+brief carry no button at all. Both
 escalations carry their queue link as hardcoded text inside the approved body,
 because Meta refuses a body variable holding a URL.
 
