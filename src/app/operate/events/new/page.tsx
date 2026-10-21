@@ -19,6 +19,8 @@ import {
   type RawEventQuestion,
 } from "@/lib/services/events";
 import { gateShellPage } from "../../gate";
+import { readEventMessages } from "@/lib/services/event-messages/store";
+import type { RawEventMessage } from "@/lib/services/event-messages-input";
 import EventForm from "../event-form";
 
 /**
@@ -54,6 +56,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
 
   let source: EventDetail | null = null;
   let sourceQuestions: RawEventQuestion[] = [];
+  let sourceMessages: RawEventMessage[] = [];
   if (from !== null) {
     try {
       const read = await readEvent(from);
@@ -71,6 +74,16 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
           required: question.isRequired ? "required" : "optional",
           choices: joinQuestionChoices(question.choices),
           fromTemplate: question.fromTemplate ? "true" : "false",
+        }));
+        // LAN-508: duplicating copies the messages, so next week's brief starts
+        // from this week's — as written now, never as a new message's history.
+        sourceMessages = (await readEventMessages(from)).map((message) => ({
+          id: "",
+          hoursBefore: String(message.hoursBefore),
+          channel: message.channel,
+          recipients: message.recipients,
+          body: message.body,
+          fromTemplate: message.fromTemplate ? "true" : "false",
         }));
       }
     } catch (error) {
@@ -99,11 +112,11 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
         };
 
   /** The questions a blank form opens with — same rule `EventForm` uses for the Type control's default template (LAN-265). */
-  const openingQuestions =
-    (
-      Object.values(templates).find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ??
-      Object.values(templates)[0]
-    )?.questions ?? [];
+  const openingTemplate =
+    Object.values(templates).find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ??
+    Object.values(templates)[0];
+  const openingQuestions = openingTemplate?.questions ?? [];
+  const openingMessages = openingTemplate?.eventMessages ?? [];
 
   return (
     <Stack spacing={3}>
@@ -119,6 +132,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
         initial={initial}
         // A blank form opens on the default template's questions; Type swaps them. A duplicate brings its source's own.
         initialQuestions={source === null ? openingQuestions : sourceQuestions}
+        initialEventMessages={source === null ? openingMessages : sourceMessages}
         duplicatedFromName={source?.name}
         cancelHref="/operate/events"
       />

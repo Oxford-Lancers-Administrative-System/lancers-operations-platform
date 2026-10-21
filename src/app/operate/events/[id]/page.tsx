@@ -40,6 +40,7 @@ import {
   IncompleteRefusal,
 } from "./approval-review";
 import { EventDetailView } from "./event-detail-view";
+import { readEventMessages } from "@/lib/services/event-messages/store";
 import { formatDeadline } from "../presentation";
 
 /** Why **Create the link** is not offered, or `null` because it is — content, not an error (`docs/ux/standards.md` rule 6). */
@@ -144,6 +145,7 @@ export default async function EventDetailPage({
             }
             plan={preview.plan}
             unreachable={redactUnreachable(preview.unreachable, grants)}
+            eventMessages={await readEventMessages(event.id)}
           />
         )}
       </ApprovalLayout>
@@ -215,6 +217,9 @@ export default async function EventDetailPage({
   // LAN-171, REQ-schedule-not-retroactive: frozen at approval, read only once there is a row.
   const frozenPlan = event.status === "approved" ? await readFrozenMessagingPlan(event.id) : null;
 
+  // LAN-508: the event messages, from approval on (W1-04).
+  const eventMessages = event.status === "draft" ? [] : await readEventMessages(event.id);
+
   return (
     <EventDetailView
       event={event}
@@ -230,6 +235,7 @@ export default async function EventDetailPage({
       participation={participation}
       participationFilters={participationFilters}
       frozenPlan={frozenPlan}
+      eventMessages={eventMessages}
       share={
         shareOpen
           ? {

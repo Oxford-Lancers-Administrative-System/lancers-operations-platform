@@ -166,3 +166,58 @@ describe("MessagingPlanDisclosure — REQ-approval-shows-both-ladders", () => {
     expect(within(playerRows).getByText("President")).toBeInTheDocument();
   });
 });
+
+/**
+ * LAN-508, W1-03. Each event message joins the plan as one more row, in time
+ * order, in the plan's own anatomy: when, what, detail, who.
+ */
+describe("event messages in the plan", () => {
+  // Far enough ahead that every message's moment is still to come.
+  const event = { scheduledOn: "2099-12-22", startsAt: "20:00" };
+
+  it("lists each one at its moment, in time order, and counts it as a step", () => {
+    render(
+      <MessagingPlanDisclosure
+        display={planForDisplay(
+          planWithRecruitLadder({ recruitLadder: null }),
+          [
+            { hoursBefore: 48, channel: "both", recipients: "everyone" },
+            { hoursBefore: 168, channel: "email", recipients: "yes" },
+          ],
+          event,
+        )}
+        audienceSize={38}
+        approved={false}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Messaging plan · 4 steps" })).toBeInTheDocument();
+    const rows = within(screen.getByTestId("plan-rows")).getAllByTestId("plan-row");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Tue 15 Sep · 20:00WhatsApp message 1Automated 1:1 message to all 38 people.38 people",
+      "Mon 21 Sep · 08:00Follow-up escalationSend the event and unanswered count to the President.President",
+      "Tue 15 Dec · 20:00Event message168 hours before · Email · Those who said YesSaid Yes",
+      "Sun 20 Dec · 20:00Event message48 hours before · WhatsApp and email · Everyone invited38 people",
+    ]);
+  });
+
+  it("shows a sent message at the moment it went", () => {
+    const display = frozenPlanForDisplay(
+      {
+        ...planWithRecruitLadder({ recruitLadder: null }),
+      } as unknown as FrozenMessagingPlan,
+      [
+        {
+          hoursBefore: 48,
+          channel: "both",
+          recipients: "everyone",
+          lastSend: { sentAt: new Date("2026-09-20T19:03:00Z") },
+        },
+      ],
+      event,
+    );
+    expect(display.eventMessages.map((message) => message.at.toISOString())).toEqual([
+      "2026-09-20T19:03:00.000Z",
+    ]);
+  });
+});

@@ -27,6 +27,18 @@ import { addEventAudienceMembers } from "@/lib/services/event-audience-amendment
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "../form-state";
 import type { CancelFormState } from "./change-state";
+import {
+  eventMessagesDiffer,
+  validateEventMessages,
+  type EventMessageInput,
+} from "@/lib/services/event-messages-input";
+import {
+  EVENT_MESSAGE_RESEND_REQUIRED_MESSAGE,
+  readEventMessages,
+  saveApprovedEventMessages,
+  sentMessagesChangedBy,
+} from "@/lib/services/event-messages/store";
+import { readEventMessagesFromForm } from "../event-message-form";
 
 // The actions W5 and W6 add to an approved event — LAN-156. Every one guards
 // on Manage on the event's stored template (LAN-431; `event_approval` before
@@ -166,6 +178,7 @@ export async function editApprovedEventAction(
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+  const rawMessages = readEventMessagesFromForm(formData);
 
   // LAN-423: every failure from here on, a refusal included, is the form's
   // own error, and the operator's entries come back with it.
@@ -176,6 +189,7 @@ export async function editApprovedEventAction(
     values: raw,
     questions: rawQuestions,
     questionChange: null,
+    eventMessages: rawMessages,
   });
 
   let operator: ResolvedOperator;
@@ -187,14 +201,17 @@ export async function editApprovedEventAction(
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
-  if (!validation.ok || !questions.ok) {
+  const messages = validateEventMessages(rawMessages ?? []);
+  if (!validation.ok || !questions.ok || !messages.ok) {
     return {
       issues: validation.ok ? [] : validation.issues,
       questionIssues: questions.ok ? [] : questions.issues,
+      eventMessageIssues: messages.ok ? [] : messages.issues,
       error: null,
       values: raw,
       questions: rawQuestions,
       questionChange: null,
+      eventMessages: rawMessages,
     };
   }
 
@@ -222,6 +239,26 @@ export async function editApprovedEventAction(
     return refused(messageFor(error));
   }
 
+  // LAN-508. The event messages half, decided before anything is written: a
+  // change to a message that has gone is saved only with Save and send again
+  // (W1-05), so without that answer nothing at all is written.
+  const submittedMessages: EventMessageInput[] = messages.value;
+  let messagesChanged = false;
+  try {
+    const storedMessages = await readEventMessages(eventId);
+    messagesChanged =
+      rawMessages !== null && eventMessagesDiffer(storedMessages, submittedMessages);
+    if (
+      messagesChanged &&
+      sentMessagesChangedBy(storedMessages, submittedMessages).length > 0 &&
+      text(formData, "resendEventMessages") !== "1"
+    ) {
+      return refused(EVENT_MESSAGE_RESEND_REQUIRED_MESSAGE);
+    }
+  } catch (error) {
+    return refused(messageFor(error));
+  }
+
   if (questionsChanged && !confirmed) {
     try {
       const preview = await previewEventQuestionChanges(eventId, submitted);
@@ -235,6 +272,7 @@ export async function editApprovedEventAction(
           error: null,
           values: raw,
           questions: rawQuestions,
+          eventMessages: rawMessages,
           questionChange: {
             changedPrompts: [...preview.changedPrompts],
             addedCount: preview.addedCount,
@@ -259,7 +297,11 @@ export async function editApprovedEventAction(
     // change nobody made and hold every queued message for it. That refusal is
     // this page's "there was nothing to do on the details half", and nothing
     // else. Every other refusal is still a refusal.
-    if (!isServiceError(error) || error.rule !== NOTHING_CHANGED_RULE || !questionsChanged) {
+    if (
+      !isServiceError(error) ||
+      error.rule !== NOTHING_CHANGED_RULE ||
+      !(questionsChanged || messagesChanged)
+    ) {
       return refused(messageFor(error));
     }
   }
@@ -267,6 +309,11 @@ export async function editApprovedEventAction(
   try {
     if (questionsChanged) {
       await updateEventQuestions(operator.personId, eventId, submitted, { correction });
+    }
+    if (messagesChanged) {
+      await saveApprovedEventMessages(operator.personId, eventId, submittedMessages, {
+        resend: text(formData, "resendEventMessages") === "1",
+      });
     }
   } catch (error) {
     return refused(messageFor(error));

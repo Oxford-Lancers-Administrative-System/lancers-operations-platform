@@ -18,6 +18,8 @@ import { listTermWindows } from "@/lib/services/seasons";
 import { readEventFormDefaults, type EventTypeFormDefaults } from "@/lib/services/event-templates";
 import { gateEventPage } from "../../event-gate";
 import EventForm from "../../event-form";
+import { readEventMessages } from "@/lib/services/event-messages/store";
+import type { RawEventMessage } from "@/lib/services/event-messages-input";
 
 /**
  * UX-31 in edit mode — LAN-76's "edit view", against `/operate/events/[id]`'s
@@ -62,6 +64,18 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
       required: question.isRequired ? "required" : "optional",
       choices: joinQuestionChoices(question.choices),
       fromTemplate: question.fromTemplate ? "true" : "false",
+    }),
+  );
+
+  // LAN-508: the messages as stored, edited on the same form.
+  const initialEventMessages: RawEventMessage[] = (await readEventMessages(event.id)).map(
+    (message) => ({
+      id: message.id,
+      hoursBefore: String(message.hoursBefore),
+      channel: message.channel,
+      recipients: message.recipients,
+      body: message.body,
+      fromTemplate: message.fromTemplate ? "true" : "false",
     }),
   );
 
@@ -114,6 +128,7 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
         templates={onlyGrantedTemplateRecord(gate.operator.grants, templates, "manage")}
         initial={initial}
         initialQuestions={initialQuestions}
+        initialEventMessages={initialEventMessages}
         cancelHref={`/operate/events/${event.id}`}
       />
     </Stack>

@@ -39,6 +39,9 @@ function saveAndNotifyLabel(notify: boolean, recipients: number): string {
 /** The row the review adds when the questions were edited too. A state, not an explanation. */
 export const QUESTIONS_CHANGED_LINE = "Questions — changed";
 
+/** LAN-508. The review's row for a change to the event messages. */
+export const EVENT_MESSAGES_CHANGED_LINE = "Event messages — changed";
+
 /** D3's tick, carried across from the questions-only screen unchanged. */
 export const CORRECTION_TICK_LABEL = "This is a correction, keep answers";
 

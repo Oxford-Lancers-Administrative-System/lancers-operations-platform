@@ -16,6 +16,9 @@ import { validateEventQuestions } from "@/lib/services/event-questions";
 import type { EventTemplateInput, RawEventTemplate } from "@/lib/services/event-template-input";
 import type { EventQuestionInput, RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { TemplateFormState } from "./form-state";
+import { validateEventMessages, type EventMessageInput } from "@/lib/services/event-messages-input";
+import { replaceTemplateEventMessages } from "@/lib/services/event-messages/store";
+import { readEventMessagesFromForm } from "../event-message-form";
 
 // The template editor's server actions — W8. preview writes nothing; save
 // recomputes the blast radius itself rather than trusting the browser's
@@ -90,6 +93,8 @@ interface CheckedTemplate {
   ok: true;
   template: EventTemplateInput;
   questions: EventQuestionInput[];
+  /** LAN-508. `null` when the form carried no event messages section. */
+  messages: EventMessageInput[] | null;
   raw: RawEventTemplate;
   rawQuestions: RawEventQuestion[];
 }
@@ -101,14 +106,17 @@ function checked(formData: FormData): CheckedTemplate | { ok: false; state: Temp
 
   const template = validateEventTemplate(raw);
   const questions = validateEventQuestions(rawQuestions);
+  const rawMessages = readEventMessagesFromForm(formData);
+  const messages = validateEventMessages(rawMessages ?? []);
 
-  if (!template.ok || !questions.ok) {
+  if (!template.ok || !questions.ok || !messages.ok) {
     return {
       ok: false,
       state: {
         phase: "editing",
         issues: template.ok ? [] : template.issues,
         questionIssues: questions.ok ? [] : questions.issues,
+        eventMessageIssues: messages.ok ? [] : messages.issues,
         error: null,
         values: raw,
         questions: rawQuestions,
@@ -117,7 +125,14 @@ function checked(formData: FormData): CheckedTemplate | { ok: false; state: Temp
     };
   }
 
-  return { ok: true, template: template.value, questions: questions.value, raw, rawQuestions };
+  return {
+    ok: true,
+    template: template.value,
+    questions: questions.value,
+    messages: rawMessages === null ? null : messages.value,
+    raw,
+    rawQuestions,
+  };
 }
 
 /** W8-03 — what saving this template will and will not touch. Writes nothing. */
@@ -179,6 +194,9 @@ export async function saveEventTemplateAction(
 
   try {
     await saveEventTemplate(operator.personId, templateId, outcome.template, outcome.questions);
+    if (outcome.messages !== null) {
+      await replaceTemplateEventMessages(operator.personId, templateId, outcome.messages);
+    }
   } catch (error) {
     return {
       phase: "editing",
@@ -219,7 +237,14 @@ export async function createEventTemplateAction(
   if (!outcome.ok) return outcome.state;
 
   try {
-    await createEventTemplate(operator.personId, outcome.template, outcome.questions);
+    const created = await createEventTemplate(
+      operator.personId,
+      outcome.template,
+      outcome.questions,
+    );
+    if (outcome.messages !== null && outcome.messages.length > 0) {
+      await replaceTemplateEventMessages(operator.personId, created.id, outcome.messages);
+    }
   } catch (error) {
     return {
       phase: "editing",

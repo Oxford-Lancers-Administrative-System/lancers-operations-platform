@@ -9,6 +9,11 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
@@ -37,6 +42,17 @@ import { RECRUITMENT_EVENT_TYPE } from "@/lib/services/audience-selection";
 import { EMPTY_FORM_STATE } from "../../form-state";
 import { describeTermCoordinate, RECRUIT_QUESTIONS_NOTICE } from "../../presentation";
 import QuestionEditor from "../../question-editor";
+import EventMessageEditor from "../../event-message-editor";
+import {
+  SEND_AGAIN_CONFIRM,
+  SEND_AGAIN_TITLE,
+  clubEventStart,
+  eventMessageChanged,
+  eventMessagesDiffer,
+  sendAgainBody,
+  validateEventMessages,
+  type RawEventMessage,
+} from "@/lib/services/event-messages-input";
 import { editApprovedEventAction } from "../change-actions";
 import { AmendEventFields } from "./amend-event-fields";
 import {
@@ -48,6 +64,7 @@ import {
   AMEND_UNSAVED_BADGE,
   CORRECTION_TICK_LABEL,
   describeChange,
+  EVENT_MESSAGES_CHANGED_LINE,
   notifyDefaultDetail,
   QUESTIONS_CHANGED_LINE,
   questionChangeSummary,
@@ -96,6 +113,8 @@ export default function AmendForm({
   eventTypeLabel,
   eventType,
   mayEditQuestions,
+  initialEventMessages = [],
+  sentEventMessages = {},
 }: {
   eventId: string;
   eventName: string;
@@ -123,6 +142,10 @@ export default function AmendForm({
    * whoever may actually save it rather than to whoever reached this page.
    */
   mayEditQuestions: boolean;
+  /** LAN-508. The event messages as stored, edited on this page too. */
+  initialEventMessages?: readonly RawEventMessage[];
+  /** LAN-508. When each message that has gone last went, by id, as ISO instants. */
+  sentEventMessages?: Readonly<Record<string, string>>;
 }) {
   const [state, formAction, pending] = useActionState(editApprovedEventAction, EMPTY_FORM_STATE);
   const formRef = useRef<HTMLFormElement>(null);
@@ -153,6 +176,36 @@ export default function AmendForm({
   ]);
   const [correction, setCorrection] = useState(false);
   const questionChange = state.questionChange ?? null;
+
+  // LAN-508. The event messages, edited here and saved by the same press. A
+  // change to one that has already gone saves only with sending it again, so
+  // the save stops and asks (W1-05). The server refuses it without the answer.
+  const [eventMessages, setEventMessages] = useState<RawEventMessage[]>(() => [
+    ...(state.eventMessages ?? initialEventMessages),
+  ]);
+  const [sendAgainOpen, setSendAgainOpen] = useState(false);
+  const sentIds = useMemo(() => new Set(Object.keys(sentEventMessages)), [sentEventMessages]);
+  const messagesChanged = useMemo(() => {
+    const stored = validateEventMessages([...initialEventMessages]);
+    const submitted = validateEventMessages(eventMessages);
+    if (!stored.ok || !submitted.ok) return true;
+    return eventMessagesDiffer(stored.value, submitted.value);
+  }, [initialEventMessages, eventMessages]);
+  /** The sent message this save would send again, latest first — what Send again? names. */
+  const resending = useMemo(() => {
+    const stored = validateEventMessages([...initialEventMessages]);
+    const submitted = validateEventMessages(eventMessages);
+    if (!stored.ok || !submitted.ok) return null;
+    const changed = stored.value
+      .filter((before) => before.id !== null && sentIds.has(before.id))
+      .filter((before) => {
+        const after = submitted.value.find((candidate) => candidate.id === before.id);
+        return after !== undefined && eventMessageChanged(before, after);
+      })
+      .map((before) => new Date(sentEventMessages[before.id ?? ""]))
+      .sort((a, b) => b.getTime() - a.getTime());
+    return changed[0] ?? null;
+  }, [initialEventMessages, eventMessages, sentIds, sentEventMessages]);
 
   /**
    * Whether the questions differ from the stored ones at all — the same rule
@@ -192,7 +245,10 @@ export default function AmendForm({
   // LAN-419: a question that does not validate sends the operator back to the
   // fields, exactly as a detail that does not.
   const refused =
-    (state.issues.length > 0 || state.questionIssues.length > 0 || state.error !== null) &&
+    (state.issues.length > 0 ||
+      state.questionIssues.length > 0 ||
+      (state.eventMessageIssues ?? []).length > 0 ||
+      state.error !== null) &&
     acknowledged !== state;
   const step: Step = refused ? "edit" : chosenStep;
 
@@ -268,7 +324,7 @@ export default function AmendForm({
 
     // LAN-419: a questions-only change is a change. Nothing is refused here
     // for having left the details alone.
-    if (next.length === 0 && !questionsChanged) {
+    if (next.length === 0 && !questionsChanged && !messagesChanged) {
       setNothingChanged(true);
       return;
     }
@@ -307,6 +363,7 @@ export default function AmendForm({
       ref={formRef}
       onKeyDown={preventImplicitSubmit}
       data-testid="amend-form"
+      id="amend-form"
     >
       <input type="hidden" name="eventId" value={eventId} />
       {/* LAN-244: the version this form opened on, posted with the fields, so a second tab's save can't silently revert the first tab's write. */}
@@ -393,6 +450,20 @@ export default function AmendForm({
               </Section>
             ) : null}
 
+            {/* LAN-508, W1-01 on the edit page: the same editor, below the
+                questions. A message that has gone keeps its card but loses
+                Remove. */}
+            {mayEditQuestions ? (
+              <EventMessageEditor
+                messages={eventMessages}
+                onChange={setEventMessages}
+                issues={state.eventMessageIssues ?? []}
+                disabled={pending}
+                eventStart={clubEventStart(scheduledOn || null, startsAt || null)}
+                sentIds={sentIds}
+              />
+            ) : null}
+
             <ActionBar
               primary={
                 <Button
@@ -461,6 +532,15 @@ export default function AmendForm({
                       data-testid="change-questions"
                     >
                       <Typography variant="body2">{QUESTIONS_CHANGED_LINE}</Typography>
+                    </Box>
+                  ) : null}
+                  {messagesChanged ? (
+                    <Box
+                      component="li"
+                      sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}
+                      data-testid="change-event-messages"
+                    >
+                      <Typography variant="body2">{EVENT_MESSAGES_CHANGED_LINE}</Typography>
                     </Box>
                   ) : null}
                 </Stack>
@@ -543,7 +623,9 @@ export default function AmendForm({
               <ActionBar
                 primary={
                   <Button
-                    type="submit"
+                    // LAN-508: a change to a sent message stops at Send again? first.
+                    type={resending ? "button" : "submit"}
+                    onClick={resending ? () => setSendAgainOpen(true) : undefined}
                     variant="contained"
                     disabled={pending}
                     sx={{ minHeight: 44 }}
@@ -615,6 +697,43 @@ export default function AmendForm({
           </Section>
         ) : null}
       </Stack>
+
+      {/* LAN-508, W1-05. Saving a change to a message that has gone sends it
+          again; there is no save without sending. The confirm button submits
+          this form with the answer the server requires. */}
+      <Dialog
+        open={sendAgainOpen && resending !== null}
+        onClose={() => (pending ? undefined : setSendAgainOpen(false))}
+        aria-labelledby="send-again-title"
+        data-testid="send-again-dialog"
+      >
+        <DialogTitle id="send-again-title">{SEND_AGAIN_TITLE}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{resending ? sendAgainBody(resending) : null}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSendAgainOpen(false)}
+            disabled={pending}
+            sx={{ minHeight: 44 }}
+            data-testid="send-again-cancel"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="amend-form"
+            name="resendEventMessages"
+            value="1"
+            variant="contained"
+            disabled={pending}
+            sx={{ minHeight: 44 }}
+            data-testid="send-again-confirm"
+          >
+            {SEND_AGAIN_CONFIRM}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

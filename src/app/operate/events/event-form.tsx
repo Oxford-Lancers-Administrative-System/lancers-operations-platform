@@ -20,6 +20,8 @@ import { createEventDraftAction, updateEventDraftAction } from "./actions";
 import { dateFromScheduledOn, scheduledOnFromDate } from "./date-time-controls";
 import { EMPTY_FORM_STATE } from "./form-state";
 import QuestionEditor from "./question-editor";
+import EventMessageEditor from "./event-message-editor";
+import { clubEventStart, type RawEventMessage } from "@/lib/services/event-messages-input";
 import { EventCoreFields, issueFor } from "./event-core-fields";
 import { duplicatedFrom, RECRUIT_QUESTIONS_NOTICE } from "./presentation";
 import { RECRUITMENT_EVENT_TYPE } from "@/lib/services/audience-selection";
@@ -37,6 +39,7 @@ export default function EventForm({
   terms,
   initial,
   initialQuestions,
+  initialEventMessages,
   templates,
   duplicatedFromName,
   cancelHref,
@@ -46,6 +49,8 @@ export default function EventForm({
   terms: readonly TermWindow[];
   initial?: RawEventDraft;
   initialQuestions?: readonly RawEventQuestion[];
+  /** LAN-508. The event's messages as stored, a duplicate's source's, or the template's. */
+  initialEventMessages?: readonly RawEventMessage[];
   templates: Readonly<Record<string, EventTypeFormDefaults>>;
   /** D39 — the event this form was prefilled from, when it was. */
   duplicatedFromName?: string;
@@ -115,6 +120,10 @@ export default function EventForm({
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [
     ...(initialQuestions ?? []),
   ]);
+  // LAN-508. What was posted wins over what was loaded, as the fields do.
+  const [eventMessages, setEventMessages] = useState<RawEventMessage[]>(() => [
+    ...(state.eventMessages ?? initialEventMessages ?? []),
+  ]);
   // LAN-391: which fields the last type change replaced, so the operator sees
   // it before they save rather than discovering it afterwards. Labels only.
   const [resetByTypeChange, setResetByTypeChange] = useState<string[]>([]);
@@ -163,6 +172,15 @@ export default function EventForm({
       ...now.questions,
     ]);
     if (was.questions.length > 0 || now.questions.length > 0) reset.push("Questions");
+
+    // LAN-508: the same rule for the template's event messages, untouched ones only.
+    setEventMessages((current) => [
+      ...current.filter((message) => message.fromTemplate !== "true"),
+      ...(now.eventMessages ?? []),
+    ]);
+    if ((was.eventMessages ?? []).length > 0 || (now.eventMessages ?? []).length > 0) {
+      reset.push("Event messages");
+    }
 
     setResetByTypeChange(reset);
   }
@@ -301,6 +319,14 @@ export default function EventForm({
           notice={
             template?.eventType === RECRUITMENT_EVENT_TYPE ? RECRUIT_QUESTIONS_NOTICE : undefined
           }
+        />
+
+        <EventMessageEditor
+          messages={eventMessages}
+          onChange={setEventMessages}
+          issues={state.eventMessageIssues ?? []}
+          disabled={pending}
+          eventStart={clubEventStart(scheduledOn || null, startsAt || null)}
         />
 
         <ActionBar

@@ -13,6 +13,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 
 vi.mock("server-only", () => ({}));
+// LAN-508. The event messages read the database; these screens have none.
+vi.mock("@/lib/services/event-messages/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/event-messages/store")>()),
+  readEventMessages: vi.fn(async () => []),
+  readTemplateEventMessages: vi.fn(async () => []),
+  saveApprovedEventMessages: vi.fn(async () => ({ changed: false, resent: 0 })),
+  replaceTemplateEventMessages: vi.fn(async () => undefined),
+}));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT:${url}`);
