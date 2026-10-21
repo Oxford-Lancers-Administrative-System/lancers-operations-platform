@@ -17,14 +17,29 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 vi.mock("server-only", () => ({}));
 
+// The real renderer, unless a test asks for a brief that cannot be drawn.
+const renderControl = vi.hoisted(() => ({ fail: false }));
+vi.mock("@/lib/event-brief/image", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/event-brief/image")>();
+  return {
+    ...actual,
+    renderBriefPng: async (markdown: string) => {
+      if (renderControl.fail) throw new Error("Satori could not draw this brief");
+      return actual.renderBriefPng(markdown);
+    },
+  };
+});
+
 import crypto from "node:crypto";
 import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 
-import { dispatchEventMessageJob } from "./messaging-scheduler";
+import { EVENT_MESSAGE_RENDER_FAILED_REASON, dispatchEventMessageJob } from "./messaging-scheduler";
 import { setLightsOutClockForTesting } from "./messaging-schedule/lights-out";
+import { DUE_JOB_PREDICATE } from "./messaging-queue";
+import { MAX_ATTEMPTS } from "./delivery";
 import {
   EVENT_MESSAGE_RESEND_REQUIRED_RULE,
   declareDueEventMessagesIn,
@@ -123,6 +138,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  renderControl.fail = false;
   setLightsOutClockForTesting(() => PINNED_MIDDAY);
   await clearRecipientSafetyState(observer);
   const events = "(select id from public.events where name like $1)";
@@ -492,6 +508,53 @@ describe("what each copy carries", () => {
       [eventId],
     );
     expect(Number(attempts.rows[0].count)).toBe(2);
+  });
+
+  it("fails a WhatsApp copy whose brief cannot be drawn, once, and still sends the email", async () => {
+    const eventId = await approvedEvent("30 hours");
+    const person = await invitee(eventId);
+    await message(eventId, { channel: "both" });
+    await declare();
+    renderControl.fail = true;
+
+    const { sent, transport } = acceptingTransport(new Set([person.phone, person.email]));
+    const jobs = await jobsFor(eventId);
+    const whatsapp = jobs.find((job) => job.channel === "whatsapp")!;
+    const email = jobs.find((job) => job.channel === "email")!;
+
+    expect(await dispatchEventMessageJob(whatsapp.id, { source: CONFIGURED, transport })).toBe(
+      "refused",
+    );
+    await forgetPacing();
+    expect(await dispatchEventMessageJob(email.id, { source: CONFIGURED, transport })).toBe(
+      "accepted",
+    );
+    expect(sent.map((entry) => entry.kind)).toEqual(["email"]);
+
+    // Concluded through the delivery records, not left due for the next sweep.
+    const after = await observer.query<{ status: string; last_error: string | null }>(
+      "select status::text as status, last_error from public.notification_jobs where id = $1",
+      [whatsapp.id],
+    );
+    expect(after.rows[0]).toEqual({
+      status: "failed",
+      last_error: EVENT_MESSAGE_RENDER_FAILED_REASON,
+    });
+    const results = await observer.query<{ outcome: string; detail: string }>(
+      `select outcome::text as outcome, detail from public.delivery_results
+        where notification_job_id = $1`,
+      [whatsapp.id],
+    );
+    expect(results.rows).toEqual([
+      { outcome: "failed", detail: EVENT_MESSAGE_RENDER_FAILED_REASON },
+    ]);
+    // The sweep's own definition of due no longer finds it, so no later tick draws it again.
+    const due = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.notification_jobs
+        where id = $2 and ${DUE_JOB_PREDICATE}`,
+      [MAX_ATTEMPTS, whatsapp.id],
+    );
+    expect(due.rows[0].count).toBe("0");
   });
 
   it("is not sent once its event is cancelled", async () => {

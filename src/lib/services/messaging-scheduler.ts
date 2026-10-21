@@ -3273,6 +3273,10 @@ export async function dispatchRecruitEventReminderJob(
 export const EVENT_MESSAGE_NO_EVENT_REASON =
   "This event is no longer approved and ahead, so its message is not sent.";
 
+/** Why a WhatsApp copy failed without a send: its brief could not be drawn as the header image. */
+export const EVENT_MESSAGE_RENDER_FAILED_REASON =
+  "The brief could not be drawn as an image, so this WhatsApp message was not sent.";
+
 /** Why a WhatsApp copy was stood down at send time: consent went, so the email goes instead. */
 export const EVENT_MESSAGE_NO_CONSENT_REASON =
   "No current-season WhatsApp consent, so this message goes by email instead.";
@@ -3285,7 +3289,8 @@ export const EVENT_MESSAGE_NO_CONSENT_REASON =
  *
  * A WhatsApp copy reads consent again: a person who withdrew it since the
  * declaration gets the email instead, never the WhatsApp. The PNG is drawn
- * before the claim, from the send's body, once per send.
+ * before the claim, from the send's body (cached by content, so once per
+ * send); a brief that cannot be drawn fails that copy terminally.
  */
 export async function dispatchEventMessageJob(
   jobId: string,
@@ -3310,10 +3315,22 @@ export async function dispatchEventMessageJob(
   );
   const brief = sent.rows[0]?.body ?? null;
   if (brief === null) return "skipped";
-  const headerImage = context.channel === "whatsapp" ? await renderBriefPng(brief) : null;
+  // A brief that cannot be drawn fails this copy, through the delivery records,
+  // once. Thrown out of here it would leave the job due, so every sweep would
+  // draw it again and count it again, and it would never conclude.
+  let headerImage: Uint8Array | null = null;
+  let renderFailed = false;
+  if (context.channel === "whatsapp") {
+    try {
+      headerImage = await renderBriefPng(brief);
+    } catch {
+      renderFailed = true;
+    }
+  }
 
   type BriefOutcome =
     | { readonly kind: "no-send" }
+    | { readonly kind: "failed" }
     | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
@@ -3346,6 +3363,18 @@ export async function dispatchEventMessageJob(
     const job = locked.rows[0];
     if (!job) return { kind: "no-send" };
     const claiming = jobClaimIn(tx, jobId, job.attempt_count);
+
+    if (renderFailed) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        EVENT_MESSAGE_RENDER_FAILED_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "failed" };
+    }
 
     const details = await tx.query<{
       event_name: string;
@@ -3502,6 +3531,7 @@ export async function dispatchEventMessageJob(
   });
 
   if (claim.kind === "deferred") return "deferred";
+  if (claim.kind === "failed") return "refused";
   if (claim.kind !== "send") return "skipped";
   return concludeClaimedSend(jobId, context, claim);
 }
