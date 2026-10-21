@@ -49,6 +49,8 @@ import {
 } from "./event-messages";
 import { createEventDraft } from "./events";
 import type { EventMessageInput } from "./event-messages-input";
+import type { EventDraftInput } from "./event-input";
+import { saveApprovedEventEdit } from "./approved-event-edit";
 import {
   clearRecipientSafetyState,
   openObserver,
@@ -170,6 +172,10 @@ afterEach(async () => {
     scope,
   ]);
   await observer.query(`delete from public.event_questions where event_id in ${events}`, [scope]);
+  await observer.query(`delete from public.schedule_changes where event_id in ${events}`, [scope]);
+  await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
+    scope,
+  ]);
   await observer.query(
     `delete from public.audit_events
       where entity_table = 'events' and entity_id in ${events}`,
@@ -647,6 +653,62 @@ describe("saving an approved event's messages", () => {
     await expect(saveApprovedEventMessages(anchorPersonId, eventId, [])).rejects.toMatchObject({
       rule: "event_message_sent_cannot_be_removed",
     });
+  });
+});
+
+describe("one save of the edit page", () => {
+  it("leaves the details as they were when the messages half is refused", async () => {
+    const eventId = await approvedEvent("30 hours");
+    await invitee(eventId);
+    await message(eventId);
+    await declare();
+
+    const row = await observer.query<{
+      name: string;
+      template_id: string;
+      scheduled_on: string;
+      starts_at: string;
+      delivery_mode: EventDraftInput["deliveryMode"];
+      is_mandatory: boolean;
+    }>(
+      `select name, template_id, to_char(scheduled_on, 'YYYY-MM-DD') as scheduled_on,
+              to_char(starts_at, 'HH24:MI') as starts_at, delivery_mode::text as delivery_mode,
+              is_mandatory
+         from public.events where id = $1`,
+      [eventId],
+    );
+    const before = row.rows[0];
+
+    // The venue moves, and the sent message is taken away: the second is refused.
+    await expect(
+      saveApprovedEventEdit(anchorPersonId, eventId, {
+        details: {
+          name: before.name,
+          templateId: before.template_id,
+          scheduledOn: before.scheduled_on,
+          startsAt: before.starts_at,
+          endsAt: null,
+          deliveryMode: before.delivery_mode,
+          venue: "Marston Road",
+          description: null,
+          requiredEquipment: null,
+          joiningUrl: null,
+          isMandatory: before.is_mandatory,
+        },
+        amendment: { notify: false, silenceConfirmed: true },
+        questions: null,
+        messages: { submitted: [], resend: false },
+      }),
+    ).rejects.toMatchObject({ rule: "event_message_sent_cannot_be_removed" });
+
+    const after = await observer.query<{ venue: string; changes: string }>(
+      `select venue,
+              (select count(*)::text from public.schedule_changes where event_id = $1) as changes
+         from public.events where id = $1`,
+      [eventId],
+    );
+    expect(after.rows[0]).toEqual({ venue: "Iffley Road", changes: "0" });
+    expect(await readEventMessages(eventId)).toHaveLength(1);
   });
 });
 

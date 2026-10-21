@@ -40,6 +40,13 @@ vi.mock("@/lib/services/event-messages/store", async (importOriginal) => ({
   saveApprovedEventMessages: vi.fn(async () => ({ changed: false, resent: 0 })),
   replaceTemplateEventMessages: vi.fn(async () => undefined),
 }));
+// LAN-508. The three halves share one transaction; the services under it are
+// mocked, so the transaction is a pass-through here. That it rolls a refused
+// half back is proved against the database in `event-messages.test.ts`.
+vi.mock("@/lib/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db")>()),
+  withTransaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})),
+}));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({

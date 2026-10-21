@@ -8,7 +8,6 @@ import {
   previewEventQuestionChanges,
   readEventQuestions,
   requireEventGrant,
-  updateEventQuestions,
   validateEventDraft,
 } from "@/lib/services/events";
 import {
@@ -16,13 +15,8 @@ import {
   validateEventQuestions,
   type RawEventQuestion,
 } from "@/lib/services/event-questions-input";
-import {
-  amendApprovedEvent,
-  cancelEvent,
-  NOTHING_CHANGED_RULE,
-  renotifyEvent,
-  type AmendableEvent,
-} from "@/lib/services/event-amendment";
+import { cancelEvent, renotifyEvent, type AmendableEvent } from "@/lib/services/event-amendment";
+import { saveApprovedEventEdit } from "@/lib/services/approved-event-edit";
 import { addEventAudienceMembers } from "@/lib/services/event-audience-amendment";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "../form-state";
@@ -35,7 +29,6 @@ import {
 import {
   EVENT_MESSAGE_RESEND_REQUIRED_MESSAGE,
   readEventMessages,
-  saveApprovedEventMessages,
   sentMessagesChangedBy,
 } from "@/lib/services/event-messages/store";
 import { readEventMessagesFromForm } from "../event-message-form";
@@ -155,7 +148,9 @@ function messageFor(error: unknown): string {
  * re-notification (W5, LAN-244). A question change still goes through
  * `updateEventQuestions`, which sends nothing for a wording change, voids and
  * re-asks a changed question (LAN-367), removes nothing, and honours D3's
- * correction tick. This composes them; it decides nothing new.
+ * correction tick. This composes them, and LAN-508's event messages, through
+ * `saveApprovedEventEdit`: one transaction, so a refusal in any half leaves
+ * every half as it was. It decides nothing new.
  *
  * Three things are worth saying about the composition.
  *
@@ -285,36 +280,25 @@ export async function editApprovedEventAction(
     }
   }
 
+  // One transaction for the three halves (LAN-508): a refusal in any of them,
+  // a sent message removed or resent after the start among them, leaves the
+  // whole event as it was.
   try {
-    await amendApprovedEvent(operator.personId, eventId, validation.value, {
-      notify: checked(formData, "notify"),
-      silenceConfirmed: checked(formData, "silenceConfirmed"),
-      baseline: readBaseline(formData),
+    await saveApprovedEventEdit(operator.personId, eventId, {
+      details: validation.value,
+      amendment: {
+        notify: checked(formData, "notify"),
+        silenceConfirmed: checked(formData, "silenceConfirmed"),
+        baseline: readBaseline(formData),
+      },
+      questions: questionsChanged ? { submitted, correction } : null,
+      messages: messagesChanged
+        ? {
+            submitted: submittedMessages,
+            resend: text(formData, "resendEventMessages") === "1",
+          }
+        : null,
     });
-  } catch (error) {
-    // A questions-only save reaches the amendment with an empty diff, and the
-    // amendment is right to refuse an empty one — it would write a schedule
-    // change nobody made and hold every queued message for it. That refusal is
-    // this page's "there was nothing to do on the details half", and nothing
-    // else. Every other refusal is still a refusal.
-    if (
-      !isServiceError(error) ||
-      error.rule !== NOTHING_CHANGED_RULE ||
-      !(questionsChanged || messagesChanged)
-    ) {
-      return refused(messageFor(error));
-    }
-  }
-
-  try {
-    if (questionsChanged) {
-      await updateEventQuestions(operator.personId, eventId, submitted, { correction });
-    }
-    if (messagesChanged) {
-      await saveApprovedEventMessages(operator.personId, eventId, submittedMessages, {
-        resend: text(formData, "resendEventMessages") === "1",
-      });
-    }
   } catch (error) {
     return refused(messageFor(error));
   }
