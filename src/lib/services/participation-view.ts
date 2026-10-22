@@ -206,6 +206,9 @@ export const PARTICIPATION_PARAMS = Object.freeze({
   direction: "dir",
 });
 
+/** LAN-497: the Group by choice, in the link — the attendance register's own `by`. */
+export const GROUP_BY_PARAM = "by";
+
 /** Every `DeliveryState` a `?delivery=` value may name, plus `none`. Written out (not imported) to keep `./delivery` out of the client bundle; the assertion below catches drift. */
 export const DELIVERY_FILTERS = Object.freeze([
   "queued",
@@ -457,10 +460,12 @@ export function participationSortHref(
   basePath: string,
   filters: ParticipationFilters,
   column: string,
+  groupBy: string | null = null,
 ): string {
   return sortColumnHref(
     basePath,
     {
+      [GROUP_BY_PARAM]: groupBy ?? "",
       [PARTICIPATION_PARAMS.search]: filters.search,
       [PARTICIPATION_PARAMS.capacity]: filters.capacity,
       [PARTICIPATION_PARAMS.answer]: filters.answer,

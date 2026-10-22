@@ -1424,6 +1424,20 @@ remembered in this browser for this viewer: a first visit opens on **None**, and
 a later visit to a link without `by` opens on the last choice. A family in a
 link that the viewer may not see is ignored, and the register opens on **None**.
 
+**On the event page too.** The same select sits in the **Everyone asked** filter
+bar, after Answer, Attendance and Delivery (the bar wraps on a phone; there is
+no Filters sheet on that page). It is the same component, the same families, the
+same permission gating and the same `by` link parameter, and it shares the
+register's remembered choice (one browser key per viewer), so choosing on
+either page applies to both. With a family chosen the table splits into the
+register's collapsible sections: **Coaches** first as their own section, then
+one section per value somebody holds, then **No <family>** last and closed on
+arrival. Each section header shows its count and, on an occurred event only,
+"<attended> attended / <expected> expected" counted from the rows the section
+shows. Columns, sort and filters are unchanged and apply within each section;
+**Clear filters** keeps the family. The service (`readEventGroupValues`) reads
+only the chosen family, and only for a viewer who holds it.
+
 ### 10b. What the coach cannot reach
 
 Still signed in as the coach, type these addresses directly. Hidden navigation is

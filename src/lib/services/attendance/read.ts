@@ -9,7 +9,11 @@ import {
   type AttendanceSummary,
 } from "../attendance-vocabulary";
 import { registerOpensAt } from "../attendance-window";
-import { visibleAttendanceGroupFamilies, type AttendanceGroupFamily } from "../attendance-group-by";
+import {
+  visibleAttendanceGroupFamilies,
+  type AttendanceGroupFamily,
+  type AttendanceGroupValues,
+} from "../attendance-group-by";
 import type { OperatorGrants } from "@/lib/auth/grants";
 import { readEventIn, type EventDetail } from "../events";
 import { personDisplayNameSql as displayName } from "../sql-text";
@@ -372,5 +376,33 @@ export async function readEventAttendanceSummary(eventId: string): Promise<Atten
       walkUps: Number(row.walk_ups),
       registerSaved: recorded > 0,
     } satisfies AttendanceSummary;
+  });
+}
+
+/**
+ * LAN-497: each person's Group by values for the event page's Everyone asked
+ * table, keyed by the anchor id (the membership id, else the person id) that
+ * ends a participation `key` (`capacity:anchorId`). Only the families passed
+ * in are read, so a viewer without a family never receives its values; a
+ * person with no membership (a walk-up) has none and is under "No group".
+ */
+export async function readEventGroupValues(
+  eventId: string,
+  families: readonly AttendanceGroupFamily[],
+): Promise<Record<string, AttendanceGroupValues>> {
+  if (families.length === 0) return {};
+  return withTransaction(async (tx) => {
+    const event = await readEventIn(tx, eventId);
+    const memberships = await tx.query<{ season_membership_id: string }>(
+      `select season_membership_id from public.invitations
+        where event_id = $1 and season_membership_id is not null
+       union
+       select season_membership_id from public.attendance_records
+        where event_id = $1 and season_membership_id is not null`,
+      [eventId],
+    );
+    const ids = memberships.rows.map((row) => row.season_membership_id);
+    const values = await readGroupValues(tx, families, event.seasonId, ids);
+    return Object.fromEntries(ids.map((id) => [id, groupsFor(families, values, id)]));
   });
 }

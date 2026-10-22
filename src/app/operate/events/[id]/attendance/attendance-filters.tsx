@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,34 +8,12 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import { Field } from "@/components/field";
 import { ATTENDANCE_PRESENCES } from "@/lib/services/attendance-vocabulary";
-import {
-  ATTENDANCE_GROUP_FAMILIES,
-  ATTENDANCE_GROUP_FAMILY_LABELS,
-  parseAttendanceGroupBy,
-  type AttendanceGroupFamily,
-} from "@/lib/services/attendance-group-by";
+import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
 import { SIDEWAYS_PHONE } from "@/theme-tokens";
 import { useFilterSearch } from "../../../filter-search";
-import { GROUP_BY_LABEL, GROUP_BY_NONE, NOT_MARKED, PRESENCE_LABELS } from "./presentation";
-
-/** The stored value for None, so a deliberate None is remembered rather than read as "nothing stored". */
-const STORED_NONE = "none";
-
-function readStored(storageKey: string): string | null {
-  try {
-    return window.localStorage.getItem(storageKey);
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(storageKey: string, value: string): void {
-  try {
-    window.localStorage.setItem(storageKey, value);
-  } catch {
-    // No storage: the link still carries the choice.
-  }
-}
+import { useRememberedGroupBy } from "../../../group-by-memory";
+import { GroupBySelect } from "../../../group-by-select";
+import { NOT_MARKED, PRESENCE_LABELS } from "./presentation";
 
 /**
  * UX-72's Search/RSVP/Attendance filters — all in the query string (filtered
@@ -80,21 +58,20 @@ export function AttendanceFilters({
 
   const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
 
-  // LAN-497: a link without `by` opens on the viewer's last choice in this browser —
-  // None on a first visit. A remembered family they may no longer see is ignored.
-  const familiesKey = groupFamilies.join(",");
-  useEffect(() => {
-    if (storageKey === null || groupBy !== null) return;
-    if (new URLSearchParams(window.location.search).has("by")) return;
-    const visible = ATTENDANCE_GROUP_FAMILIES.filter((family) =>
-      familiesKey.split(",").includes(family),
-    );
-    const stored = parseAttendanceGroupBy(readStored(storageKey), visible);
-    if (stored !== null) router.replace(withFilter({ by: stored }));
-  }, [storageKey, groupBy, familiesKey, router, withFilter]);
+  // LAN-497: a link without `by` opens on the viewer's last choice (shared with the event page).
+  const restore = useCallback(
+    (family: AttendanceGroupFamily) => router.replace(withFilter({ by: family })),
+    [router, withFilter],
+  );
+  const remember = useRememberedGroupBy({
+    storageKey,
+    groupBy,
+    families: groupFamilies,
+    restore,
+  });
 
   const chooseGroupBy = (value: string) => {
-    if (storageKey !== null) writeStored(storageKey, value === "" ? STORED_NONE : value);
+    remember(value);
     apply({ by: value });
   };
 
@@ -142,23 +119,12 @@ export function AttendanceFilters({
             Filters
           </Button>
 
-          {groupFamilies.length > 0 ? (
-            <Field
-              select
-              label={GROUP_BY_LABEL}
-              value={groupBy ?? ""}
-              onChange={(event) => chooseGroupBy(event.target.value)}
-              sx={{ minWidth: 170, maxWidth: { xs: 220, md: "none" } }}
-              data-testid="attendance-group-by"
-            >
-              <MenuItem value="">{GROUP_BY_NONE}</MenuItem>
-              {groupFamilies.map((family) => (
-                <MenuItem key={family} value={family}>
-                  {ATTENDANCE_GROUP_FAMILY_LABELS[family]}
-                </MenuItem>
-              ))}
-            </Field>
-          ) : null}
+          <GroupBySelect
+            families={groupFamilies}
+            value={groupBy}
+            onChange={chooseGroupBy}
+            sx={{ minWidth: 170, maxWidth: { xs: 220, md: "none" } }}
+          />
         </Stack>
 
         <Stack

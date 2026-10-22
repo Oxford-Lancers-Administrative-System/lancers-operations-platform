@@ -30,6 +30,7 @@ import {
   PARTICIPANT_NOT_FOUND_MESSAGE,
   readAttendanceBoard,
   readEventAttendanceSummary,
+  readEventGroupValues,
   recordAttendance,
   recordWalkUpAttendance,
   removeAttendance,
@@ -2044,6 +2045,28 @@ describe("LAN-497 — the register's group values follow the viewer's roster gra
       }
     }
     // A pass over twelve players with no assignment between them would prove nothing.
+    expect(valuesSeen).toBeGreaterThan(0);
+  });
+
+  it("reads the event page's group values by membership, only for the families asked", async () => {
+    const event = await occurredEvent(12);
+
+    expect(await readEventGroupValues(event.id, [])).toEqual({});
+
+    const values = await readEventGroupValues(event.id, ["offensive", "warmup"]);
+    const board = await readAttendanceBoard(event.id);
+    expect(Object.keys(values).sort()).toEqual(
+      board.participants.map((participant) => membershipOf(participant.key)).sort(),
+    );
+    let valuesSeen = 0;
+    for (const [membershipId, groups] of Object.entries(values)) {
+      // No other family is ever carried, so a viewer without it never receives it.
+      expect(Object.keys(groups).sort()).toEqual(["offensive", "warmup"]);
+      const stored = await storedGroups(membershipId);
+      expect([...(groups.offensive ?? [])].sort()).toEqual(stored.offensive);
+      expect([...(groups.warmup ?? [])].sort()).toEqual(stored.warmup);
+      valuesSeen += stored.offensive.length + stored.warmup.length;
+    }
     expect(valuesSeen).toBeGreaterThan(0);
   });
 });

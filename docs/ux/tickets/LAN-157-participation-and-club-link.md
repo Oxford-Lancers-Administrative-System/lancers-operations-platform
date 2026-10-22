@@ -62,6 +62,12 @@ pair, and it carries both presentations side by side:
 - **Sortable on every column** (§4.5), including the question columns.
 - **Filterable** by name, capacity, answer, attendance, and — at the operator
   tier — delivery. The filters combine and apply as you type.
+- **Group by** (LAN-497, Brian's walk of 2026-10-22), operator tier on the
+  event page only: the register's select, after the delivery filter, with the
+  same families, gating, `by` parameter and remembered choice. The table splits
+  into collapsible sections: Coaches first, the family's groups, No group last;
+  an occurred event's section header carries "<attended> attended / <expected>
+  expected". Sort and filters apply within each section.
 - **A discrepancy marker** where RSVP and attendance disagree (D64), never
   auto-reconciled.
 - **The club link**: an operator issues it, copies it, and shares it. Signed,

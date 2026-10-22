@@ -26,6 +26,7 @@ import type {
   OperatorParticipation,
   ParticipationFilters,
 } from "@/lib/services/participation-view";
+import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
 import { ParticipationFilterBar } from "../../../participation/participation-filters";
 import { ParticipationTable } from "../../../participation/participation-table";
 import { QuestionCounts } from "../../../participation/question-counts";
@@ -141,6 +142,9 @@ export function EventDetailView({
   history,
   participation,
   participationFilters,
+  groupFamilies,
+  groupBy,
+  groupByStorageKey,
   share,
   frozenPlan,
 }: {
@@ -158,6 +162,10 @@ export function EventDetailView({
   /** `null` until approval creates invitations — invariant P1. */
   participation: OperatorParticipation | null;
   participationFilters: ParticipationFilters;
+  /** LAN-497: the Group by families this viewer may use, the chosen one, and their remembered-choice key. */
+  groupFamilies: readonly AttendanceGroupFamily[];
+  groupBy: AttendanceGroupFamily | null;
+  groupByStorageKey: string;
   /** `null` unless the operator opened **Event info link**. */
   share: {
     url: string | null;
@@ -435,6 +443,9 @@ export function EventDetailView({
               basePath={`/operate/events/${event.id}`}
               filters={participationFilters}
               showDelivery
+              groupFamilies={groupFamilies}
+              groupBy={groupBy}
+              storageKey={groupByStorageKey}
             />
             <ParticipationTable
               basePath={`/operate/events/${event.id}`}
@@ -443,6 +454,8 @@ export function EventDetailView({
               mayRecordAnswer={mayManage}
               groupByAnswer
               dense
+              groupBy={groupBy}
+              showAttendanceTally={showsAttendanceProgress(event, todayInClubZone())}
             />
           </Stack>
         ) : null}
