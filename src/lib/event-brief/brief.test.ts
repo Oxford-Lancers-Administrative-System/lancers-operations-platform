@@ -113,10 +113,20 @@ describe("parseBrief", () => {
 });
 
 describe("the toolbar", () => {
-  it("puts a heading, bullet or itinerary mark at the start of the line, replacing another", () => {
+  it("puts a title, heading, bullet or highlight mark at the start of the line, replacing another", () => {
     expect(applyBriefFormat("Attire", 3, 3, "heading").value).toBe("## Attire");
     expect(applyBriefFormat("## Helmet", 4, 4, "bullet").value).toBe("- Helmet");
     expect(applyBriefFormat("one\ntwo", 0, 7, "bullet").value).toBe("- one\n- two");
+    expect(applyBriefFormat("Kick-off", 0, 0, "title").value).toBe("# Kick-off");
+    expect(applyBriefFormat("## Kit check", 4, 4, "highlight").value).toBe("> Kit check");
+    expect(applyBriefFormat("> Kit check", 4, 4, "title").value).toBe("# Kit check");
+    expect(applyBriefFormat("# Game day", 0, 0, "heading").value).toBe("## Game day");
+    // Itinerary: an empty line gets the row with "Event name" selected to type over.
+    expect(applyBriefFormat("", 0, 0, "itinerary")).toEqual({
+      value: "- 12:00 Event name",
+      selectionStart: 8,
+      selectionEnd: 18,
+    });
     expect(applyBriefFormat("Kick-off", 0, 0, "itinerary").value).toBe("- 12:00 Kick-off");
     expect(applyBriefFormat("- 8:30 AM Bus", 0, 0, "bullet").value).toBe("- Bus");
   });
@@ -165,6 +175,8 @@ describe("the image", () => {
     const long = await renderBriefPng(SAMPLE);
     expect([...short.slice(1, 4)].map((code) => String.fromCharCode(code)).join("")).toBe("PNG");
     expect(pngSize(short).width).toBe(900);
+    // The round crest sits in the header: 64px of mark, its margin, then the title.
+    expect(pngSize(short).height).toBeGreaterThan(20 + 64 + 14 + 30);
     expect(pngSize(long).width).toBe(900);
     expect(pngSize(long).height).toBeGreaterThan(pngSize(short).height);
   }, 30_000);

@@ -23,13 +23,14 @@ import {
   type EventMessageIssue,
   type RawEventMessage,
 } from "@/lib/services/event-messages-input";
+import { BriefFormatGuide } from "./brief-format-guide";
 import { BriefPreview } from "./brief-preview";
 
 /**
  * Event messages on the event form — LAN-508, W1-01 and W1-02. Built like the
  * question editor: one stacked card per message, editable in place, Add under
  * the list, no filler when there are none. Each card: Hours before (its helper
- * is the computed send time), Channel, Recipients, the four-button toolbar,
+ * is the computed send time), Channel, Recipients, the toolbar,
  * the Markdown box at full card width, and the Preview disclosure below it.
  *
  * The same editor serves the draft form, the edit page of an approved event
@@ -38,8 +39,9 @@ import { BriefPreview } from "./brief-preview";
  * inputs are the payload (`event-message-form.ts`).
  */
 
-/** The toolbar's four buttons, with the approved icons (W1-01). */
+/** The toolbar: Title, Heading, Bold, Bullet, Highlight, Itinerary line (W1-01, round 2). */
 const TOOLBAR: readonly { format: BriefFormat; label: string; path: string }[] = [
+  { format: "title", label: "Title", path: "M9 4v3h5v12h3V7h5V4zm-6 8h3v7h3v-7h3V9H3z" },
   { format: "heading", label: "Heading", path: "M5 4v3h5.5v12h3V7H19V4z" },
   {
     format: "bold",
@@ -50,6 +52,11 @@ const TOOLBAR: readonly { format: BriefFormat; label: string; path: string }[] =
     format: "bullet",
     label: "Bullet",
     path: "M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5m0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5m0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5M7 19h14v-2H7zm0-6h14v-2H7zm0-8v2h14V5z",
+  },
+  {
+    format: "highlight",
+    label: "Highlight",
+    path: "M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z",
   },
   {
     format: "itinerary",
@@ -268,6 +275,7 @@ function EventMessageCard({
                 </SvgIcon>
               </IconButton>
             ))}
+            <BriefFormatGuide disabled={disabled} />
           </Stack>
           <Field
             label="Message"

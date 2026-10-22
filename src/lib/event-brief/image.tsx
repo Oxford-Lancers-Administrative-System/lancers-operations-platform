@@ -45,6 +45,23 @@ import {
 
 const FONT_DIRECTORY = path.join(process.cwd(), "public", "fonts", "geist");
 
+/**
+ * The round crest, `public/brand/icon-mark.svg`, used as supplied (never
+ * redrawn or recoloured) and read at render time as a data URI, which is what
+ * Satori accepts for an image.
+ */
+const CREST_FILE = path.join(process.cwd(), "public", "brand", "icon-mark.svg");
+const CREST_SIZE = 64;
+
+let crestUri: Promise<string> | null = null;
+
+function loadCrest(): Promise<string> {
+  crestUri ??= readFile(CREST_FILE).then(
+    (svg) => `data:image/svg+xml;base64,${svg.toString("base64")}`,
+  );
+  return crestUri;
+}
+
 let fonts: Promise<{ regular: Buffer; bold: Buffer }> | null = null;
 
 function loadFonts(): Promise<{ regular: Buffer; bold: Buffer }> {
@@ -176,7 +193,13 @@ function Block({ block, first }: { block: BriefBlock; first: boolean }): ReactEl
 }
 
 /** The brief's element tree, exactly as Satori draws it. */
-export function BriefImage({ markdown }: { markdown: string }): ReactElement {
+export function BriefImage({
+  markdown,
+  crest,
+}: {
+  markdown: string;
+  crest?: string;
+}): ReactElement {
   const blocks = parseBrief(markdown);
   return (
     <div
@@ -192,6 +215,12 @@ export function BriefImage({ markdown }: { markdown: string }): ReactElement {
         lineHeight: BRIEF_LINE_HEIGHT,
       }}
     >
+      {crest ? (
+        <div style={{ display: "flex", marginBottom: 14 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
+          <img src={crest} width={CREST_SIZE} height={CREST_SIZE} />
+        </div>
+      ) : null}
       {blocks.map((block, index) => (
         <Block key={index} block={block} first={index === 0} />
       ))}
@@ -204,8 +233,8 @@ export async function briefImageResponse(
   markdown: string,
   headers: Record<string, string> = {},
 ): Promise<Response> {
-  const { regular, bold } = await loadFonts();
-  return new ImageResponse(<BriefImage markdown={markdown} />, {
+  const [{ regular, bold }, crest] = await Promise.all([loadFonts(), loadCrest()]);
+  return new ImageResponse(<BriefImage markdown={markdown} crest={crest} />, {
     width: BRIEF_IMAGE_WIDTH,
     // No height: Satori measures the brief, so the image is exactly as tall as it is.
     height: undefined,

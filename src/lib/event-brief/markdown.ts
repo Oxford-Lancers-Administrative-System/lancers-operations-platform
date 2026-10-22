@@ -138,15 +138,18 @@ export function briefPlainText(markdown: string): string {
 // The toolbar — what each of the four buttons writes
 // ---------------------------------------------------------------------------
 
-export type BriefFormat = "heading" | "bold" | "bullet" | "itinerary";
+export type BriefFormat = "title" | "heading" | "bold" | "bullet" | "highlight" | "itinerary";
 
-/** What the Itinerary line button starts a line with; the coach types over the time. */
-const ITINERARY_PLACEHOLDER = "- 12:00 ";
+/** What the Itinerary button writes on an empty line; "Event name" is left selected to type over. */
+const ITINERARY_TIME = "- 12:00 ";
+const ITINERARY_PLACEHOLDER = "Event name";
 
 const LINE_PREFIXES: Readonly<Record<Exclude<BriefFormat, "bold">, string>> = Object.freeze({
+  title: "# ",
   heading: "## ",
   bullet: "- ",
-  itinerary: ITINERARY_PLACEHOLDER,
+  highlight: "> ",
+  itinerary: ITINERARY_TIME,
 });
 
 export interface BriefEdit {
@@ -157,9 +160,9 @@ export interface BriefEdit {
 
 /**
  * Applies one toolbar button to the box. Bold wraps the selection in `**`
- * (or inserts an empty pair at the caret); the three line formats put their
- * mark at the start of every selected line, replacing any of the four marks a
- * line already has.
+ * (or inserts an empty pair at the caret); the four line formats put their
+ * mark at the start of every selected line, replacing any mark a line already
+ * has (title, heading, highlight, bullet, itinerary).
  */
 export function applyBriefFormat(
   value: string,
@@ -183,9 +186,21 @@ export function applyBriefFormat(
   const lines = value.slice(lineStart, lineEnd).split("\n");
   const marked = lines.map(
     (line) =>
-      `${prefix}${line.replace(/^(?:#{1,2} +|- +\d{1,2}[:.]\d{2}(?:\s?[AaPp][Mm])? +|- +)/, "")}`,
+      `${prefix}${line.replace(/^(?:#{1,2} +|> ?|- +\d{1,2}[:.]\d{2}(?:\s?[AaPp][Mm])? +|- +)/, "")}`,
   );
   const replaced = marked.join("\n");
+  if (format === "itinerary" && lines.length === 1) {
+    // One line: an empty one gets the whole row with its name selected; a written
+    // one keeps its words, selected, behind the time.
+    const text = marked[0].slice(prefix.length);
+    const name = text === "" ? ITINERARY_PLACEHOLDER : text;
+    const row = `${prefix}${name}`;
+    return {
+      value: `${value.slice(0, lineStart)}${row}${value.slice(lineEnd)}`,
+      selectionStart: lineStart + prefix.length,
+      selectionEnd: lineStart + row.length,
+    };
+  }
   const next = `${value.slice(0, lineStart)}${replaced}${value.slice(lineEnd)}`;
   const caret = lineStart + replaced.length;
   return { value: next, selectionStart: caret, selectionEnd: caret };

@@ -4,7 +4,7 @@
  * would post: the hidden inputs are the only thing that reaches the service.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 
 vi.mock("server-only", () => ({}));
@@ -79,17 +79,51 @@ describe("the Event messages section", () => {
     expect(posted("eventMessageRecipients")).toEqual(["everyone"]);
   });
 
-  it("writes the toolbar's four formats into the box", () => {
+  it("writes the toolbar's formats into the box, and the Itinerary line", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
     render(<Harness initial={[brief({ body: "Attire" })]} />);
     const card = screen.getByTestId("event-message-card");
-    for (const label of ["Heading", "Bold", "Bullet", "Itinerary line"]) {
+    for (const label of ["Title", "Heading", "Bold", "Bullet", "Highlight", "Itinerary line"]) {
       expect(within(card).getByRole("button", { name: label })).toBeTruthy();
     }
+    fireEvent.click(within(card).getByRole("button", { name: "Title" }));
+    expect(posted("eventMessageBody")).toEqual(["# Attire"]);
+    fireEvent.click(within(card).getByRole("button", { name: "Highlight" }));
+    expect(posted("eventMessageBody")).toEqual(["> Attire"]);
     fireEvent.click(within(card).getByRole("button", { name: "Heading" }));
     expect(posted("eventMessageBody")).toEqual(["## Attire"]);
     fireEvent.click(within(card).getByRole("button", { name: "Itinerary line" }));
     expect(posted("eventMessageBody")).toEqual(["- 12:00 Attire"]);
+  });
+
+  it("opens the formatting guide on click and on the keyboard, lists all six, and closes on Escape", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
+    render(<Harness initial={[brief({ body: "Attire" })]} />);
+    const card = screen.getByTestId("event-message-card");
+    const help = within(card).getByRole("button", { name: "Formatting guide" });
+    expect(screen.queryByTestId("brief-format-guide-card")).toBeNull();
+
+    fireEvent.click(help);
+    expect(await screen.findByTestId("brief-format-guide-card")).toBeTruthy();
+    expect(screen.getAllByTestId("brief-format-guide-row")).toHaveLength(6);
+    for (const typed of [
+      "# Game day",
+      "## Itinerary",
+      "**both**",
+      "- Helmet",
+      "> Kit check",
+      "- 12:00 Event name",
+    ]) {
+      expect(screen.getByText(typed)).toBeTruthy();
+    }
+    fireEvent.keyDown(help, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("brief-format-guide-card")).toBeNull());
+
+    // The keyboard: focus opens it.
+    act(() => help.focus());
+    expect(await screen.findByTestId("brief-format-guide-card")).toBeTruthy();
+    fireEvent.keyDown(help, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("brief-format-guide-card")).toBeNull());
   });
 
   it("offers no Remove on a message that has gone", () => {
