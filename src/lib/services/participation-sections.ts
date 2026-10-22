@@ -36,7 +36,7 @@ export interface ParticipationSection<T extends GroupedPerson> {
   readonly defaultOpen: boolean;
 }
 
-export const COACHES_SECTION_LABEL = "Coaches";
+const COACHES_SECTION_LABEL = "Coaches";
 
 /** A value's section key — `group-offensive-line`, the register's own. */
 function sectionKey(value: string): string {

@@ -55,11 +55,11 @@ export interface AttendanceTally {
 }
 
 /** The four buckets a card lists names under, in the card's reading order. */
-export const ATTENDANCE_BUCKETS = Object.freeze(["present", "late", "noShow", "excused"] as const);
+const ATTENDANCE_BUCKETS = Object.freeze(["present", "late", "noShow", "excused"] as const);
 export type AttendanceBucket = (typeof ATTENDANCE_BUCKETS)[number];
 
 /** The bucket an expected person is counted in, or null where they are not expected at all. */
-export function attendanceBucketOf(
+function attendanceBucketOf(
   row: Pick<AttendanceProgressRow, "answer" | "presence">,
 ): AttendanceBucket | null {
   if (row.presence === "present") return "present";

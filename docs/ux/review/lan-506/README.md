@@ -11,18 +11,19 @@ phone portrait, 740×360 phone landscape.
 | `LAN-491-email-invitation-desktop.png` | Invitation email, desktop |
 | `LAN-491-email-invitation-375px.png`   | Invitation email, 375px   |
 
-## LAN-504 — attendance on an occurred event
+## LAN-504 and LAN-497 — Brian's walk of 22 October (production build)
 
-Event: Practice — michaelmas week 6 (approved, occurred).
+Event: Practice — michaelmas week 6 (approved, occurred). The earlier lan-504
+screenshots showed the superseded card design and are removed.
 
-| File                                               | Shows                                                     |
-| -------------------------------------------------- | --------------------------------------------------------- |
-| `lan-504-occurred-event-desktop1440.png`           | Whole event page; attendance blocks below the RSVP blocks |
-| `lan-504-occurred-event-phone375.png`              | The same at 375                                           |
-| `lan-504-attendance-blocks-desktop1440.png`        | The attendance blocks alone                               |
-| `lan-504-attendance-blocks-phone375.png`           | The attendance blocks alone at 375                        |
-| `lan-504-upcoming-event-unchanged-desktop1440.png` | An upcoming event: no attendance blocks                   |
-| `lan-504-upcoming-event-unchanged-phone375.png`    | The same at 375                                           |
+| File                                             | Shows                                                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `walk2-event-closed-desktop1440.png`             | Whole event page, cards closed: Responses row, Attendance row, table                                        |
+| `walk2-event-closed-phone375.png`                | The same at 375                                                                                             |
+| `walk2-attendance-open-desktop1440.png`          | Players and Coaches Attendance cards open: 2x2 names, bar spans expected                                    |
+| `walk2-attendance-open-phone375.png`             | The same at 375, one column in the same order                                                               |
+| `walk2-everyone-asked-offensive-desktop1440.png` | Everyone asked grouped by Offensive position group: Coaches first, No group last, attendance on each header |
+| `walk2-everyone-asked-offensive-phone375.png`    | The same at 375                                                                                             |
 
 ## LAN-497 — register Group by
 

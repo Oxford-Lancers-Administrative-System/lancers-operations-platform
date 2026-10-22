@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { ControlledSection } from "@/components/controlled-section";
-import type { AttendanceTally } from "@/lib/services/event-attendance-progress";
 
 /**
  * LAN-497: one section of the Everyone asked table when it is grouped — the
@@ -43,5 +42,3 @@ export function ParticipationGroupSection({
     </div>
   );
 }
-
-export type { AttendanceTally };
