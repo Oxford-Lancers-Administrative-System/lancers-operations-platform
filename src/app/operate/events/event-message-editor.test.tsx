@@ -96,6 +96,20 @@ describe("the Event messages section", () => {
     expect(posted("eventMessageBody")).toEqual(["- 12:00 Attire"]);
   });
 
+  it("Itinerary on an empty box writes the row and selects Event name to type over", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
+    render(<Harness initial={[brief({ body: "" })]} />);
+    const card = screen.getByTestId("event-message-card");
+    fireEvent.click(within(card).getByRole("button", { name: "Itinerary line" }));
+    expect(posted("eventMessageBody")).toEqual(["- 12:00 Event name"]);
+    const box = within(card)
+      .getByTestId("event-message-body")
+      .querySelector("textarea") as HTMLTextAreaElement;
+    await waitFor(() =>
+      expect(box.value.slice(box.selectionStart, box.selectionEnd)).toBe("Event name"),
+    );
+  });
+
   it("opens the formatting guide on click and on the keyboard, lists all six, and closes on Escape", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
     render(<Harness initial={[brief({ body: "Attire" })]} />);
