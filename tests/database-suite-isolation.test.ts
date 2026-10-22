@@ -59,7 +59,7 @@ interface ProjectShape {
     exclude?: string[];
     env?: Record<string, string>;
     pool?: string;
-    poolOptions?: { forks?: { singleFork?: boolean } };
+    maxWorkers?: number;
     setupFiles?: string[];
   };
 }
@@ -156,23 +156,20 @@ describe("the hot and gate projects", () => {
   });
 
   it("run the database project one file at a time", () => {
-    // `fileParallelism` is not a per-project option in Vitest 3, so the
-    // serialization is expressed as a pool option. If this ever reads false or
-    // disappears, the database files go back to running concurrently and every
-    // race LAN-139 closed is reopened.
+    // `fileParallelism` is not a per-project option, so the serialization is
+    // expressed as a worker cap. If this ever reads anything but 1, the database
+    // files go back to running concurrently and every race LAN-139 closed is
+    // reopened.
     //
-    // Both halves, because `singleFork` alone does not say what it sounds like.
-    // `poolOptions` is keyed by pool — `{threads, vmThreads, forks}` — so
-    // `poolOptions.forks` is read only when the pool IS forks. Switching one
-    // token to `pool: "threads"` leaves `singleFork: true` sitting there,
-    // ignored, and the 43 database files run concurrently again. Asserted on
-    // what the pool RESOLVES to rather than on the literal being present:
-    // Vitest 3 defaults to forks, so deleting the line is harmless and must not
-    // fail here.
+    // Both halves, because the cap only means one file at a time while the
+    // pool is forks (Vitest 4 removed `poolOptions.singleFork`; `maxWorkers: 1`
+    // replaced it). Asserted on what the pool RESOLVES to rather than on the
+    // literal being present: Vitest defaults to forks, so deleting the line is
+    // harmless and must not fail here.
     expect(database.pool ?? "forks").toBe("forks");
-    expect(database.poolOptions?.forks?.singleFork).toBe(true);
+    expect(database.maxWorkers).toBe(1);
     expect(gate.pool ?? "forks").toBe("forks");
-    expect(gate.poolOptions?.forks?.singleFork).toBe(true);
+    expect(gate.maxWorkers).toBe(1);
   });
 
   it("tell only the database project that it may connect", () => {

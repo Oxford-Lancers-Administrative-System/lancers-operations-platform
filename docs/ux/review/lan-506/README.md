@@ -127,3 +127,19 @@ in the phone header.
 | `lan-509-sign-in-desktop1440.png`         | Sign-in masthead                                   |
 | `lan-509-sign-in-phone375.png`            | Sign-in masthead at 375                            |
 | `lan-509-player-onboarding-phone375.png`  | Player onboarding page masthead at 375             |
+
+## LAN-510 — Next.js 16.4.2 smoke
+
+Production build (`npm run build`, `next start`), signed in as the seeded
+operator. Each page returned 200 and rendered.
+
+| File                                  | Shows                        |
+| ------------------------------------- | ---------------------------- |
+| `lan-510-sign-in-desktop1440.png`     | Sign-in page                 |
+| `lan-510-sign-in-phone375.png`        | Sign-in page at 375          |
+| `lan-510-roster-desktop1440.png`      | Operator roster              |
+| `lan-510-roster-phone375.png`         | Operator roster at 375       |
+| `lan-510-recruitment-desktop1440.png` | Recruitment                  |
+| `lan-510-recruitment-phone375.png`    | Recruitment at 375           |
+| `lan-510-event-desktop1440.png`       | One seeded event page        |
+| `lan-510-event-phone375.png`          | One seeded event page at 375 |
