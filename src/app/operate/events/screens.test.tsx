@@ -3442,9 +3442,9 @@ describe("the participation table on the event page", () => {
             "response-toggle-coach",
           ]);
           expect(toggles.map((node) => node.querySelector("p")?.textContent)).toEqual([
-            "Recruits",
-            "Players",
-            "Coaches",
+            "Recruits — Responses",
+            "Players — Responses",
+            "Coaches — Responses",
           ]);
 
           openAll();
