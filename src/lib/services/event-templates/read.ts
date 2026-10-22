@@ -15,6 +15,11 @@ import {
   type EventQuestionInput,
 } from "../event-questions";
 import type { EventTypeFormDefaults } from "../event-template-input";
+import type { EventMessageInput } from "../event-messages-input";
+import {
+  readAllTemplateEventMessagesIn,
+  readTemplateEventMessagesIn,
+} from "../event-messages/store";
 import type { EventDeliveryMode } from "../event-input";
 import {
   isUuid,
@@ -131,6 +136,8 @@ export interface NewEventInheritance {
   defaults: TemplateDefaults;
   questions: EventQuestionInput[];
   audienceGroups: string[];
+  /** LAN-508. The template's event messages, the skeleton a new event starts with. */
+  messages: EventMessageInput[];
 }
 
 // Read inside the caller's transaction — createEventDraft writes the event, questions and audience
@@ -145,6 +152,7 @@ export async function readTemplateInheritanceIn(
     defaults: templateDefaults(template),
     questions: await readTemplateQuestionsAsEventInputIn(tx, templateId),
     audienceGroups: template.audienceGroups,
+    messages: await readTemplateEventMessagesIn(tx, templateId),
   };
 }
 
@@ -168,6 +176,7 @@ export async function readEventFormDefaults(): Promise<Record<string, EventTypeF
          from public.event_template_questions
         order by template_id, sort_order, prompt`,
     );
+    const messages = await readAllTemplateEventMessagesIn(tx);
 
     const defaults: Record<string, EventTypeFormDefaults> = {};
     for (const row of templates.rows) {
@@ -191,6 +200,15 @@ export async function readEventFormDefaults(): Promise<Record<string, EventTypeF
             choices: joinQuestionChoices(question.choices),
             fromTemplate: "true",
           })),
+        // LAN-508: the template's event messages, as the form's cards.
+        eventMessages: (messages.get(row.id) ?? []).map((message) => ({
+          id: "",
+          hoursBefore: String(message.hoursBefore),
+          channel: message.channel,
+          recipients: message.recipients,
+          body: message.body,
+          fromTemplate: "true",
+        })),
       };
     }
     return defaults;

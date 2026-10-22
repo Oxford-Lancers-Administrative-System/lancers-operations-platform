@@ -55,6 +55,8 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<LightsOutMessageKind, boolean>> 
   onboarding_welcome: false,
   onboarding_chase: false,
   onboarding_chase_escalation: false,
+  // LAN-508: a send time between 22:00 and 07:00 waits for 07:00, the existing rule.
+  event_brief: false,
   attendance_sheet: true,
 });
 
@@ -83,6 +85,7 @@ export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly LightsOutM
       "onboarding_chase_escalation",
       "attendance_sheet",
       "recruit_event_reminder",
+      "event_brief",
     ],
   });
 
@@ -96,6 +99,7 @@ export const OTHER_JOB_KEY_PREFIX_KINDS: Readonly<Record<string, LightsOutMessag
   Object.freeze({
     "attendance-sheet:": "attendance_sheet",
     "recruit-event-reminder:": "recruit_event_reminder",
+    "event-message:": "event_brief",
   });
 
 /** Whether lights-out lets this job type through. An unknown type waits. */

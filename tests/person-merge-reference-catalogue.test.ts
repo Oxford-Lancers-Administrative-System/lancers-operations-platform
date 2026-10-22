@@ -49,6 +49,72 @@ describe("PERSON_REFERENCE_COLUMNS accounts for every foreign key to people", ()
   });
 });
 
+/**
+ * Blind re-points the server role is not granted `update` on, recorded as they
+ * stood before LAN-508. Hosted, the runtime connects as `app_runtime`, a member
+ * of `service_role`, so each of these refuses the whole merge there today. They
+ * are a decision for Brian, not fixed here; this list only stops a new one
+ * joining them unnoticed, and is shortened as each is resolved.
+ */
+const UPDATE_GRANT_GAPS_BEFORE_LAN_508: readonly string[] = [
+  "audit_events.actor_person_id",
+  "availability_statuses.confirmed_by_person_id",
+  "availability_statuses.reported_by_person_id",
+  "delivery_results.actor_person_id",
+  "membership_position_groups.recorded_by_person_id",
+  "onboarding_activity_log.actor_person_id",
+  "onboarding_item_history.actor_person_id",
+  "recruitment_prospect_notes.author_person_id",
+  "recruitment_prospect_status_events.actor_person_id",
+  "rsvp_responses.recorded_by_person_id",
+  "schedule_changes.approved_by_person_id",
+  "schedule_changes.recorded_by_person_id",
+  "season_membership_status_events.actor_person_id",
+  "weekly_reports.generated_by_person_id",
+];
+
+describe("every blind re-point runs as the server role", () => {
+  it("is refused only where it already was before LAN-508", async () => {
+    client ??= await openLocalClient();
+    const loser = "00000000-0000-4000-8000-000000000508";
+    const survivor = "00000000-0000-4000-8000-000000000509";
+    const refused: string[] = [];
+    await client.query("begin");
+    try {
+      // The statement the merge itself runs, as the role the application runs as.
+      await client.query("set local role service_role");
+      for (const { table, column } of PERSON_REFERENCE_COLUMNS) {
+        const qualified = table.includes(".") ? table : `public.${table}`;
+        await client.query("savepoint repoint");
+        try {
+          await client.query(
+            `update ${qualified} set ${column} = $2::uuid where ${column} = $1::uuid`,
+            [loser, survivor],
+          );
+          await client.query("release savepoint repoint");
+        } catch (error) {
+          if ((error as { code?: string }).code !== "42501") throw error;
+          refused.push(`${table}.${column}`);
+          await client.query("rollback to savepoint repoint");
+        }
+      }
+    } finally {
+      await client.query("rollback");
+    }
+
+    expect(
+      refused.filter((key) => !UPDATE_GRANT_GAPS_BEFORE_LAN_508.includes(key)),
+      "a blind re-point the server role may not run",
+    ).toEqual([]);
+    expect(
+      UPDATE_GRANT_GAPS_BEFORE_LAN_508.filter((key) => !refused.includes(key)),
+      "a recorded gap that has since been granted: remove it from the list",
+    ).toEqual([]);
+    // LAN-508's append-only tables are never re-pointed at all.
+    expect(PERSON_REFERENCE_COLUMNS.filter((c) => c.table.startsWith("event_message"))).toEqual([]);
+  });
+});
+
 afterAll(async () => {
   await client?.end();
 });

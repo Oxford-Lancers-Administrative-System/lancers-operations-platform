@@ -26,6 +26,13 @@ import {
   whatsAppErrorDisclosureLabel,
 } from "../presentation";
 import type { UnreachableAudienceMember } from "@/lib/services/event-approval";
+import {
+  clubEventStart,
+  describeEventMessage,
+  eventMessageSendAt,
+  type EventMessageChannel,
+  type EventMessageRecipients,
+} from "@/lib/services/event-messages-input";
 
 /**
  * The messaging plan disclosure — W1, LAN-171. Projects a resolved plan
@@ -38,12 +45,46 @@ interface DisplayRecruitPlan {
   readonly dispatchesImmediately: boolean;
 }
 
+/** LAN-508. One event message, as a row of the plan (W1-03). */
+interface DisplayEventMessage {
+  readonly at: Date;
+  readonly detail: string;
+  readonly recipients: EventMessageRecipients;
+}
+
 interface DisplayPlan {
   readonly rungs: readonly LadderRung[];
   readonly escalationAt: Date | null;
   readonly dispatchesImmediately: boolean;
   readonly lateApproval: boolean;
   readonly recruit: DisplayRecruitPlan | null;
+  readonly eventMessages: readonly DisplayEventMessage[];
+}
+
+/** What the plan needs of an event message: when it goes, or went, and what it says. */
+export interface PlanEventMessage {
+  readonly hoursBefore: number;
+  readonly channel: EventMessageChannel;
+  readonly recipients: EventMessageRecipients;
+  readonly lastSend?: { readonly sentAt: Date } | null;
+}
+
+/**
+ * LAN-508. The event messages as plan rows, each at its moment: when it went,
+ * or when it goes (the event start less its hours, 07:00 for a moment in
+ * lights-out). None before the event has a date and a start.
+ */
+function eventMessagesForDisplay(
+  messages: readonly PlanEventMessage[],
+  event: { scheduledOn: string | null; startsAt: string | null },
+): DisplayEventMessage[] {
+  const start = clubEventStart(event.scheduledOn, event.startsAt);
+  if (start === null) return [];
+  return messages.map((message) => ({
+    at: message.lastSend?.sentAt ?? eventMessageSendAt(start, message.hoursBefore),
+    detail: describeEventMessage(message),
+    recipients: message.recipients,
+  }));
 }
 
 function recruitRungs(ladder: RecruitMessagingLadder | FrozenRecruitLadder): LadderRung[] {
@@ -56,8 +97,16 @@ function recruitRungs(ladder: RecruitMessagingLadder | FrozenRecruitLadder): Lad
   return rungs;
 }
 
-export function planForDisplay(plan: MessagingPlan): DisplayPlan {
+export function planForDisplay(
+  plan: MessagingPlan,
+  messages: readonly PlanEventMessage[] = [],
+  event: { scheduledOn: string | null; startsAt: string | null } = {
+    scheduledOn: null,
+    startsAt: null,
+  },
+): DisplayPlan {
   return {
+    eventMessages: eventMessagesForDisplay(messages, event),
     rungs: plan.rungs,
     escalationAt: plan.escalationAt,
     dispatchesImmediately: plan.dispatchesImmediately,
@@ -71,9 +120,17 @@ export function planForDisplay(plan: MessagingPlan): DisplayPlan {
   };
 }
 
-export function frozenPlanForDisplay(frozen: FrozenMessagingPlan): DisplayPlan {
+export function frozenPlanForDisplay(
+  frozen: FrozenMessagingPlan,
+  messages: readonly PlanEventMessage[] = [],
+  event: { scheduledOn: string | null; startsAt: string | null } = {
+    scheduledOn: null,
+    startsAt: null,
+  },
+): DisplayPlan {
   const scheduled = frozen.whatsappRemindersScheduled + frozen.emailRemindersScheduled;
   return {
+    eventMessages: eventMessagesForDisplay(messages, event),
     rungs: buildLadder(
       frozen.invitationAt,
       frozen.schedule.reminderCadenceHours,
@@ -141,9 +198,63 @@ function describeRungs(rungs: readonly LadderRung[], audienceSize: number): Desc
   });
 }
 
-/** The rows under the disclosure — every rung, then the escalation. */
-function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSize: number }) {
-  const described = describeRungs(display.rungs, audienceSize);
+/** One row of the plan, in the plan's own anatomy: when, what, detail, who. */
+interface PlanRow {
+  readonly key: string;
+  readonly at: Date;
+  readonly title: string;
+  readonly note: string;
+  readonly side: string;
+}
+
+/**
+ * The rows under the disclosure — every rung, the escalation, and (LAN-508,
+ * W1-03) each event message, in time order. A row at the same moment as
+ * another keeps its place after it.
+ */
+function PlanRows({
+  display,
+  audienceSize,
+  everyoneSize,
+}: {
+  display: DisplayPlan;
+  audienceSize: number;
+  /** Everybody invited, recruits included: who an event message to everyone reaches. */
+  everyoneSize: number;
+}) {
+  const rows: PlanRow[] = [
+    ...describeRungs(display.rungs, audienceSize).map((row) => ({
+      key: `rung-${row.rung.rung}`,
+      at: row.rung.at,
+      title: row.title,
+      note: row.note,
+      side: row.side,
+    })),
+    ...(display.escalationAt
+      ? [
+          {
+            key: "escalation",
+            at: display.escalationAt,
+            title: "Follow-up escalation",
+            note: "Send the event and unanswered count to the President.",
+            side: "President",
+          },
+        ]
+      : []),
+    ...display.eventMessages.map((message, index) => ({
+      key: `event-message-${index}`,
+      at: message.at,
+      title: "Event message",
+      note: message.detail,
+      side:
+        message.recipients === "yes"
+          ? "Said Yes"
+          : `${everyoneSize} ${everyoneSize === 1 ? "person" : "people"}`,
+    })),
+  ]
+    .map((row, order) => ({ row, order }))
+    .sort((a, b) => a.row.at.getTime() - b.row.at.getTime() || a.order - b.order)
+    .map(({ row }) => row);
 
   return (
     <Stack
@@ -152,24 +263,23 @@ function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSiz
       sx={{ listStyle: "none", p: 0, m: 0 }}
       data-testid="plan-rows"
     >
-      {described.map((row) => (
+      {rows.map((row, index) => (
         <Box
           component="li"
-          key={row.rung.rung}
+          key={row.key}
           data-testid="plan-row"
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
             gap: 1,
             py: 1.25,
-            borderBottom: 1,
-            borderColor: "divider",
+            ...(index < rows.length - 1 ? { borderBottom: 1, borderColor: "divider" } : {}),
             alignItems: "start",
           }}
         >
           <Box>
             <Typography variant="caption" color="text.secondary">
-              {formatPlanWhen(row.rung.at)}
+              {formatPlanWhen(row.at)}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {row.title}
@@ -183,34 +293,6 @@ function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSiz
           </Typography>
         </Box>
       ))}
-      {display.escalationAt ? (
-        <Box
-          component="li"
-          data-testid="plan-row"
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
-            gap: 1,
-            py: 1.25,
-            alignItems: "start",
-          }}
-        >
-          <Box>
-            <Typography variant="caption" color="text.secondary">
-              {formatPlanWhen(display.escalationAt)}
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Follow-up escalation
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Send the event and unanswered count to the President.
-            </Typography>
-          </Box>
-          <Typography variant="caption" color="text.secondary">
-            President
-          </Typography>
-        </Box>
-      ) : null}
     </Stack>
   );
 }
@@ -287,7 +369,10 @@ export function MessagingPlanDisclosure({
   approved: boolean;
 }) {
   const steps =
-    display.rungs.length + (display.escalationAt ? 1 : 0) + (display.recruit?.rungs.length ?? 0);
+    display.rungs.length +
+    (display.escalationAt ? 1 : 0) +
+    (display.recruit?.rungs.length ?? 0) +
+    display.eventMessages.length;
 
   return (
     <Section
@@ -321,7 +406,11 @@ export function MessagingPlanDisclosure({
             Regular players
           </Typography>
         ) : null}
-        <PlanRows display={display} audienceSize={audienceSize} />
+        <PlanRows
+          display={display}
+          audienceSize={audienceSize}
+          everyoneSize={audienceSize + (recruitAudienceSize ?? 0)}
+        />
         {display.recruit ? (
           <>
             {display.recruit.dispatchesImmediately && !display.lateApproval ? (

@@ -66,6 +66,10 @@ insert into agent_readonly_hidden (table_name, column_name) values
   -- A disputed fact can be any of the above.
   ('person_fact_disputes', 'club_value'),
   ('person_fact_disputes', 'player_value'),
+  -- LAN-508. The event brief is the coach's free text and may name people.
+  ('event_messages', 'body'),
+  ('event_template_messages', 'body'),
+  ('event_message_sends', 'body'),
   -- Bearer secrets and their fingerprints. `template_variables` carries the
   -- personal links a message was sent with; anyone holding one can act as that
   -- person through the application, which would be a write path.

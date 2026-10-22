@@ -196,6 +196,80 @@ function messagesEndpoint(config: OutboundConfig, proof: string): string {
   return `${base}?appsecret_proof=${encodeURIComponent(proof)}`;
 }
 
+/** LAN-508. Where an image header is uploaded before the message that names it. */
+function mediaEndpoint(config: OutboundConfig, proof: string): string {
+  const base = `${config.graphBaseUrl}/${config.graphVersion}/${config.phoneNumberId}/media`;
+  return `${base}?appsecret_proof=${encodeURIComponent(proof)}`;
+}
+
+/** Why a brief could not be attached, when the upload itself is what failed. */
+export const HEADER_IMAGE_MISSING_REASON =
+  "The brief image was not ready, so nothing was sent. This will be attempted again.";
+
+/**
+ * Uploads one PNG as WhatsApp media and returns its id — LAN-508. Refusals
+ * read exactly as a send's do: the upload is the first half of the send, and
+ * a send that cannot attach its brief has not happened.
+ */
+async function uploadHeaderImage(
+  config: OutboundConfig,
+  proof: string,
+  transport: Transport,
+  png: Uint8Array | null | undefined,
+): Promise<{ readonly status: "uploaded"; readonly id: string } | SendOutcome> {
+  if (!png || png.byteLength === 0) {
+    return {
+      status: "refused",
+      reason: HEADER_IMAGE_MISSING_REASON,
+      retryable: true,
+      faultScope: "message",
+    };
+  }
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", "image/png");
+  form.append("file", new Blob([new Uint8Array(png)], { type: "image/png" }), "brief.png");
+
+  let response: Response;
+  try {
+    response = await transport(mediaEndpoint(config, proof), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.accessToken}` },
+      body: form,
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
+  } catch (error) {
+    return {
+      status: "refused",
+      reason:
+        "The provider could not be reached, so nothing was sent: " +
+        redactDigits(error instanceof Error ? error.message : "unknown transport failure"),
+      retryable: true,
+      faultScope: "provider",
+    };
+  }
+
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Left null, and read by status below.
+  }
+  const id = (body as { id?: unknown } | null)?.id;
+  if (response.status >= 200 && response.status < 300 && typeof id === "string" && id !== "") {
+    return { status: "uploaded", id };
+  }
+  const outcome = interpretResponse(response.status, body);
+  return outcome.status === "refused"
+    ? { ...outcome, reason: redactDigits(outcome.reason) }
+    : {
+        status: "refused",
+        reason: "The provider accepted the brief image without returning an identifier.",
+        retryable: true,
+        faultScope: "provider",
+      };
+}
+
 /**
  * The request body for one invitation.
  *
@@ -207,6 +281,8 @@ function messagesEndpoint(config: OutboundConfig, proof: string): string {
 export function buildMessageBody(
   config: OutboundConfig,
   message: InvitationMessage,
+  /** LAN-508. The Meta media id of an uploaded image header, for a template whose header is one. */
+  headerImageId: string | null = null,
 ): Record<string, unknown> {
   const to = config.localTest.recipientOverride ?? message.recipient;
 
@@ -269,6 +345,17 @@ export function buildMessageBody(
   const template = templateFor(message);
   const parameters = template.parameters(message);
   const components: Record<string, unknown>[] = [];
+  // LAN-508. An image header goes first, by the media id the upload returned;
+  // the approved template has the slot, so sending without one is 132000.
+  if (template.headerImage) {
+    if (headerImageId === null || headerImageId === "") {
+      throw new Error("This template's header is an image and no uploaded image was supplied.");
+    }
+    components.push({
+      type: "header",
+      parameters: [{ type: "image", image: { id: headerImageId } }],
+    });
+  }
   // LAN-348: `onboarding_chase_escalation` is the one approved template whose
   // body has a variable at all times, but a kind with no parameters must send
   // no body component rather than an empty one, which Meta refuses.
@@ -418,6 +505,21 @@ export function createWhatsAppCloudProvider(
         };
       }
 
+      // LAN-508. A template whose header is an image needs the image uploaded
+      // as Meta media first; the message then names it by id (the procedure
+      // proved on the test account, scripts/diagnostics/whatsapp-test-send.mjs).
+      let headerImageId: string | null = null;
+      if (
+        config.localTest.messageMode === "template" &&
+        config.templateParameters !== "none" &&
+        !isEmailOnlyKind(message.kind ?? "invitation") &&
+        templateFor(message).headerImage
+      ) {
+        const uploaded = await uploadHeaderImage(config, proof, transport, message.headerImage);
+        if (uploaded.status !== "uploaded") return uploaded;
+        headerImageId = uploaded.id;
+      }
+
       let response: Response;
       try {
         response = await transport(messagesEndpoint(config, proof), {
@@ -427,7 +529,7 @@ export function createWhatsAppCloudProvider(
             Authorization: `Bearer ${config.accessToken}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(buildMessageBody(config, message)),
+          body: JSON.stringify(buildMessageBody(config, message, headerImageId)),
           // Approval awaits dispatch, one invitee at a time, inside a Server
           // Action. Without a deadline a single hung provider connection holds
           // an operator's approval open for as long as the platform allows —

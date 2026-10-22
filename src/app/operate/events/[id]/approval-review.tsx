@@ -17,7 +17,12 @@ import {
 } from "@/lib/services/audience-selection";
 import type { MessagingPlan } from "@/lib/services/messaging-schedule";
 import { ApproveEventForm } from "../event-actions";
-import { MessagingPlanDisclosure, planForDisplay, WhatsAppErrorsAlert } from "./messaging-plan";
+import {
+  MessagingPlanDisclosure,
+  planForDisplay,
+  WhatsAppErrorsAlert,
+  type PlanEventMessage,
+} from "./messaging-plan";
 import { AudienceGroupHeadings, AudienceList, describeAudienceShape } from "./audience-list";
 import { QuestionList } from "./question-list";
 import {
@@ -121,7 +126,10 @@ export function ApprovalReview({
   deadline,
   plan,
   unreachable,
+  eventMessages = [],
 }: {
+  /** LAN-508. The event's messages, one more row each in the plan (W1-03). */
+  eventMessages?: readonly PlanEventMessage[];
   event: EventDetail;
   audience: AudienceMember[];
   questions: EventQuestion[];
@@ -256,7 +264,7 @@ export function ApprovalReview({
         {/* W1: messaging plan appears last, as an expandable disclosure — approved acceptance contract. */}
         {plan ? (
           <MessagingPlanDisclosure
-            display={planForDisplay(plan)}
+            display={planForDisplay(plan, eventMessages, event)}
             // REQ-approval-shows-both-ladders: audienceSize excludes recruits, shown in their own block below.
             audienceSize={invitees.filter((member) => member.capacity !== "recruit").length}
             recruitAudienceSize={invitees.filter((member) => member.capacity === "recruit").length}

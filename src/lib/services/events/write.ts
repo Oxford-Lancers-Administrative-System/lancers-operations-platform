@@ -36,6 +36,8 @@ import {
   supersedeAnswersToChangedQuestionsIn,
 } from "../event-question-changes";
 import { recordAudit } from "../audit";
+import type { EventMessageInput } from "../event-messages-input";
+import { writeDraftEventMessagesIn } from "../event-messages/store";
 import { actorRequirement } from "../actor";
 import { readCurrentSeasonIn } from "../seasons";
 import { lockEventIn, readEventIn } from "./read";
@@ -49,6 +51,8 @@ export async function createEventDraft(
   actorPersonId: string,
   input: EventDraftInput,
   questions?: readonly EventQuestionInput[],
+  /** LAN-508. The form's event messages; `undefined` takes the template's. */
+  messages?: readonly EventMessageInput[],
 ): Promise<EventDetail> {
   requireActor(actorPersonId);
   requireValid(input);
@@ -96,6 +100,8 @@ export async function createEventDraft(
     // D42, amendment W4-A1: the form posts the questions it shows, which already include the
     // template's; a caller with nothing to say about them gets the template's.
     await writeEventQuestionsIn(tx, id, questions ?? inherited.questions);
+    // LAN-508: the same rule for the event messages — a duplicate posts its source's.
+    await writeDraftEventMessagesIn(tx, id, messages ?? inherited.messages);
 
     const audienceSize = await applyTemplateAudienceIn(
       tx,
@@ -121,6 +127,7 @@ export async function createEventDraft(
         origin: OPERATOR_CREATED_ORIGIN,
         weekNumber: term.weekNumber,
         questionCount: (questions ?? inherited.questions).length,
+        eventMessageCount: (messages ?? inherited.messages).length,
         templateAudienceGroups: inherited.audienceGroups, // D47: says when it was the template speaking, not an approver choosing
         templateAudienceSize: audienceSize,
       },
@@ -190,6 +197,8 @@ export async function updateEventDraft(
   eventId: string,
   input: EventDraftInput,
   questions?: readonly EventQuestionInput[],
+  /** LAN-508. `undefined` leaves the event messages as they are. */
+  messages?: readonly EventMessageInput[],
 ): Promise<EventDetail> {
   requireActor(actorPersonId);
   requireValid(input);
@@ -279,6 +288,7 @@ export async function updateEventDraft(
     }
 
     if (questions !== undefined) await writeEventQuestionsIn(tx, eventId, questions); // undefined means "not about the questions" — do not clear them
+    if (messages !== undefined) await writeDraftEventMessagesIn(tx, eventId, messages); // LAN-508, the same rule
 
     // The audience *class* follows the type. D46/LAN-295 keeps recruits to
     // Recruitment events, so a draft that was recruitment and is now a practice
@@ -306,6 +316,7 @@ export async function updateEventDraft(
         weekNumber: term.weekNumber,
         ...(homeAway === before.homeAway ? {} : { homeAway, previousHomeAway: before.homeAway }),
         ...(questions === undefined ? {} : { questionCount: questions.length }),
+        ...(messages === undefined ? {} : { eventMessageCount: messages.length }),
         ...(typeChanged
           ? {
               templateId: input.templateId,

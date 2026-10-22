@@ -1,6 +1,7 @@
 import type { QuestionIssue, RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { RawEventTemplate, TemplateFieldIssue } from "@/lib/services/event-template-input";
 import type { TemplateChangePlan } from "@/lib/services/event-templates";
+import type { EventMessageIssue } from "@/lib/services/event-messages-input";
 
 // What the template editor hands back to its screen — W8-02/W8-03.
 type TemplateFormPhase = "editing" | "confirming";
@@ -13,6 +14,8 @@ export interface TemplateFormState {
   values: RawEventTemplate | null;
   questions: RawEventQuestion[] | null;
   plan: TemplateChangePlan | null;
+  /** LAN-508. Corrections to the template's event message cards. */
+  eventMessageIssues?: EventMessageIssue[];
 }
 
 export const EMPTY_TEMPLATE_FORM_STATE: TemplateFormState = {

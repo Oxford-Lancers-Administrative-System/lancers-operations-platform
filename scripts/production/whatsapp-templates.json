@@ -496,5 +496,30 @@
     ],
     "buttons": [],
     "replaces": "onboarding_chase_escalation_v1"
+  },
+  {
+    "name": "lancers_event_brief_image_v1",
+    "kind": "event_brief",
+    "category": "UTILITY",
+    "language": "en",
+    "environment": "Production",
+    "validityPeriodHours": 12,
+    "header": "IMAGE",
+    "body": "Hello {{1}}, your brief for {{2}} on {{3}} is attached. It has the itinerary and what to bring.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      }
+    ],
+    "buttons": []
   }
 ]

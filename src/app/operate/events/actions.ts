@@ -20,6 +20,8 @@ import { dispatchEventInvitations } from "@/lib/services/delivery";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventQuestionInput, RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
+import { validateEventMessages } from "@/lib/services/event-messages-input";
+import { readEventMessagesFromForm } from "./event-message-form";
 
 // The event workflow's server actions — LAN-76, LAN-77. Every action requires
 // Manage on the event's template (LAN-431) against the verified session: the
@@ -109,6 +111,7 @@ export async function createEventDraftAction(
 ): Promise<EventFormState> {
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+  const rawMessages = readEventMessagesFromForm(formData);
 
   // LAN-423: a refusal is the open form's own error, with its entries.
   const refused = (error: unknown): EventFormState => ({
@@ -117,6 +120,7 @@ export async function createEventDraftAction(
     error: messageFor(error),
     values: raw,
     questions: rawQuestions,
+    eventMessages: rawMessages,
   });
 
   try {
@@ -127,13 +131,16 @@ export async function createEventDraftAction(
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
-  if (!validation.ok || !questions.ok) {
+  const messages = validateEventMessages(rawMessages ?? []);
+  if (!validation.ok || !questions.ok || !messages.ok) {
     return {
       issues: validation.ok ? [] : validation.issues,
       questionIssues: questions.ok ? [] : questions.issues,
+      eventMessageIssues: messages.ok ? [] : messages.issues,
       error: null,
       values: raw,
       questions: rawQuestions,
+      eventMessages: rawMessages,
     };
   }
 
@@ -146,6 +153,8 @@ export async function createEventDraftAction(
       validation.value,
       // undefined, not [], so the draft inherits its type's default questions.
       rawQuestions === null ? undefined : (questions.value as EventQuestionInput[]),
+      // LAN-508: the same for its event messages.
+      rawMessages === null ? undefined : messages.value,
     );
     eventId = event.id;
   } catch (error) {
@@ -163,6 +172,7 @@ export async function updateEventDraftAction(
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+  const rawMessages = readEventMessagesFromForm(formData);
 
   // LAN-423: every failure from here on, a refusal included, is the form's
   // own error, and the operator's entries come back with it.
@@ -172,6 +182,7 @@ export async function updateEventDraftAction(
     error: messageFor(error),
     values: raw,
     questions: rawQuestions,
+    eventMessages: rawMessages,
   });
 
   try {
@@ -182,13 +193,16 @@ export async function updateEventDraftAction(
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
-  if (!validation.ok || !questions.ok) {
+  const messages = validateEventMessages(rawMessages ?? []);
+  if (!validation.ok || !questions.ok || !messages.ok) {
     return {
       issues: validation.ok ? [] : validation.issues,
       questionIssues: questions.ok ? [] : questions.issues,
+      eventMessageIssues: messages.ok ? [] : messages.issues,
       error: null,
       values: raw,
       questions: rawQuestions,
+      eventMessages: rawMessages,
     };
   }
 
@@ -200,6 +214,7 @@ export async function updateEventDraftAction(
       eventId,
       validation.value,
       rawQuestions === null ? undefined : (questions.value as EventQuestionInput[]),
+      rawMessages === null ? undefined : messages.value,
     );
   } catch (error) {
     return refused(error);

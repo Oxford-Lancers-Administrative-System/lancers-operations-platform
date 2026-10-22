@@ -900,6 +900,55 @@ recruitment event, to each recruit whose answer is Yes
   use. The sweep declares it at the reminder moment, only for a Yes recorded
   at or before that moment.
 
+#### Event messages (LAN-508)
+
+`20261021090000_event_messages.sql`. The game day brief: zero or more
+messages per event, each sent a whole number of hours before the start, by
+WhatsApp, email or both, to everyone invited or to those whose answer is Yes
+when it goes. WhatsApp carries the brief as the image header of
+`lancers_event_brief_image_v1`; email carries the same content in the club
+shell.
+
+- **`event_messages`** — the messages one event carries: `hours_before`
+  (1 to 336), `channel` (`event_message_channel`: `whatsapp`, `email`,
+  `both`), `recipients` (`event_message_recipients`: `everyone`, `yes`), the
+  Markdown `body` (at most 4,000 characters) and `from_template`. Cascades
+  with a draft's delete. `unique (id, event_id)` is what the sends key on.
+- **`event_template_messages`** — the skeleton a template carries, copied
+  onto every new event made from it and onto nothing that already exists.
+  Duplicating an event copies the source event's messages through the same
+  create path.
+- **`event_message_sends`** — append-only (`select, insert`). Every version
+  that went, with the body, channel, recipients and hours as they were sent.
+  Version 1 is the schedule's; every later version is an operator's **Save and
+  send again** and names them
+  (`event_message_sends_resend_is_attributed`). The composite key to
+  `event_messages (id, event_id)` is `on delete restrict`: a sent message
+  cannot be removed.
+- **`event_message_send_recipients`** — append-only. The people one send went
+  to; a resend goes to exactly the previous send's people. A person merge
+  re-points neither this `person_id` nor `event_message_sends.resent_by_person_id`
+  (append-only, no `update` grant): the resend resolves each recipient through
+  `people.merged_into_person_id` to the surviving record at read time, and
+  takes distinct people, so a survivor who was sent it under two records gets
+  it once.
+- **No stored send time.** It is derived: the event start less the hours, held
+  to the next 07:00 when it falls between 22:00 and 07:00 (LAN-433). So a moved
+  event moves every unsent message and a cancelled event sends none, with no
+  write here. A message is **sent** exactly when it has a row in
+  `event_message_sends`.
+- **No new job type.** Each recipient's copy is a `notification_jobs` row,
+  `job_type = 'other'`, keyed `event-message:<send>:<person>:<channel>`,
+  carrying `event_id` and `person_id` and no `invitation_id` (it is not part
+  of the invitation's chase, so the participation table's delivery column is
+  unaffected). The sweep declares the first send at the derived moment;
+  cancelling the event cancels any copy still queued, through the path every
+  event job already takes.
+- **Personal data.** The two link columns hold person ids only and are kept
+  pointing at a tombstone on erasure, like `delivery_results`. The three
+  `body` columns are free text that may name people, and are on the agent
+  read-only role's hidden list.
+
 ### Derived views
 
 No view is materialised, so there is no cache and nothing to drift.
