@@ -354,4 +354,63 @@ describe("readMessageQueue — against the seeded database", () => {
       await observer.query("rollback");
     }
   });
+
+  it("counts Failed today from provider failures only, never a send refused at claim time (LAN-483)", async () => {
+    // Committed rows, because `readMessageQueue` reads on its own connection;
+    // removed in `finally`. The delta is measured so the seeded queue does not matter.
+    const before = (await readMessageQueue()).summary.failedToday;
+    const tag = `LAN483Count-${randomUUID()}`;
+    const person = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'queue') returning id`,
+      [tag],
+    );
+    const personId = person.rows[0]!.id;
+    const jobIds: string[] = [];
+    try {
+      for (const outcome of ["failed", "rejected", "refused"] as const) {
+        const job = await observer.query<{ id: string }>(
+          `insert into public.notification_jobs
+             (idempotency_key, job_type, status, person_id, channel, attempt_count, last_error)
+           values ($1, 'other', 'failed', $2::uuid, 'whatsapp', 1, $3) returning id::text as id`,
+          [`${tag}:${outcome}`, personId, tag],
+        );
+        const jobId = job.rows[0]!.id;
+        jobIds.push(jobId);
+        const accepted = outcome === "failed";
+        await observer.query(
+          `insert into public.delivery_attempts
+             (notification_job_id, attempt_number, channel, provider, provider_message_id,
+              requested_at, accepted_at, concluded_at, failure_reason)
+           values ($1::uuid, 1, 'whatsapp', 'whatsapp_cloud',
+                   case when $2 then $1::text || ':wamid' end,
+                   case when $3 then now() else now() - interval '2 seconds' end,
+                   case when $2 then now() - interval '1 second' end,
+                   now(), $4)`,
+          [jobId, accepted, outcome === "refused", tag],
+        );
+        await observer.query(
+          `insert into public.delivery_results
+             (notification_job_id, attempt_number, outcome, channel, provider, detail)
+           values ($1, 1, $2, 'whatsapp', 'whatsapp_cloud', $3)`,
+          [jobId, accepted ? "failed" : "rejected", tag],
+        );
+      }
+
+      // The bounced send and the provider rejection count; the claim-time refusal does not.
+      expect((await readMessageQueue()).summary.failedToday - before).toBe(2);
+    } finally {
+      await observer.query(
+        "delete from public.delivery_results where notification_job_id = any($1::uuid[])",
+        [jobIds],
+      );
+      await observer.query(
+        "delete from public.delivery_attempts where notification_job_id = any($1::uuid[])",
+        [jobIds],
+      );
+      await observer.query("delete from public.notification_jobs where id = any($1::uuid[])", [
+        jobIds,
+      ]);
+      await observer.query("delete from public.people where id = $1", [personId]);
+    }
+  });
 });

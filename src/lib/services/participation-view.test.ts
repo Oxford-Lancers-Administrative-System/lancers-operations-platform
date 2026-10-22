@@ -381,6 +381,31 @@ describe("applyParticipationView filters", () => {
     ]);
   });
 
+  it("reads Needs attention as Failed and Retryable only, never Withheld or the other terminal states (LAN-483)", () => {
+    const states = [
+      "failed",
+      "retryable",
+      "withheld",
+      "held",
+      "cancelled",
+      "unknown",
+      "attempted",
+      "delivered",
+      "queued",
+    ] as const;
+    const people = [
+      ...states.map((state) => operatorPerson({ displayName: state, delivery: state })),
+      operatorPerson({ displayName: "unqueued", delivery: null }),
+    ];
+    expect(
+      names(applyParticipationView(people, withFilters({ delivery: "attention" }), [])).sort(),
+    ).toEqual(["failed", "retryable"]);
+    // A send refused at claim time is found by its own filter instead.
+    expect(
+      names(applyParticipationView(people, withFilters({ delivery: "withheld" }), [])),
+    ).toEqual(["withheld"]);
+  });
+
   it("combines every filter", () => {
     // W7: "the filters combine and apply as you type".
     expect(
