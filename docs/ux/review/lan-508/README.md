@@ -18,3 +18,15 @@ signed in as the seeded operator, full-page Playwright captures at a measured
 
 The send behind W1-04b and W1-05 was written straight into the local database
 for the picture; nothing was dispatched.
+
+## Round 2 (22 October 2026)
+
+Production build on the leased local slot, signed in as the seeded operator,
+new-event form with one message holding the approved sample, then an Itinerary
+line added. Measured 1440px and 375px (desktop1440\_ / phone375\_).
+
+| File                           | What it shows                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `R2-editor-guide-open.png`     | Toolbar Title, Heading, Bold, Bullet, Highlight, Itinerary, ? with the guide open   |
+| `R2-itinerary-placeholder.png` | After Itinerary line on an empty line: `- 12:00 Event name`, "Event name" selected  |
+| `R2-preview-crest.png`         | Preview image with the round crest in its header (desktop only shows the full card) |
