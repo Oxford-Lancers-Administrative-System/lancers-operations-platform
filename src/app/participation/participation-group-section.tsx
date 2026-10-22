@@ -36,6 +36,8 @@ export function ParticipationGroupSection({
         panelId={`participation-group-panel-${sectionKey}`}
         toggleTestId={`participation-group-toggle-${sectionKey}`}
         countTestId={`participation-group-count-${sectionKey}`}
+        // The table keeps the width it has ungrouped: the panel's desktop side padding would scroll its last column.
+        panelSx={{ px: { md: 0 } }}
       >
         {children}
       </ControlledSection>
