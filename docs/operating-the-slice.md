@@ -1254,26 +1254,38 @@ dropdown is on the operator's event page only: on the public **Event info link**
 page the blocks do not open and carry no names.
 
 **Once the event has occurred, its attendance sits directly below the RSVP
-blocks** (LAN-504, Lancers call, 2026-10-16). On an approved event whose date
-has passed, a second row of blocks appears, one per group the RSVP blocks show
-and in the same order. An upcoming event's page has nothing new. Each block
-reads:
+cards** (LAN-504, Lancers call, 2026-10-16; Brian's walk, 2026-10-22). On an
+approved event whose date has passed, a second row of cards appears, one per
+group the RSVP cards show and in the same order. The cards are titled by group
+and kind: **Players — Responses**, **Coaches — Responses**, **Players —
+Attendance**, **Coaches — Attendance** (and Recruits). An upcoming event's page
+has nothing new. Each attendance card reads:
 
-| Line         | What it says                                                                             |
-| ------------ | ---------------------------------------------------------------------------------------- |
-| Name         | Recruits, Players or Coaches                                                             |
-| Values       | **Present**, **Late**, **No-show** and **Excused**, each a count                         |
-| Not recorded | `2 not recorded / 20 invited` — the five counts add up to the group's invitations        |
-| Bar          | Present and Late from the left, No-show and Excused from the right, not recorded between |
+| Line     | What it says                                                                      |
+| -------- | --------------------------------------------------------------------------------- |
+| Title    | `Players — Attendance`                                                            |
+| Headline | `2 attended / 2 expected`                                                         |
+| Values   | **Present**, **Late**, **No-show** and **Excused**, each a count                  |
+| Bar      | Present (green), Late (amber), No-show (red), Excused (grey), across the expected |
 
-There is no percentage, as on the RSVP blocks: Showed is never a percentage (D62, D74).
-The counts are the register's own records, never the RSVP: somebody who said
-No and was marked Present counts as Present. **No-show** is the register's
-**Absent**. The groups, the committee fold and the denominators are the RSVP
-blocks' own, so the two rows always count the same people; a walk-up is in
-neither. These blocks do not open, and the public **Event info link** page does
-not show them. Cross-tabs such as "said yes but didn't show" are later reporting
-work.
+**Attended** is Present plus Late. **Expected** is everyone who said yes plus
+anyone the register marked Present or Late who did not (a walk-up, somebody who
+said no, somebody who never answered). One coach who said yes, with two coaches
+recorded present, reads `2 attended / 2 expected`, both Present. Somebody who
+said yes and has no register mark counts as a **No-show**; there is no "not
+recorded" count. The four counts add up to expected and the bar has no empty
+remainder. Somebody who is not expected (said no or never answered, and not
+marked Present or Late) is in no count, including an Excused one. There is no
+percentage (D62, D74). **No-show** is the register's **Absent**. The groups and
+the committee fold are the RSVP cards' own; a walk-up is counted under the group
+their record carries. The counting is `src/lib/services/event-attendance-progress.ts`.
+
+Like the Responses cards, each attendance card is a dropdown, closed on arrival,
+that opens in place below its bar onto the names: **Present** top left, **Late**
+top right, **No-show** bottom left, **Excused** bottom right (one column on a
+phone, in that order), each headed with its count (`Present · 2`) and listing
+names A–Z. The public **Event info link** page does not show the attendance
+cards. Cross-tabs such as "said yes but didn't show" are later reporting work.
 
 **The audience is grouped Yes, then No, then No response** (LAN-439, client
 QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort

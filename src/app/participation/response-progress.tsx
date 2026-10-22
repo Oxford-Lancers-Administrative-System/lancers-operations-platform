@@ -14,6 +14,7 @@ import {
 import { ResponseBlockToggle } from "./response-block-toggle";
 
 import {
+  cardTitle,
   HEADLINE_INVITED_LABEL,
   HEADLINE_SAID_NO_LABEL,
   HEADLINE_SAID_YES_LABEL,
@@ -70,7 +71,7 @@ function ResponseBar({ block }: { block: ResponseProgressBlock }) {
         overflow: "hidden",
       }}
       role="img"
-      aria-label={`${block.label}: ${block.yes} ${HEADLINE_SAID_YES_LABEL.toLowerCase()}, ${block.no} ${HEADLINE_SAID_NO_LABEL.toLowerCase()}, of ${block.invited} ${HEADLINE_INVITED_LABEL.toLowerCase()}`}
+      aria-label={`${cardTitle(block.label, "Responses")}: ${block.yes} ${HEADLINE_SAID_YES_LABEL.toLowerCase()}, ${block.no} ${HEADLINE_SAID_NO_LABEL.toLowerCase()}, of ${block.invited} ${HEADLINE_INVITED_LABEL.toLowerCase()}`}
       data-testid="response-bar"
       data-yes={block.yes}
       data-no={block.no}
@@ -114,7 +115,7 @@ function BlockBody({ block }: { block: ResponseProgressBlock }) {
   return (
     <>
       <Typography variant="body2" sx={{ fontWeight: 700 }}>
-        {block.label}
+        {cardTitle(block.label, "Responses")}
       </Typography>
 
       {/*

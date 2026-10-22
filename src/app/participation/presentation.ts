@@ -36,7 +36,11 @@ export const FILTER_CAPACITIES: readonly string[] = Object.freeze(["recruit", "p
 
 /** Stored `absent`, in the words of the 16 October call. */
 export const ATTENDANCE_NO_SHOW_LABEL = "No-show";
-export const ATTENDANCE_NOT_RECORDED_LABEL = "Not recorded";
+
+/** "Players — Responses" / "Players — Attendance": the group, then which card it is (Brian, 22 October 2026). */
+export function cardTitle(group: string, card: "Responses" | "Attendance"): string {
+  return `${group} — ${card}`;
+}
 
 // The table
 
