@@ -61,7 +61,7 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
 });
 vi.mock("@/lib/services/attendance", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/attendance")>();
-  return { ...actual, readEventAttendanceSummary: vi.fn() };
+  return { ...actual, readEventAttendanceSummary: vi.fn(), readEventGroupValues: vi.fn() };
 });
 vi.mock("@/lib/services/event-templates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-templates")>();
@@ -162,6 +162,7 @@ import {
 import type { MessagingPlan, MessagingSchedule } from "@/lib/services/messaging-schedule";
 import {
   readEventAttendanceSummary,
+  readEventGroupValues,
   summariseAttendance,
   type AttendanceSummary,
 } from "@/lib/services/attendance";
@@ -3042,6 +3043,59 @@ describe("the participation table on the event page", () => {
     expect(screen.queryByTestId("event-audience")).toBeNull();
     expect(screen.getByTestId("participation-table").getAttribute("data-tier")).toBe("operator");
     expect(screen.getAllByText("Delivered").length).toBeGreaterThan(0);
+  });
+
+  describe("LAN-497 — Group by on Everyone asked is gated by the viewer's roster View", () => {
+    /** A seat holding View on Offensive only: it may group by that family and no other. */
+    function offensiveOnly(): ResolvedOperator {
+      const base = operator(["secretary"]);
+      return {
+        ...base,
+        grants: { ...base.grants, roster: { ...NO_GRANTS.roster, offensive: "view" } },
+      };
+    }
+
+    beforeEach(() => {
+      vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readOperatorParticipation).mockResolvedValue(PARTICIPATION);
+      vi.mocked(readEventGroupValues).mockReset();
+      vi.mocked(readEventGroupValues).mockResolvedValue({ "1": { offensive: ["Offensive Line"] } });
+      vi.mocked(resolveOperatorAccess).mockResolvedValue({
+        state: "active",
+        operator: offensiveOnly(),
+      });
+    });
+
+    it("ignores a family the viewer cannot see: no sections, and its values are never read", async () => {
+      render(await EventDetailPage(detailProps({ by: "defensive" })));
+
+      expect(screen.getByTestId("participation-table")).toBeVisible();
+      expect(document.querySelectorAll('[data-testid="participation-sections"]')).toHaveLength(0);
+      expect(readEventGroupValues).not.toHaveBeenCalled();
+    });
+
+    it("shows no Group by select at all to a viewer with no family", async () => {
+      vi.mocked(resolveOperatorAccess).mockResolvedValue({
+        state: "active",
+        operator: {
+          ...offensiveOnly(),
+          grants: { ...NO_GRANTS, templates: operator().grants.templates },
+        },
+      });
+      render(await EventDetailPage(detailProps({ by: "offensive" })));
+
+      expect(screen.queryByTestId("attendance-group-by")).toBeNull();
+      expect(readEventGroupValues).not.toHaveBeenCalled();
+    });
+
+    it("groups a viewer who holds the family, reading only that family", async () => {
+      render(await EventDetailPage(detailProps({ by: "offensive" })));
+
+      expect(screen.getByTestId("attendance-group-by")).toBeVisible();
+      expect(readEventGroupValues).toHaveBeenCalledWith(EVENT_ID, ["offensive"]);
+      expect(screen.getByTestId("participation-group-group-offensive-line")).toBeVisible();
+    });
   });
 
   // -------------------------------------------------------------------------
