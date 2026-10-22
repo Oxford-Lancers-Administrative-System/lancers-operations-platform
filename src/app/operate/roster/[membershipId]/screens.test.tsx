@@ -197,12 +197,18 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       expectedGraduationYearSource: null,
       degreeField: null,
       degreeFieldSource: null,
+      degreeType: null,
+      degreeTypeSource: null,
+      degreeTypeOther: null,
+      degreeTypeOtherSource: null,
       studentNumber: null,
       studentNumberSource: null,
       bafaRegistrationNumber: null,
       bafaRegistrationNumberSource: null,
       dateOfBirth: null,
       dateOfBirthSource: null,
+      dietaryPreference: null,
+      dietaryPreferenceSource: null,
       emergencyContact: null,
       contacts: [
         {

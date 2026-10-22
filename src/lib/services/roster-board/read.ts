@@ -62,6 +62,8 @@ export interface RosterBoardRow {
   matriculationYear: number | null;
   expectedGraduationYear: number | null;
   degreeField: string | null;
+  /** LAN-502. A `DIETARY_PREFERENCE_VALUES` code; `null` for no answer. */
+  dietaryPreference: string | null;
   hasMobile: boolean;
   hasEmail: boolean;
   /** Required facts for this rung, not yet recorded. `REQ-not-recorded`. */
@@ -187,11 +189,13 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       matriculation_year: number | null;
       expected_graduation_year: number | null;
       degree_field: string | null;
+      dietary_preference: string | null;
       date_of_birth: string | null;
       has_personal_email: boolean;
       college_email: string | null;
     }>(
       `select id, college, matriculation_year, expected_graduation_year, degree_field,
+              dietary_preference,
               to_char(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
               exists (
                 select 1 from public.contact_points c
@@ -495,6 +499,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         matriculationYear: person?.matriculation_year ?? null,
         expectedGraduationYear: person?.expected_graduation_year ?? null,
         degreeField: person?.degree_field ?? null,
+        dietaryPreference: person?.dietary_preference ?? null,
         hasMobile: entry.phone !== null,
         hasEmail: entry.email !== null,
         missingCount,

@@ -34,15 +34,19 @@ import {
   destinationKey,
   GLOBAL_EMERGENCY_LIMIT,
   GLOBAL_SCOPE_KEY,
+  OPERATOR_DAILY_LIMIT,
+  OPERATOR_WEEKLY_LIMIT,
   pauseMessagingIn,
   readScopeIn,
   recordProviderOutcomeIn,
   RECIPIENT_DAILY_LIMIT,
+  RECIPIENT_WEEKLY_LIMIT,
   resumeMessagingIn,
   SAFETY_FIELD_RETENTION_DAYS,
   SAFETY_HEARTBEAT_EVENT,
   SAFETY_LOG_EVENT,
   setSafetyMonitor,
+  safetyThresholds,
   SHARED_PACING_LIMIT,
   type SafetyMonitor,
 } from "./messaging-safety";
@@ -223,6 +227,7 @@ async function purgeSuiteFixtures(): Promise<void> {
     `delete from public.event_audience_members where event_id in ${events}`,
     `delete from public.audit_events where actor_person_id = any($1::uuid[])`,
     `delete from public.audit_events where entity_id = any($1::uuid[])`,
+    `delete from public.role_assignments where season_id in ${seasons} or person_id = any($1::uuid[])`,
     `delete from public.season_memberships where season_id in ${seasons} or person_id = any($1::uuid[])`,
     `delete from public.contact_points where person_id = any($1::uuid[])`,
     `delete from public.person_aliases where person_id = any($1::uuid[])`,
@@ -273,6 +278,10 @@ afterEach(async () => {
   );
   await observer.query(
     "delete from public.audit_events where entity_table = 'messaging_safety_scopes'",
+  );
+  await observer.query(
+    "delete from public.role_assignments where person_id in (select id from public.people where given_name = $1)",
+    [MARKER],
   );
   await observer.query(
     "delete from public.season_memberships where person_id in (select id from public.people where given_name = $1)",
@@ -633,6 +642,183 @@ describe("a recipient hold contains one recipient", () => {
       [held.personId],
     );
     expect(Number(stillCounted.rows[0].count)).toBe(RECIPIENT_DAILY_LIMIT);
+  });
+});
+
+/**
+ * LAN-503. An operator — anyone holding a seat at the moment of the send — has
+ * their own ceilings, applied to them and to the number the send goes to.
+ * Players and recruits keep theirs.
+ */
+describe("operators have their own recipient limits", () => {
+  /** Gives a fixture person a coaching seat on the suite's season. */
+  async function seat(personId: string, effectiveTo: string | null = null): Promise<void> {
+    await observer.query(
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          season_id, effective_from, effective_to)
+       select $1, r.id, r.scope, r.is_constitutional_office, r.is_single_holder_seat,
+              $2, current_date - 30, $3::date
+         from public.roles r where r.code = 'head_coach'`,
+      [personId, seasonId, effectiveTo],
+    );
+  }
+
+  it("lets an operator past the player ceiling, on their own number too", async () => {
+    const operatorRecipient = await invitee("OperatorPastTen");
+    await seat(operatorRecipient.personId);
+
+    // Eleven already today, every one to this operator's own number: past both
+    // player ceilings, person and destination.
+    await seedAdmissions(operatorRecipient.jobId, RECIPIENT_DAILY_LIMIT + 1, {
+      personId: operatorRecipient.personId,
+      destination: destinationKey("whatsapp", e164(operatorRecipient.phone)),
+      ageMinutes: 120,
+    });
+
+    const transport = accepts();
+    expect(await dispatchJob(operatorRecipient.jobId, { source: CONFIGURED, transport })).toBe(
+      "accepted",
+    );
+    expect(transport).toHaveBeenCalled();
+    expect(
+      await withTransaction((tx) => readScopeIn(tx, "person", operatorRecipient.personId)),
+    ).toBeNull();
+  });
+
+  it("holds an operator at their own daily ceiling", async () => {
+    const operatorRecipient = await invitee("OperatorAtFifty");
+    await seat(operatorRecipient.personId);
+
+    await seedAdmissions(operatorRecipient.jobId, OPERATOR_DAILY_LIMIT - 1, {
+      personId: operatorRecipient.personId,
+      ageMinutes: 120,
+    });
+
+    // The fiftieth goes, and latches the hold for the fifty-first.
+    expect(
+      await dispatchJob(operatorRecipient.jobId, { source: CONFIGURED, transport: accepts() }),
+    ).toBe("accepted");
+    const scope = await withTransaction((tx) =>
+      readScopeIn(tx, "person", operatorRecipient.personId),
+    );
+    expect(scope?.latchedAt).not.toBeNull();
+
+    const refused = await withTransaction((tx) =>
+      admitSendIn(tx, {
+        jobId: operatorRecipient.jobId,
+        personId: operatorRecipient.personId,
+        channel: "whatsapp",
+        recipient: e164(operatorRecipient.phone),
+      }),
+    );
+    expect(refused).toMatchObject({ admitted: false, reasonCode: "person_hold" });
+  });
+
+  it("holds an operator at their own daily and weekly ceilings", async () => {
+    const daily = await invitee("OperatorDaily");
+    await seat(daily.personId);
+    await seedAdmissions(daily.jobId, OPERATOR_DAILY_LIMIT, {
+      personId: daily.personId,
+      ageMinutes: 120,
+    });
+    expect(await dispatchJob(daily.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    expect((await jobRow(daily.jobId)).safety_reason_code).toBe("person_hold");
+
+    const weekly = await invitee("OperatorWeekly");
+    await seat(weekly.personId);
+    await seedAdmissions(weekly.jobId, OPERATOR_WEEKLY_LIMIT, {
+      personId: weekly.personId,
+      ageMinutes: 3 * 24 * 60,
+    });
+    expect(await dispatchJob(weekly.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    expect((await jobRow(weekly.jobId)).safety_reason_code).toBe("person_hold");
+  });
+
+  it("still holds a player at ten in a day and thirty in a week", async () => {
+    const daily = await invitee("PlayerDaily");
+    await seedAdmissions(daily.jobId, RECIPIENT_DAILY_LIMIT, {
+      personId: daily.personId,
+      ageMinutes: 120,
+    });
+    expect(await dispatchJob(daily.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    expect((await jobRow(daily.jobId)).safety_reason_code).toBe("person_hold");
+
+    const weekly = await invitee("PlayerWeekly");
+    await seedAdmissions(weekly.jobId, RECIPIENT_WEEKLY_LIMIT, {
+      personId: weekly.personId,
+      ageMinutes: 3 * 24 * 60,
+    });
+    expect(await dispatchJob(weekly.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    expect((await jobRow(weekly.jobId)).safety_reason_code).toBe("person_hold");
+  });
+
+  it("holds a player sent to an operator's number at the player ceiling", async () => {
+    const operatorRecipient = await invitee("OperatorSharedNumber");
+    await seat(operatorRecipient.personId);
+    const player = await invitee("PlayerSharedNumber", operatorRecipient.phone);
+
+    await seedAdmissions(operatorRecipient.jobId, RECIPIENT_DAILY_LIMIT, {
+      personId: operatorRecipient.personId,
+      destination: destinationKey("whatsapp", e164(operatorRecipient.phone)),
+      ageMinutes: 120,
+    });
+
+    expect(await dispatchJob(player.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    expect((await jobRow(player.jobId)).safety_reason_code).toBe("destination_hold");
+  });
+
+  it("moves a person to the operator limits when they take up a seat", async () => {
+    const recipient = await invitee("BecomesOperator");
+    await seedAdmissions(recipient.jobId, RECIPIENT_DAILY_LIMIT + 2, {
+      personId: recipient.personId,
+      ageMinutes: 120,
+    });
+
+    await seat(recipient.personId);
+    expect(await dispatchJob(recipient.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "accepted",
+    );
+  });
+
+  it("moves a person back to the player limits when their seat ends", async () => {
+    const recipient = await invitee("StopsBeingOperator");
+    // Ended today: in effect up to, not on, its last day.
+    const today = await observer.query<{ today: string }>("select current_date::text as today");
+    await seat(recipient.personId, today.rows[0].today);
+    await seedAdmissions(recipient.jobId, RECIPIENT_DAILY_LIMIT + 2, {
+      personId: recipient.personId,
+      ageMinutes: 120,
+    });
+
+    const transport = accepts();
+    expect(await dispatchJob(recipient.jobId, { source: CONFIGURED, transport })).toBe("deferred");
+    expect(transport).not.toHaveBeenCalled();
+    expect((await jobRow(recipient.jobId)).safety_reason_code).toBe("person_hold");
+  });
+
+  it("shows both sets of limits in the thresholds table", () => {
+    const rows = safetyThresholds();
+    expect(rows).toContainEqual({
+      control: "Player or recruit limit",
+      value: "10 per 24 hours, 30 per 7 days",
+      effect: "Held until resumed",
+    });
+    expect(rows).toContainEqual({
+      control: "Operator limit",
+      value: "50 per 24 hours, 150 per 7 days",
+      effect: "Held until resumed",
+    });
   });
 });
 

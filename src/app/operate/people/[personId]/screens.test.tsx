@@ -87,12 +87,18 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     expectedGraduationYearSource: null,
     degreeField: null,
     degreeFieldSource: null,
+    degreeType: null,
+    degreeTypeSource: null,
+    degreeTypeOther: null,
+    degreeTypeOtherSource: null,
     studentNumber: null,
     studentNumberSource: null,
     bafaRegistrationNumber: null,
     bafaRegistrationNumberSource: null,
     dateOfBirth: null,
     dateOfBirthSource: null,
+    dietaryPreference: null,
+    dietaryPreferenceSource: null,
     emergencyContact: null,
     contacts: [],
     isPastMember: false,
@@ -205,6 +211,7 @@ describe("the person record, for an authorized operator", () => {
         matriculationYear: 2024,
         expectedGraduationYear: 2028,
         degreeField: "Engineering Science",
+        degreeType: "MEng",
         studentNumber: "1234567",
         bafaRegistrationNumber: "BAFA-99",
         contacts: [
@@ -235,6 +242,7 @@ describe("the person record, for an authorized operator", () => {
       "2024",
       "2028",
       "Engineering Science",
+      "MEng — Master of Engineering",
       "1234567",
       "BAFA-99",
     ]) {
@@ -250,7 +258,7 @@ describe("the person record, for an authorized operator", () => {
     // College email first, the identifiers last, BAFA after the student number.
     const labels = within(student)
       .getAllByText(
-        /^(College email|College|Matriculation year|Expected graduation|Degree field|Student number|BAFA registration number)$/,
+        /^(College email|College|Matriculation year|Expected graduation|Degree field|Degree type|Student number|BAFA registration number)$/,
       )
       .map((node) => node.textContent);
     expect(labels).toEqual([
@@ -259,9 +267,28 @@ describe("the person record, for an authorized operator", () => {
       "Matriculation year",
       "Expected graduation",
       "Degree field",
+      "Degree type",
       "Student number",
       "BAFA registration number",
     ]);
+  });
+
+  /** LAN-502: the onboarding answer, in Personal information, by its label. */
+  it("shows the dietary preference in Personal information, and not recorded when unanswered", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ dietaryPreference: "none" }));
+    stubReads();
+
+    const { unmount } = render(await PersonRecordPage(pageProps("p1")));
+    const personal = sectionHeaded("Personal information");
+    expect(within(personal).getByText("Dietary preference")).toBeTruthy();
+    expect(within(personal).getByText("No dietary requirements")).toBeTruthy();
+    unmount();
+
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ dietaryPreference: null }));
+    render(await PersonRecordPage(pageProps("p1")));
+    const row = within(sectionHeaded("Personal information")).getByText("Dietary preference");
+    expect(row.parentElement?.textContent).toContain("not recorded");
   });
 
   it("shows no Student information for a coach who has never played and has no student fact", async () => {
@@ -276,6 +303,20 @@ describe("the person record, for an authorized operator", () => {
     expect(screen.getByRole("heading", { name: "Personal information" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Student information" })).toBeNull();
     expect(screen.queryByText("BAFA registration number")).toBeNull();
+  });
+
+  /** LAN-494: an Other type reads as its own name; a person with none reads not recorded. */
+  it("shows an Other degree type by the name entered for it", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({ degreeType: "Other", degreeTypeOther: "MRes (visiting)" }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    const student = sectionHeaded("Student information");
+    expect(within(student).getByText("Other — MRes (visiting)")).toBeTruthy();
   });
 
   it("shows Student information once a BAFA number is recorded for a non-playing coach", async () => {

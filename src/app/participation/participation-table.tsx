@@ -28,6 +28,9 @@ import {
   type ParticipationPerson,
   type ParticipationQuestion,
 } from "@/lib/services/participation-view";
+import { participationSections } from "@/lib/services/participation-sections";
+import { formatAttendanceHeadline } from "@/lib/services/event-attendance-progress";
+import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
 import { questionAppliesToCapacity } from "@/lib/services/question-applicability";
 
 import {
@@ -49,6 +52,7 @@ import {
   TABLE_HEADINGS,
   WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
+import { ParticipationGroupSection } from "./participation-group-section";
 import { RecordAnswerControl } from "./record-answer";
 
 /**
@@ -244,18 +248,20 @@ function SortableHeading({
   filters,
   column,
   label,
+  groupBy,
 }: {
   basePath: string;
   filters: ParticipationFilters;
   column: string;
   label: string;
+  groupBy: string | null;
 }) {
   const { active, direction } = participationSortState(filters, column);
   return (
     <SortableHeader
       column={column}
       label={label}
-      href={participationSortHref(basePath, filters, column)}
+      href={participationSortHref(basePath, filters, column, groupBy)}
       active={active}
       direction={direction}
     />
@@ -295,6 +301,8 @@ export function ParticipationTable({
   mayRecordAnswer = true,
   groupByAnswer = false,
   dense = false,
+  groupBy = null,
+  showAttendanceTally = false,
 }: {
   /** Where the sort links point — `/operate/events/<id>` or `/e/<token>`. */
   basePath: string;
@@ -306,15 +314,268 @@ export function ParticipationTable({
   groupByAnswer?: boolean;
   /** LAN-439: compact phone rows — every fact kept, several to a line. */
   dense?: boolean;
+  /** LAN-497: the chosen Group by, carried by every sort link; the filtered rows split into collapsible sections. Rows must carry their `groups`. */
+  groupBy?: AttendanceGroupFamily | null;
+  /** LAN-497: each section header carries its "<attended> attended / <expected> expected", once the event has occurred. */
+  showAttendanceTally?: boolean;
 }) {
   const operator = participation.tier === "operator";
   const recording = operator && mayRecordAnswer;
   const { questions } = participation;
   const sorted = applyParticipationView(participation.people, filters, questions);
-  const people = groupByAnswer ? groupedByAnswer(sorted) : sorted;
+  const ordered = (list: readonly ParticipationPerson[]) =>
+    groupByAnswer ? groupedByAnswer(list) : list;
+  const people = ordered(sorted);
+  const sections = groupBy === null ? null : participationSections(sorted, groupBy);
   const total = participation.people.length;
   // `EventFactsBase`: LAN-170's recording dialog needs the event's identity (OWNER-LAN170-09), otherwise unread here.
   const event = participation.event;
+
+  const rows = (list: readonly ParticipationPerson[]) => (
+    <>
+      <RowCardList dense={dense}>
+        {list.map((person) => (
+          <Box
+            key={person.key}
+            data-testid="participation-card"
+            data-person={person.key}
+            data-answer-group={answerGroupOf(person)}
+          >
+            <RowCard
+              dense={dense}
+              title={
+                <>
+                  {person.displayName}
+                  <DiscrepancyMark person={person} />
+                </>
+              }
+              trailing={capacityLabel(person)}
+              sublines={[
+                dense ? (
+                  <Box
+                    key="facts"
+                    component="dl"
+                    sx={{
+                      m: 0,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      columnGap: 1.5,
+                      rowGap: 0.25,
+                    }}
+                  >
+                    <InlineFact label={TABLE_HEADINGS.answer}>
+                      <AnswerCell
+                        operator={recording}
+                        event={event}
+                        person={person}
+                        questions={questions}
+                      />
+                    </InlineFact>
+                    <InlineFact label={TABLE_HEADINGS.attendance}>
+                      <AttendanceChip presence={person.presence} />
+                    </InlineFact>
+                    {operator ? (
+                      <InlineFact label={TABLE_HEADINGS.delivery}>
+                        <DeliveryCell
+                          person={person as OperatorParticipationPerson}
+                          isWalkUp={person.isWalkUp}
+                        />
+                      </InlineFact>
+                    ) : null}
+                    <InlineFact label={TABLE_HEADINGS.invited}>
+                      <Typography variant="body2" component="span">
+                        {formatWhen(person.invitedAt)}
+                      </Typography>
+                    </InlineFact>
+                    {person.reason ? (
+                      <InlineFact label={TABLE_HEADINGS.reason}>
+                        <Typography variant="body2" component="span">
+                          {person.reason}
+                        </Typography>
+                      </InlineFact>
+                    ) : null}
+                    {questions.map((question) => (
+                      <Box key={question.id} data-question={question.id} sx={{ minWidth: 0 }}>
+                        <InlineFact label={question.prompt}>
+                          {person.answers[question.id] ? (
+                            <Typography variant="body2" component="span">
+                              {person.answers[question.id]}
+                            </Typography>
+                          ) : (
+                            <NotRecorded />
+                          )}
+                        </InlineFact>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <FactGrid key="facts">
+                    <Fact
+                      label={TABLE_HEADINGS.answer}
+                      value={
+                        <AnswerCell
+                          operator={recording}
+                          event={event}
+                          person={person}
+                          questions={questions}
+                        />
+                      }
+                    />
+                    <Fact
+                      label={TABLE_HEADINGS.attendance}
+                      value={<AttendanceChip presence={person.presence} />}
+                    />
+                    {operator ? (
+                      <Fact
+                        label={TABLE_HEADINGS.delivery}
+                        value={
+                          <DeliveryCell
+                            person={person as OperatorParticipationPerson}
+                            isWalkUp={person.isWalkUp}
+                          />
+                        }
+                      />
+                    ) : null}
+                    <Fact label={TABLE_HEADINGS.invited} value={formatWhen(person.invitedAt)} />
+                    {person.reason ? (
+                      <Fact label={TABLE_HEADINGS.reason} value={person.reason} />
+                    ) : null}
+                    {questions.map((question) => (
+                      <Box key={question.id} data-question={question.id}>
+                        <Fact label={question.prompt} value={person.answers[question.id] ?? null} />
+                      </Box>
+                    ))}
+                  </FactGrid>
+                ),
+              ]}
+            />
+          </Box>
+        ))}
+      </RowCardList>
+
+      {/* Desktop: the full table, scrolling inside its own container. */}
+      <DesktopOnly>
+        <TableFrame>
+          <Table size="small" sx={{ minWidth: operator ? 1080 : 940 }}>
+            <TableHead>
+              <TableRow>
+                <SortableHeading
+                  basePath={basePath}
+                  filters={filters}
+                  groupBy={groupBy}
+                  column="name"
+                  label={TABLE_HEADINGS.name}
+                />
+                <SortableHeading
+                  basePath={basePath}
+                  filters={filters}
+                  groupBy={groupBy}
+                  column="capacity"
+                  label={TABLE_HEADINGS.capacity}
+                />
+                <SortableHeading
+                  basePath={basePath}
+                  filters={filters}
+                  groupBy={groupBy}
+                  column="invited"
+                  label={TABLE_HEADINGS.invited}
+                />
+                {operator ? (
+                  <SortableHeading
+                    basePath={basePath}
+                    filters={filters}
+                    groupBy={groupBy}
+                    column="delivery"
+                    label={TABLE_HEADINGS.delivery}
+                  />
+                ) : null}
+                <SortableHeading
+                  basePath={basePath}
+                  filters={filters}
+                  groupBy={groupBy}
+                  column="answer"
+                  label={TABLE_HEADINGS.answer}
+                />
+                <SortableHeading
+                  basePath={basePath}
+                  filters={filters}
+                  groupBy={groupBy}
+                  column="reason"
+                  label={TABLE_HEADINGS.reason}
+                />
+                <SortableHeading
+                  basePath={basePath}
+                  filters={filters}
+                  groupBy={groupBy}
+                  column="attendance"
+                  label={TABLE_HEADINGS.attendance}
+                />
+                {questions.map((question) => (
+                  <SortableHeading
+                    key={question.id}
+                    basePath={basePath}
+                    filters={filters}
+                    groupBy={groupBy}
+                    column={`q:${question.id}`}
+                    label={question.prompt}
+                  />
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {list.map((person) => (
+                <TableRow
+                  key={person.key}
+                  data-testid="participation-row"
+                  data-person={person.key}
+                  data-answer-group={answerGroupOf(person)}
+                >
+                  <TableCell>
+                    <Typography variant="body2" component="span" sx={{ fontWeight: 700 }}>
+                      {person.displayName}
+                    </Typography>
+                    <DiscrepancyMark person={person} />
+                  </TableCell>
+                  <TableCell>{capacityLabel(person)}</TableCell>
+                  <TableCell>{formatWhen(person.invitedAt)}</TableCell>
+                  {operator ? (
+                    <TableCell data-testid="delivery-cell">
+                      <DeliveryCell
+                        person={person as OperatorParticipationPerson}
+                        isWalkUp={person.isWalkUp}
+                      />
+                    </TableCell>
+                  ) : null}
+                  <TableCell>
+                    <AnswerCell
+                      operator={recording}
+                      event={event}
+                      person={person}
+                      questions={questions}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {person.reason ?? NOTHING}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <AttendanceChip presence={person.presence} />
+                  </TableCell>
+                  {questions.map((question) => (
+                    <TableCell key={question.id} data-question={question.id}>
+                      {questionAnswer(person, question)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableFrame>
+      </DesktopOnly>
+    </>
+  );
 
   return (
     <Box data-testid="participation-table" data-tier={participation.tier}>
@@ -327,248 +588,23 @@ export function ParticipationTable({
           <EmptyState title={NOBODY_ASKED} testId="participation-empty" />
         ) : people.length === 0 ? (
           <EmptyState title={NO_MATCHING_PEOPLE} testId="participation-no-matches" />
+        ) : sections === null ? (
+          rows(people)
         ) : (
-          <>
-            <RowCardList dense={dense}>
-              {people.map((person) => (
-                <Box
-                  key={person.key}
-                  data-testid="participation-card"
-                  data-person={person.key}
-                  data-answer-group={answerGroupOf(person)}
-                >
-                  <RowCard
-                    dense={dense}
-                    title={
-                      <>
-                        {person.displayName}
-                        <DiscrepancyMark person={person} />
-                      </>
-                    }
-                    trailing={capacityLabel(person)}
-                    sublines={[
-                      dense ? (
-                        <Box
-                          key="facts"
-                          component="dl"
-                          sx={{
-                            m: 0,
-                            display: "flex",
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                            columnGap: 1.5,
-                            rowGap: 0.25,
-                          }}
-                        >
-                          <InlineFact label={TABLE_HEADINGS.answer}>
-                            <AnswerCell
-                              operator={recording}
-                              event={event}
-                              person={person}
-                              questions={questions}
-                            />
-                          </InlineFact>
-                          <InlineFact label={TABLE_HEADINGS.attendance}>
-                            <AttendanceChip presence={person.presence} />
-                          </InlineFact>
-                          {operator ? (
-                            <InlineFact label={TABLE_HEADINGS.delivery}>
-                              <DeliveryCell
-                                person={person as OperatorParticipationPerson}
-                                isWalkUp={person.isWalkUp}
-                              />
-                            </InlineFact>
-                          ) : null}
-                          <InlineFact label={TABLE_HEADINGS.invited}>
-                            <Typography variant="body2" component="span">
-                              {formatWhen(person.invitedAt)}
-                            </Typography>
-                          </InlineFact>
-                          {person.reason ? (
-                            <InlineFact label={TABLE_HEADINGS.reason}>
-                              <Typography variant="body2" component="span">
-                                {person.reason}
-                              </Typography>
-                            </InlineFact>
-                          ) : null}
-                          {questions.map((question) => (
-                            <Box key={question.id} data-question={question.id} sx={{ minWidth: 0 }}>
-                              <InlineFact label={question.prompt}>
-                                {person.answers[question.id] ? (
-                                  <Typography variant="body2" component="span">
-                                    {person.answers[question.id]}
-                                  </Typography>
-                                ) : (
-                                  <NotRecorded />
-                                )}
-                              </InlineFact>
-                            </Box>
-                          ))}
-                        </Box>
-                      ) : (
-                        <FactGrid key="facts">
-                          <Fact
-                            label={TABLE_HEADINGS.answer}
-                            value={
-                              <AnswerCell
-                                operator={recording}
-                                event={event}
-                                person={person}
-                                questions={questions}
-                              />
-                            }
-                          />
-                          <Fact
-                            label={TABLE_HEADINGS.attendance}
-                            value={<AttendanceChip presence={person.presence} />}
-                          />
-                          {operator ? (
-                            <Fact
-                              label={TABLE_HEADINGS.delivery}
-                              value={
-                                <DeliveryCell
-                                  person={person as OperatorParticipationPerson}
-                                  isWalkUp={person.isWalkUp}
-                                />
-                              }
-                            />
-                          ) : null}
-                          <Fact
-                            label={TABLE_HEADINGS.invited}
-                            value={formatWhen(person.invitedAt)}
-                          />
-                          {person.reason ? (
-                            <Fact label={TABLE_HEADINGS.reason} value={person.reason} />
-                          ) : null}
-                          {questions.map((question) => (
-                            <Box key={question.id} data-question={question.id}>
-                              <Fact
-                                label={question.prompt}
-                                value={person.answers[question.id] ?? null}
-                              />
-                            </Box>
-                          ))}
-                        </FactGrid>
-                      ),
-                    ]}
-                  />
-                </Box>
-              ))}
-            </RowCardList>
-
-            {/* Desktop: the full table, scrolling inside its own container. */}
-            <DesktopOnly>
-              <TableFrame>
-                <Table size="small" sx={{ minWidth: operator ? 1080 : 940 }}>
-                  <TableHead>
-                    <TableRow>
-                      <SortableHeading
-                        basePath={basePath}
-                        filters={filters}
-                        column="name"
-                        label={TABLE_HEADINGS.name}
-                      />
-                      <SortableHeading
-                        basePath={basePath}
-                        filters={filters}
-                        column="capacity"
-                        label={TABLE_HEADINGS.capacity}
-                      />
-                      <SortableHeading
-                        basePath={basePath}
-                        filters={filters}
-                        column="invited"
-                        label={TABLE_HEADINGS.invited}
-                      />
-                      {operator ? (
-                        <SortableHeading
-                          basePath={basePath}
-                          filters={filters}
-                          column="delivery"
-                          label={TABLE_HEADINGS.delivery}
-                        />
-                      ) : null}
-                      <SortableHeading
-                        basePath={basePath}
-                        filters={filters}
-                        column="answer"
-                        label={TABLE_HEADINGS.answer}
-                      />
-                      <SortableHeading
-                        basePath={basePath}
-                        filters={filters}
-                        column="reason"
-                        label={TABLE_HEADINGS.reason}
-                      />
-                      <SortableHeading
-                        basePath={basePath}
-                        filters={filters}
-                        column="attendance"
-                        label={TABLE_HEADINGS.attendance}
-                      />
-                      {questions.map((question) => (
-                        <SortableHeading
-                          key={question.id}
-                          basePath={basePath}
-                          filters={filters}
-                          column={`q:${question.id}`}
-                          label={question.prompt}
-                        />
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {people.map((person) => (
-                      <TableRow
-                        key={person.key}
-                        data-testid="participation-row"
-                        data-person={person.key}
-                        data-answer-group={answerGroupOf(person)}
-                      >
-                        <TableCell>
-                          <Typography variant="body2" component="span" sx={{ fontWeight: 700 }}>
-                            {person.displayName}
-                          </Typography>
-                          <DiscrepancyMark person={person} />
-                        </TableCell>
-                        <TableCell>{capacityLabel(person)}</TableCell>
-                        <TableCell>{formatWhen(person.invitedAt)}</TableCell>
-                        {operator ? (
-                          <TableCell data-testid="delivery-cell">
-                            <DeliveryCell
-                              person={person as OperatorParticipationPerson}
-                              isWalkUp={person.isWalkUp}
-                            />
-                          </TableCell>
-                        ) : null}
-                        <TableCell>
-                          <AnswerCell
-                            operator={recording}
-                            event={event}
-                            person={person}
-                            questions={questions}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {person.reason ?? NOTHING}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <AttendanceChip presence={person.presence} />
-                        </TableCell>
-                        {questions.map((question) => (
-                          <TableCell key={question.id} data-question={question.id}>
-                            {questionAnswer(person, question)}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableFrame>
-            </DesktopOnly>
-          </>
+          <Stack spacing={2} data-testid="participation-sections">
+            {sections.map((entry) => (
+              <ParticipationGroupSection
+                key={entry.key}
+                sectionKey={entry.key}
+                label={entry.label}
+                count={entry.people.length}
+                headline={showAttendanceTally ? formatAttendanceHeadline(entry.tally) : null}
+                defaultOpen={entry.defaultOpen}
+              >
+                {rows(ordered(entry.people))}
+              </ParticipationGroupSection>
+            ))}
+          </Stack>
         )}
       </Section>
     </Box>

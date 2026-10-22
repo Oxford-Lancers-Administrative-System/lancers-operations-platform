@@ -52,6 +52,7 @@ export function DetailsStepPage({ view, token }: { view: QuestionnaireView; toke
     mobile: currentContact(view, "phone"),
     college_email: currentCollegeEmail(view),
     personal_email: currentContact(view, "email"),
+    dietary_preference: p.dietaryPreference ?? "",
     college: p.college ?? "",
     matriculation_year: p.matriculationYear?.toString() ?? "",
     expected_graduation_year: p.expectedGraduationYear?.toString() ?? "",

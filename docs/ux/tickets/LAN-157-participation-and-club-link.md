@@ -62,6 +62,12 @@ pair, and it carries both presentations side by side:
 - **Sortable on every column** (§4.5), including the question columns.
 - **Filterable** by name, capacity, answer, attendance, and — at the operator
   tier — delivery. The filters combine and apply as you type.
+- **Group by** (LAN-497, Brian's walk of 2026-10-22), operator tier on the
+  event page only: the register's select, after the delivery filter, with the
+  same families, gating, `by` parameter and remembered choice. The table splits
+  into collapsible sections: Coaches first, the family's groups, No group last;
+  an occurred event's section header carries "<attended> attended / <expected>
+  expected". Sort and filters apply within each section.
 - **A discrepancy marker** where RSVP and attendance disagree (D64), never
   auto-reconciled.
 - **The club link**: an operator issues it, copies it, and shares it. Signed,
@@ -80,7 +86,14 @@ pair, and it carries both presentations side by side:
   the unanswered remainder as the pale track between them. The response-rate
   colour gate at 50 % and 75 % is not shipped, and Showed is on neither
   surface. That amends D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the
-  amendment in full.
+  amendment in full. **Brian's walk of 2026-10-22 (LAN-504)** titles the cards
+  `Players — Responses` / `Coaches — Responses` and adds a second row on an
+  occurred event, `Players — Attendance` / `Coaches — Attendance`: headline
+  `<attended> attended / <expected> expected` (attended = Present + Late;
+  expected = said yes, plus anyone marked Present or Late who did not), counts
+  Present, Late, No-show, Excused, a bar across the expected with no remainder,
+  and a dropdown of names in a 2x2 grid (one column on a phone). "Not recorded"
+  is gone; a yes with no mark is a No-show.
 - **Delivery detail.** A state and a link out, both operator tier (D65); the
   delivery page is Mission 4's.
 - **Chasing anybody.** Seeing that eight people have not answered is not the

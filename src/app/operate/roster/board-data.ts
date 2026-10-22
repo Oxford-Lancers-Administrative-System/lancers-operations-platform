@@ -6,11 +6,20 @@ import { isMultiValueKitItem, parseKitCellKey } from "@/lib/services/roster-boar
 import {
   ATTENDANCE_COLUMN_TALLIES,
   AVAILABILITY_LABELS,
+  bandOf,
   ELIGIBILITY_LABELS,
   FORMALWEAR_LABELS,
   isAttendanceColumnKey,
   type ColumnDef,
 } from "./board-columns";
+import {
+  firstInOptionOrder,
+  sortRows,
+  type SortField,
+  type SortKey,
+  type SortKind,
+  type SortValue,
+} from "../board-sort";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 // Pure search, filter and sort over the board's rows — no database. Operates in memory (`DEC-w1-12`), not SQL predicates.
@@ -19,10 +28,10 @@ export const NOT_RECORDED = "Not recorded";
 
 export type BoardFilters = Record<string, string>;
 
-export interface BoardSort {
-  key: string;
-  direction: "asc" | "desc";
-}
+/** The board's own order with no key chosen — Player A–Z (LAN-186). */
+export const ROSTER_DEFAULT_SORT: readonly SortKey[] = Object.freeze([
+  Object.freeze({ key: "displayName", direction: "asc" as const }),
+]);
 
 /** The text an empty derived cell shows — the Attendance group's "nothing counted". */
 export const NOTHING_COUNTED = "—";
@@ -59,6 +68,8 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.expectedGraduationYear;
     case "degree":
       return row.degreeField;
+    case "dietary":
+      return row.dietaryPreference;
     case "contactable":
       return [row.hasMobile ? "Mobile" : "", row.hasEmail ? "Email" : ""].filter(Boolean);
     case "missing":
@@ -134,14 +145,58 @@ export function onboardingLabel(row: RosterBoardRow): string {
   return `${remaining} outstanding, none blocking`;
 }
 
-/** `null` when the value is genuinely absent — sorted last regardless of direction, below. */
-function comparable(row: RosterBoardRow, key: string): string | number | null {
+/** Columns whose values are counts or years, so their orders read Low–High. */
+const NUMBER_SORT_KEYS: ReadonlySet<string> = new Set([
+  "matriculation",
+  "graduation",
+  "missing",
+  ...Object.keys(ATTENDANCE_COLUMN_TALLIES),
+]);
+
+/**
+ * What the Sort sheet offers this viewer — LAN-495: First name, Last name, the
+ * pinned Player column, then every column they can see in board order, those in
+ * a folded group included. `columns` is already this viewer's own, so a hidden
+ * column is never offered. A label shared by two columns names its group.
+ */
+export function rosterSortFields(columns: readonly ColumnDef[]): readonly SortField[] {
+  const labelCount = new Map<string, number>();
+  for (const column of columns)
+    labelCount.set(column.label, (labelCount.get(column.label) ?? 0) + 1);
+  const kindOf = (key: string): SortKind => (NUMBER_SORT_KEYS.has(key) ? "number" : "text");
+  return [
+    { key: "firstName", label: "First name", kind: "text" },
+    { key: "lastName", label: "Last name", kind: "text" },
+    { key: "displayName", label: "Player", kind: "text" },
+    ...columns
+      .filter((column) => column.sortable && !column.placeholder)
+      .map((column) => ({
+        key: column.key,
+        label: column.groupHeading
+          ? `${column.groupHeading} · ${column.label}`
+          : (labelCount.get(column.label) ?? 0) > 1
+            ? `${bandOf(column.band).label} · ${column.label}`
+            : column.label,
+        kind: kindOf(column.key),
+      })),
+  ];
+}
+
+/**
+ * One row's value for one sort key. A multi-valued cell sorts by its first
+ * value in the column's option order; an empty one is `null`, last either way.
+ */
+function sortValue(
+  row: RosterBoardRow,
+  key: string,
+  optionsOf: ReadonlyMap<string, readonly string[] | undefined>,
+): SortValue {
+  if (key === "displayName") return row.displayName;
   const value = rawValue(row, key);
   if (value === null) return null;
-  if (Array.isArray(value)) return value.length === 0 ? null : value.join(", ");
+  if (Array.isArray(value)) return firstInOptionOrder(value, optionsOf.get(key));
   if (typeof value === "number") return value;
-  const asNumber = Number(value);
-  return Number.isNaN(asNumber) ? value : asNumber;
+  return value === "" ? null : value;
 }
 
 const CODE_ONLY_COLUMNS = new Set([
@@ -177,7 +232,11 @@ export function filterOptions(
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  if (column.options && !column.itemCode) return [...column.options];
+  // LAN-502: a fixed vocabulary answered on the record (Dietary preference) is
+  // blank for everyone who has not answered, and that is filterable too.
+  if (column.options && !column.itemCode) {
+    return column.edit === "record" ? [...column.options, NOT_RECORDED] : [...column.options];
+  }
 
   const seen = new Set<string>();
   let blanks = false;
@@ -244,7 +303,14 @@ export interface AppliedBoard {
 /** Search, filter and sort, applied together — `filters` is the same object the pinned controls and each column's funnel both write to. */
 export function applyBoard(
   rows: readonly RosterBoardRow[],
-  params: { search: string; filters: BoardFilters; sort: BoardSort },
+  params: {
+    search: string;
+    filters: BoardFilters;
+    /** Up to three keys (LAN-495); none is the board's default, Player A–Z. */
+    sort: readonly SortKey[];
+    /** The board's columns, for the option order a multi-valued cell sorts by. */
+    columns?: readonly ColumnDef[];
+  },
 ): AppliedBoard {
   const kept = rows.filter(
     (row) =>
@@ -252,17 +318,11 @@ export function applyBoard(
       Object.entries(params.filters).every(([key, wanted]) => matches(row, key, wanted)),
   );
 
-  const direction = params.sort.direction === "asc" ? 1 : -1;
-  const visible = [...kept].sort((a, b) => {
-    const left = params.sort.key === "displayName" ? a.displayName : comparable(a, params.sort.key);
-    const right =
-      params.sort.key === "displayName" ? b.displayName : comparable(b, params.sort.key);
-    // Not recorded sorts last regardless of direction — same "nulls last" rule as rosterOrderBy() in SQL.
-    if (left === null && right === null) return 0;
-    if (left === null) return 1;
-    if (right === null) return -1;
-    if (typeof left === "number" && typeof right === "number") return (left - right) * direction;
-    return String(left).localeCompare(String(right), "en-GB", { numeric: true }) * direction;
+  const optionsOf = new Map((params.columns ?? []).map((column) => [column.key, column.options]));
+  const keys = params.sort.length > 0 ? params.sort : ROSTER_DEFAULT_SORT;
+  const visible = sortRows(kept, keys, (row, key) => sortValue(row, key, optionsOf), {
+    name: (row) => row.displayName,
+    id: (row) => row.membershipId,
   });
 
   const activeFilters = Object.entries(params.filters).filter(([, value]) => value !== "");
@@ -287,7 +347,13 @@ export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
     if (value.length === 0) return column.edit === "none" ? "—" : NOT_RECORDED;
     return value.map((entry) => optionLabel(column, entry)).join(", ");
   }
-  if (column.edit === "select" || column.edit === "onboarding" || column.itemCode)
+  // LAN-502: a record-edited column with a fixed vocabulary shows its label too.
+  if (
+    column.edit === "select" ||
+    column.edit === "onboarding" ||
+    column.itemCode ||
+    column.optionLabels
+  )
     return optionLabel(column, String(value));
   return String(value);
 }

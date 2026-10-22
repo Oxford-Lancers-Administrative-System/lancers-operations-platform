@@ -1,5 +1,7 @@
 // Attendance vocabulary and screen shapes — pure, no db import (LAN-80). Re-exported by ./attendance.ts.
 
+import type { AttendanceGroupValues } from "./attendance-group-by";
+
 export const ATTENDANCE_PRESENCES = Object.freeze([
   "present",
   "late",
@@ -24,6 +26,7 @@ export interface AttendanceParticipant {
   recordedAt: string | null; // ISO-8601
   recordedByName: string | null; // shown so a second recorder sees whose value they have
   mismatch: string | null; // rsvp_attendance_mismatches classification, when the view flags one
+  groups?: AttendanceGroupValues; // LAN-497: only the families the viewer may see; absent when none
 }
 
 export interface WalkUpInput {

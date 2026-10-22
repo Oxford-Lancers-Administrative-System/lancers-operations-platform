@@ -207,6 +207,8 @@ export interface MessageQueueRow {
   readonly attemptCount: number;
   readonly noUsableRoute: boolean;
   readonly notDelivered: boolean;
+  /** A withheld row whose reason is the missing season consent; other withheld rows were skipped on purpose (LAN-483). */
+  readonly noConsent: boolean;
   readonly personId: string | null;
   readonly personName: string | null;
   readonly eventId: string | null;
@@ -308,6 +310,8 @@ interface ListRow {
   idempotency_key: string | null;
   person_id: string | null;
   event_id: string | null;
+  /** The job's status, or `withheld` for an invitation written with no job. */
+  status: string;
   attempt_count: number;
   next_attempt_at: Date | null;
   last_error: string | null;
@@ -454,6 +458,9 @@ export async function readMessageQueue(filters: MessageQueueFilters = {}): Promi
           row.state === "failed" &&
           (row.last_error === NO_USABLE_NUMBER_REASON || row.last_error === NO_USABLE_EMAIL_REASON),
         notDelivered: row.state === "attempted" && row.not_delivered,
+        noConsent:
+          row.state === "withheld" &&
+          (row.status === "withheld" || row.last_error === NO_CONSENT_REASON),
         personId: row.person_id,
         personName: row.person_name,
         eventId: row.event_id,

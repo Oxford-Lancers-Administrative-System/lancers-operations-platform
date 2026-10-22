@@ -13,8 +13,8 @@ export const CLUB_NAME = "Oxford Lancers";
 /** Oxford Blue — `theme.palette.primary.main`, the masthead, the icon ground. */
 export const CLUB_NAVY = "#002147";
 
-/** The application mark. `public/brand/README.md` records where it came from. */
-export const CREST_PATH = "/brand/crest.svg";
+/** The application mark: the round crest, on every ground (LAN-509). `public/brand/README.md` records where it came from. */
+export const CREST_PATH = "/brand/icon-mark.svg";
 
 /** What a member reads when the app is shared (LAN-269, Brian's sentence). */
 export const SITE_DESCRIPTION = "The Oxford Lancers club app: events, RSVPs and your details.";

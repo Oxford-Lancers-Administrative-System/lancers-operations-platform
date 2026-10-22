@@ -1432,6 +1432,15 @@ async function dispatchEscalationFallbackBestEffort(
  * tables for a player-facing job that never got as far as a provider; this
  * now does the same, so an escalation or a cancellation notice that fails the
  * identical way is equally visible.
+ *
+ * LAN-483. The outcome is `rejected`, not `failed`. Every caller is a refusal
+ * decided before any provider was asked — a recruit who already completed the
+ * track, one who is no longer a prospect, no consent, no route — and none of
+ * them changes by asking again. `DELIVERY_STATE_EXPRESSION` reads a `failed`
+ * outcome with attempts remaining as **Retryable**, so a deliberate skip used
+ * to sit among the messages that need attention, and a Retry only re-claimed
+ * it, refused it again and added an attempt row. `recordUndeliverableIn` in
+ * `./delivery.ts` already records its own claim-time refusal this way.
  */
 async function failClaimTerminallyIn(
   tx: Tx,
@@ -1459,7 +1468,7 @@ async function failClaimTerminallyIn(
   await tx.query(
     `insert into public.delivery_results
        (notification_job_id, attempt_number, outcome, channel, provider, detail)
-     values ($1, $2, 'failed', $3, $4, $5)
+     values ($1, $2, 'rejected', $3, $4, $5)
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, attemptNumber, channel, provider, reason],
   );

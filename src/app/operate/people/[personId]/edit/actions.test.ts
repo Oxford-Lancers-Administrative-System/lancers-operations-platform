@@ -119,6 +119,10 @@ async function formFrom(
     matriculationYear: record.matriculationYear?.toString() ?? "",
     expectedGraduationYear: record.expectedGraduationYear?.toString() ?? "",
     degreeField: record.degreeField ?? "",
+    degreeType: record.degreeType ?? "",
+    // Posted only while the type is Other, as the form does.
+    ...(record.degreeType === "Other" ? { degreeTypeOther: record.degreeTypeOther ?? "" } : {}),
+    dietaryPreference: record.dietaryPreference ?? "",
     dateOfBirth: record.dateOfBirth ?? "",
     emergencyGivenName: record.emergencyContact?.givenName ?? "",
     emergencyFamilyName: record.emergencyContact?.familyName ?? "",
@@ -423,6 +427,100 @@ describe("filling and correcting", () => {
     expect(after.emergencyContact?.relationship).toBe("Guardian");
     expect(after.emergencyContact?.phone).toBe("+447700900222");
     expect(after.emergencyContact?.email).toBe("ivy@example.invalid");
+  });
+
+  it("sets a dietary preference with no reason, and changes it with one — LAN-502", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Diet") });
+
+    await expect(
+      submitPersonEdit(
+        INITIAL_EDIT_STATE,
+        await formFrom(personId, { dietaryPreference: "vegan" }),
+      ),
+    ).rejects.toThrow(RedirectSignal);
+    expect((await readPersonRecord(personId)).dietaryPreference).toBe("vegan");
+
+    const unexplained = await submitPersonEdit(
+      INITIAL_EDIT_STATE,
+      await formFrom(personId, { dietaryPreference: "none" }),
+    );
+    expect(unexplained.formError).toBeTruthy();
+
+    await expect(
+      submitPersonEdit(
+        INITIAL_EDIT_STATE,
+        await formFrom(personId, {
+          dietaryPreference: "none",
+          dietaryPreferenceReason: "Told the social secretary",
+        }),
+      ),
+    ).rejects.toThrow(RedirectSignal);
+    expect((await readPersonRecord(personId)).dietaryPreference).toBe("none");
+  });
+
+  it("records a degree type apart from the degree field, which it leaves alone — LAN-494", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Degree") });
+    await observer.query(
+      `update public.people set degree_field = 'MSc in Education' where id = $1::uuid`,
+      [personId],
+    );
+
+    await expect(
+      submitPersonEdit(INITIAL_EDIT_STATE, await formFrom(personId, { degreeType: "DPhil" })),
+    ).rejects.toThrow(RedirectSignal);
+
+    const after = await readPersonRecord(personId);
+    expect(after.degreeType).toBe("DPhil");
+    expect(after.degreeTypeOther).toBeNull();
+    expect(after.degreeField).toBe("MSc in Education");
+  });
+
+  it("asks for a name with Other, keeps it, and clears it when the type moves off Other — LAN-494", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Other") });
+
+    const unnamed = await submitPersonEdit(
+      INITIAL_EDIT_STATE,
+      await formFrom(personId, { degreeType: "Other", degreeTypeOther: "  " }),
+    );
+    expect(unnamed.errors.degreeTypeOther).toBe("Other degree type is required.");
+    expect((await readPersonRecord(personId)).degreeType).toBeNull();
+
+    await expect(
+      submitPersonEdit(
+        INITIAL_EDIT_STATE,
+        await formFrom(personId, { degreeType: "Other", degreeTypeOther: "MRes (visiting)" }),
+      ),
+    ).rejects.toThrow(RedirectSignal);
+    const other = await readPersonRecord(personId);
+    expect(other.degreeType).toBe("Other");
+    expect(other.degreeTypeOther).toBe("MRes (visiting)");
+
+    // The form stops posting the name once the type is not Other.
+    const moved = await formFrom(personId, {
+      degreeType: "MSc by Research",
+      degreeTypeReason: "Department confirmed the award",
+    });
+    moved.delete("degreeTypeOther");
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, moved)).rejects.toThrow(RedirectSignal);
+    const after = await readPersonRecord(personId);
+    expect(after.degreeType).toBe("MSc by Research");
+    expect(after.degreeTypeOther).toBeNull();
+  });
+
+  it("refuses a degree type that is not on the list — LAN-494", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Unlisted") });
+
+    const result = await submitPersonEdit(
+      INITIAL_EDIT_STATE,
+      await formFrom(personId, { degreeType: "MRes" }),
+    );
+
+    expect(result.errors.degreeType).toBe("Choose a degree type from the list, or Other.");
+    expect((await readPersonRecord(personId)).degreeType).toBeNull();
   });
 
   it("moves nothing on the ladder", async () => {

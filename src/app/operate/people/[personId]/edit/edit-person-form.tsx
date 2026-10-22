@@ -9,7 +9,18 @@ import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { Field, DateField, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
+import {
+  Field,
+  DateField,
+  NO_AUTOFILL,
+  preventImplicitSubmit,
+  SelectField,
+} from "@/components/field";
+import { DEGREE_TYPE_OPTIONS, DEGREE_TYPE_OTHER } from "@/lib/services/oxford-degree-types";
+import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
+
+/** LAN-494: the list, grouped, after a blank that leaves the type unrecorded. */
+const DEGREE_TYPE_CHOICES = [{ value: "", label: "Not recorded" }, ...DEGREE_TYPE_OPTIONS];
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -38,6 +49,8 @@ const STUDENT_FIELDS = [
   "matriculationYear",
   "expectedGraduationYear",
   "degreeField",
+  "degreeType",
+  "degreeTypeOther",
   "studentNumber",
   "bafaRegistrationNumber",
 ] as const satisfies readonly (keyof EditState["errors"])[];
@@ -56,10 +69,13 @@ export type EditablePersonRecord = Pick<
   | "middleName"
   | "familyName"
   | "aliases"
+  | "dietaryPreference"
   | "college"
   | "matriculationYear"
   | "expectedGraduationYear"
   | "degreeField"
+  | "degreeType"
+  | "degreeTypeOther"
   | "studentNumber"
   | "bafaRegistrationNumber"
   | "dateOfBirth"
@@ -109,6 +125,8 @@ export default function EditPersonForm({
   const ec = record.emergencyContact;
   // A refused student field opens the section, so the error is never behind a closed disclosure.
   const studentFieldRefused = STUDENT_FIELDS.some((field) => Boolean(state.errors[field]));
+  // LAN-494: the Other name is asked for only while the type is Other.
+  const [degreeType, setDegreeType] = useState(record.degreeType ?? "");
 
   return (
     <Box
@@ -194,6 +212,15 @@ export default function EditPersonForm({
                     error={state.errors.familyName}
                   />
                   <AliasesEditor personId={personId} record={record} />
+                  {/* LAN-502: the onboarding step's three answers. */}
+                  <CorrectableField
+                    name="dietaryPreference"
+                    reasonName="dietaryPreferenceReason"
+                    label="Dietary preference"
+                    options={DIETARY_PREFERENCE_OPTIONS}
+                    original={record.dietaryPreference ?? ""}
+                    error={state.errors.dietaryPreference}
+                  />
                 </>
               ) : null}
               {mayEditContact ? (
@@ -282,6 +309,26 @@ export default function EditPersonForm({
                   label="Degree field"
                   original={record.degreeField ?? ""}
                 />
+                {/* LAN-494: the award type, separate from the degree field above. */}
+                <CorrectableField
+                  name="degreeType"
+                  reasonName="degreeTypeReason"
+                  label="Degree type"
+                  options={DEGREE_TYPE_CHOICES}
+                  original={record.degreeType ?? ""}
+                  error={state.errors.degreeType}
+                  onValueChange={setDegreeType}
+                />
+                {degreeType === DEGREE_TYPE_OTHER ? (
+                  <CorrectableField
+                    name="degreeTypeOther"
+                    reasonName="degreeTypeOtherReason"
+                    label="Other degree type"
+                    required
+                    original={record.degreeTypeOther ?? ""}
+                    error={state.errors.degreeTypeOther}
+                  />
+                ) : null}
                 {/* LAN-365: BAFA is last because the club fills it in — a
                     student never knows their own registration number, so it is
                     never asked for in onboarding. Never required. */}
@@ -385,6 +432,8 @@ function CorrectableField({
   unchangedHelperText,
   renderExtra,
   phone,
+  options,
+  onValueChange,
 }: {
   name: string;
   reasonName: string;
@@ -397,8 +446,16 @@ function CorrectableField({
   renderExtra?: (value: string, changed: boolean) => React.ReactNode;
   /** LAN-211: the shared two-part control in place of one free-text box. */
   phone?: boolean;
+  /** A fixed vocabulary (LAN-502, LAN-494): the shared `SelectField` in place of free text. */
+  options?: ReadonlyArray<{ value: string; label: string; group?: string }>;
+  /** Told every change, for a field whose value decides what else is drawn (LAN-494). */
+  onValueChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(original);
+  const [value, setValueState] = useState(original);
+  const setValue = (next: string) => {
+    setValueState(next);
+    onValueChange?.(next);
+  };
   const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
   const changed = value.trim() !== original.trim();
   const needsReason = changed && original.trim() !== "";
@@ -415,6 +472,17 @@ function CorrectableField({
           error={Boolean(error)}
           helperText={error ?? (changed ? undefined : unchangedHelperText)}
           onValueChange={setValue}
+        />
+      ) : options ? (
+        <SelectField
+          name={name}
+          label={label}
+          required={required}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          options={options}
+          error={Boolean(error)}
+          helperText={error ?? (changed ? undefined : unchangedHelperText)}
         />
       ) : type === "date" ? (
         <DateField

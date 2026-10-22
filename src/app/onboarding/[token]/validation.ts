@@ -13,6 +13,7 @@ import {
   FIELD_COLLEGE_EMAIL,
   FIELD_DATE_OF_BIRTH,
   FIELD_DEGREE_FIELD,
+  FIELD_DIETARY_PREFERENCE,
   FIELD_EC_EMAIL,
   FIELD_EC_FAMILY_NAME,
   FIELD_EC_GIVEN_NAME,
@@ -34,6 +35,8 @@ export interface DetailsFormValues {
   /** LAN-268. Required, and validated to the Oxford rule by the service. */
   college_email: string;
   personal_email: string;
+  /** LAN-502. Required: one of `DIETARY_PREFERENCE_VALUES`. */
+  dietary_preference: string;
   college: string;
   matriculation_year: string;
   expected_graduation_year: string;
@@ -70,6 +73,7 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   mobile: "",
   college_email: "",
   personal_email: "",
+  dietary_preference: "",
   college: "",
   matriculation_year: "",
   expected_graduation_year: "",
@@ -103,6 +107,7 @@ const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
   "mobile",
   "college_email",
   "personal_email",
+  "dietary_preference",
   "college",
   "matriculation_year",
   "expected_graduation_year",
@@ -120,6 +125,7 @@ const REQUIRED_LABEL: Readonly<Record<ValidatedDetailsField, string>> = Object.f
   mobile: FIELD_MOBILE,
   college_email: FIELD_COLLEGE_EMAIL,
   personal_email: FIELD_PERSONAL_EMAIL,
+  dietary_preference: FIELD_DIETARY_PREFERENCE,
   college: FIELD_COLLEGE,
   matriculation_year: FIELD_MATRICULATION_YEAR,
   expected_graduation_year: FIELD_EXPECTED_GRADUATION,
@@ -145,6 +151,7 @@ export function readDetailsValues(form: FormData): DetailsFormValues {
     mobile: read("mobile"),
     college_email: read("college_email"),
     personal_email: read("personal_email"),
+    dietary_preference: read("dietary_preference"),
     college: read("college"),
     matriculation_year: read("matriculation_year"),
     expected_graduation_year: read("expected_graduation_year"),

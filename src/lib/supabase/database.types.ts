@@ -3103,6 +3103,9 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           degree_field: string | null
+          degree_type: string | null
+          degree_type_other: string | null
+          dietary_preference: string | null
           erased_at: string | null
           expected_graduation_year: number | null
           family_name: string | null
@@ -3124,6 +3127,9 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          degree_type?: string | null
+          degree_type_other?: string | null
+          dietary_preference?: string | null
           erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null
@@ -3145,6 +3151,9 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          degree_type?: string | null
+          degree_type_other?: string | null
+          dietary_preference?: string | null
           erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null

@@ -197,6 +197,11 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     expectedGraduationYearSource: "academic",
     degreeField: "academic",
     degreeFieldSource: "academic",
+    // LAN-494: a student fact like the degree field beside it.
+    degreeType: "academic",
+    degreeTypeSource: "academic",
+    degreeTypeOther: "academic",
+    degreeTypeOtherSource: "academic",
     // LAN-267's two identifiers. `academic` rather than `standing`, and
     // deliberately not a sixth category.
     //
@@ -214,6 +219,12 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     studentNumberSource: "academic",
     bafaRegistrationNumber: "academic",
     bafaRegistrationNumberSource: "academic",
+    // LAN-502. Shown in Personal information beside the name, and as a Person
+    // column on the roster board — so not `restricted`, whose fields never
+    // reach a board. `identity` is the category Personal information's own
+    // rows are drawn under; every non-contact category reads as Person.
+    dietaryPreference: "identity",
+    dietaryPreferenceSource: "identity",
     dateOfBirth: "restricted",
     dateOfBirthSource: "restricted",
     // LAN-432: the emergency contact is one of Contact & emergency's three

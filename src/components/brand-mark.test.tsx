@@ -17,4 +17,15 @@ describe("BrandMark", () => {
     render(<BrandMark tone="onLight" testId="mark" />);
     expect(screen.getByTestId("mark").querySelectorAll("p")).toHaveLength(1);
   });
+
+  it.each(["onDark", "onLight"] as const)(
+    "draws the round crest, square, on %s grounds — LAN-509",
+    (tone) => {
+      render(<BrandMark tone={tone} crestSize={48} testId="mark" />);
+      const crest = screen.getByTestId("mark").querySelector("img");
+      expect(CREST_PATH).toBe("/brand/icon-mark.svg");
+      expect(crest).toHaveAttribute("src", "/brand/icon-mark.svg");
+      expect(crest).toHaveStyle({ width: "48px", height: "48px" });
+    },
+  );
 });

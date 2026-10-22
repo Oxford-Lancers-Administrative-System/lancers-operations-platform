@@ -9,10 +9,14 @@ import { Field } from "@/components/field";
 import {
   ANSWER_FILTERS,
   ATTENDANCE_FILTERS,
+  GROUP_BY_PARAM,
   PARTICIPATION_PARAMS,
   type ParticipationFilters,
 } from "@/lib/services/participation-view";
+import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
 import { useFilterSearch } from "../operate/filter-search";
+import { useRememberedGroupBy } from "../operate/group-by-memory";
+import { GroupBySelect } from "../operate/group-by-select";
 
 import {
   ANSWER_NO,
@@ -94,10 +98,18 @@ export function ParticipationFilterBar({
   basePath,
   filters,
   showDelivery,
+  groupFamilies = [],
+  groupBy = null,
+  storageKey = null,
 }: {
   basePath: string;
   filters: ParticipationFilters;
   showDelivery: boolean;
+  /** LAN-497: the families this viewer may group by. Empty: no Group by select at all. */
+  groupFamilies?: readonly AttendanceGroupFamily[];
+  groupBy?: AttendanceGroupFamily | null;
+  /** The viewer's key for the remembered choice, shared with the attendance register. */
+  storageKey?: string | null;
 }) {
   const router = useRouter();
   // R157C-B2: a filter change re-orders the screen, not a fresh page — `scroll: false` keeps an operator part-way down from bouncing to the top.
@@ -111,6 +123,7 @@ export function ParticipationFilterBar({
     [PARTICIPATION_PARAMS.direction]: filters.direction,
   };
   if (showDelivery) carried[PARTICIPATION_PARAMS.delivery] = filters.delivery;
+  carried[GROUP_BY_PARAM] = groupBy ?? "";
 
   const { typed, setTyped, hrefFor } = useFilterSearch({
     search: filters.search,
@@ -120,6 +133,12 @@ export function ParticipationFilterBar({
   });
 
   const apply = (patch: Record<string, string>) => router.push(hrefFor(patch), { scroll: false });
+
+  const restore = useCallback(
+    (family: AttendanceGroupFamily) => router.replace(hrefFor({ [GROUP_BY_PARAM]: family })),
+    [router, hrefFor],
+  );
+  const remember = useRememberedGroupBy({ storageKey, groupBy, families: groupFamilies, restore });
 
   const anyFilter =
     filters.search !== "" ||
@@ -191,8 +210,21 @@ export function ParticipationFilterBar({
           onPick={(value) => apply({ [PARTICIPATION_PARAMS.delivery]: value })}
         />
       ) : null}
+      <GroupBySelect
+        families={groupFamilies}
+        value={groupBy}
+        onChange={(value) => {
+          remember(value);
+          apply({ [GROUP_BY_PARAM]: value });
+        }}
+        sx={{ minWidth: 170 }}
+      />
       {anyFilter ? (
-        <Button size="small" href={basePath} data-testid="filter-clear">
+        <Button
+          size="small"
+          href={groupBy === null ? basePath : `${basePath}?${GROUP_BY_PARAM}=${groupBy}`}
+          data-testid="filter-clear"
+        >
           {CLEAR_FILTERS}
         </Button>
       ) : null}

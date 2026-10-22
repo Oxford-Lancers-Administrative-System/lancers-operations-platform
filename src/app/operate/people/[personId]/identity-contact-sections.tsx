@@ -6,6 +6,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { selectMobileNumber } from "@/lib/delivery/phone-shape";
 import { DEFAULT_CALLING_CODE } from "@/lib/services/person-validation";
+import { degreeTypeDisplay } from "@/lib/services/oxford-degree-types";
+import { dietaryPreferenceLabel } from "@/lib/services/person-dietary";
 import type { PersonRecord } from "@/lib/services/person-record";
 
 /**
@@ -123,8 +125,8 @@ function UnclassifiedEmailRow({ record }: { record: VisiblePersonRecord }) {
 }
 
 /**
- * College, matriculation year, expected graduation, degree field, student
- * number and BAFA registration number. Every row is rendered only when the
+ * College, matriculation year, expected graduation, degree field, degree type
+ * (LAN-494), student number and BAFA registration number. Every row is rendered only when the
  * redaction left the field present — the `academic` category they have always
  * shared: moving where a fact is drawn must never change who may read it
  * (`REQ-authority`). BAFA last, because the club fills it in rather than the
@@ -155,6 +157,16 @@ function StudentFactRows({ record }: { record: VisiblePersonRecord }) {
       {record.degreeField !== undefined ? (
         <Fact label="Degree field">
           {record.degreeField != null ? <>{record.degreeField}</> : <NotRecorded />}
+        </Fact>
+      ) : null}
+      {/* LAN-494: the award type, its own row beside the degree field. */}
+      {record.degreeType !== undefined ? (
+        <Fact label="Degree type">
+          {record.degreeType != null ? (
+            <>{degreeTypeDisplay(record.degreeType, record.degreeTypeOther)}</>
+          ) : (
+            <NotRecorded />
+          )}
         </Fact>
       ) : null}
       {record.studentNumber !== undefined ? (
@@ -195,6 +207,16 @@ export function PersonalInformationSection({
   return (
     <Section variant="banded" band="person" title="Personal information">
       {record.givenName !== undefined ? <NameRows record={record} /> : null}
+      {/* LAN-502: blank for everyone who onboarded before it was asked. */}
+      {record.dietaryPreference !== undefined ? (
+        <Fact label="Dietary preference">
+          {record.dietaryPreference != null ? (
+            <>{dietaryPreferenceLabel(record.dietaryPreference)}</>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
+      ) : null}
       {record.contacts !== undefined ? (
         <>
           <PersonalContactRows record={record} currentSeasonLabel={currentSeasonLabel} />

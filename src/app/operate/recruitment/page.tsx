@@ -4,14 +4,15 @@ import { listRecruitmentBoard } from "@/lib/services/recruitment-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import RecruitmentBoardView from "./recruitment-board-view";
+import { parseSortParam } from "../board-sort";
 import { operatorHoldsAccess } from "@/lib/auth/guards";
-import { ADD_RECRUITS, RECRUITING_REACH } from "@/lib/auth/roster-access";
+import { ADD_RECRUITS, mayMoveToJoined, RECRUITING_REACH } from "@/lib/auth/roster-access";
 import { recruitingAccessFor, redactRecruitmentRow } from "@/lib/services/recruitment-board-access";
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 
 // `/operate/recruitment` — `W1`, LAN-204, modelled on ../roster/page.tsx
-// (LAN-186). Open to any recruiting category at `view`, the sidebar's own
-// rule; each column then follows its category and a `none` category's
+// (LAN-186). Open to any recruiting category at `view` or May move recruits to
+// Joined (LAN-505), the sidebar's own rule; each column then follows its category and a `none` category's
 // fields never leave this server (LAN-432).
 export default async function RecruitmentBoardPage({
   searchParams,
@@ -48,8 +49,10 @@ export default async function RecruitmentBoardPage({
 
   const preferences = await readOperatorPreferences(operator.personId);
   const access = recruitingAccessFor(operator.grants);
+  // LAN-505: the switch alone offers Joined, so it alone sends the status.
+  const movesToJoined = mayMoveToJoined(operator.grants);
   const rows = data.rows.map((row) =>
-    redactRecruitmentRow(row, access),
+    redactRecruitmentRow(row, access, movesToJoined),
   ) as unknown as readonly RecruitmentBoardRow[];
 
   return (
@@ -60,12 +63,12 @@ export default async function RecruitmentBoardPage({
       rows={rows}
       events={access.recruit_events === "none" ? [] : data.events}
       access={access}
+      mayMoveToJoined={movesToJoined}
       mayAddRecruits={operatorHoldsAccess(operator, ADD_RECRUITS)}
       totalInSeason={data.totalInSeason}
       initialSearch={first(params.q)}
       initialFilters={filters}
-      initialSortKey={first(params.sort) || null}
-      initialSortDirection={first(params.dir) === "desc" ? "desc" : "asc"}
+      initialSort={parseSortParam(first(params.sort), first(params.dir))}
     />
   );
 }

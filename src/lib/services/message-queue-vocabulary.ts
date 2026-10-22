@@ -9,15 +9,16 @@
 import { addClubDays } from "@/lib/club-time";
 
 /**
- * A row's state. The first seven are `DELIVERY_STATE_EXPRESSION`'s own
- * vocabulary, unchanged. The last two are facts that expression cannot see
- * because it is only ever asked about one event:
+ * A row's state. All but `not_sent` are `DELIVERY_STATE_EXPRESSION`'s own
+ * vocabulary, unchanged; `withheld` is also one of its own (LAN-483: a send
+ * refused on purpose at claim time). The queue adds facts that expression
+ * cannot see because it is only ever asked about one event:
  *
  * - `not_sent`: queued against an event that has already started or is no
  *   longer approved, so `DUE_JOB_PREDICATE` will never select it.
- * - `withheld`: no message may go, because the recruit has no season consent —
- *   either the invitation was written with `message_withheld_reason`, or the
- *   send was refused at claim time with `NO_CONSENT_REASON`.
+ * - `withheld`, also when the recruit has no season consent — either the
+ *   invitation was written with `message_withheld_reason`, or the send was
+ *   refused at claim time with `NO_CONSENT_REASON`.
  */
 const MESSAGE_STATES = Object.freeze([
   "queued",
@@ -27,6 +28,7 @@ const MESSAGE_STATES = Object.freeze([
   "failed",
   "held",
   "cancelled",
+  "unknown",
   "not_sent",
   "withheld",
 ] as const);
@@ -40,6 +42,7 @@ export const STATUS_FILTERS = Object.freeze([
   "failed",
   "held",
   "cancelled",
+  "unknown",
   "not_sent",
   "withheld",
 ] as const);

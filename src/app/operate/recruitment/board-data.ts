@@ -5,7 +5,20 @@ import {
   type ProspectStatus,
 } from "@/lib/services/recruitment-vocabulary";
 import type { SeasonMessagingConsentState } from "@/lib/services/messaging-consent";
-import { CONSENT_FILTER_OPTIONS, STATUS_FILTER_OPTIONS, rawValue } from "./board-columns";
+import {
+  CONSENT_FILTER_OPTIONS,
+  STATUS_FILTER_OPTIONS,
+  rawValue,
+  type ColumnDef,
+} from "./board-columns";
+import {
+  instantOf,
+  sortRows,
+  type SortField,
+  type SortKey,
+  type SortKind,
+  type SortValue,
+} from "../board-sort";
 
 /**
  * Pure search, filter and sort over the recruit board's rows — no database.
@@ -15,11 +28,6 @@ import { CONSENT_FILTER_OPTIONS, STATUS_FILTER_OPTIONS, rawValue } from "./board
 export const NOT_RECORDED = "Not recorded";
 
 export type BoardFilters = Record<string, string>;
-
-export interface BoardSort {
-  key: string;
-  direction: "asc" | "desc";
-}
 
 function matchesSearch(row: RecruitmentBoardRow, search: string): boolean {
   if (search.trim() === "") return true;
@@ -47,11 +55,47 @@ function matchesFilters(row: RecruitmentBoardRow, filters: BoardFilters): boolea
   return true;
 }
 
-function comparable(row: RecruitmentBoardRow, key: string): string | number | null {
+const NUMBER_SORT_KEYS: ReadonlySet<string> = new Set(["matriculation", "graduation"]);
+const DATE_SORT_KEYS: ReadonlySet<string> = new Set(["firstContact"]);
+
+function kindOf(key: string): SortKind {
+  if (DATE_SORT_KEYS.has(key)) return "date";
+  return NUMBER_SORT_KEYS.has(key) ? "number" : "text";
+}
+
+/**
+ * What the Sort sheet offers this viewer — LAN-495: First name, Last name, the
+ * pinned Recruit column, then every column they can see in board order, those
+ * in a folded group included. `columns` is already this viewer's own, so a
+ * hidden column is never offered. An event's two columns carry its name.
+ */
+export function recruitmentSortFields(
+  columns: readonly ColumnDef[],
+  bandLabel: (band: ColumnDef["band"]) => string,
+): readonly SortField[] {
+  return [
+    { key: "firstName", label: "First name", kind: "text" },
+    { key: "lastName", label: "Last name", kind: "text" },
+    { key: "displayName", label: "Recruit", kind: "text" },
+    ...columns
+      .filter((column) => column.sortable && !column.placeholder)
+      .map((column) => ({
+        key: column.key,
+        label: column.band.startsWith("events:")
+          ? `${bandLabel(column.band)} · ${column.label}`
+          : column.label,
+        kind: kindOf(column.key),
+      })),
+  ];
+}
+
+/** One row's value for one sort key: First contact as its instant, a yes/no as its word. */
+function sortValue(row: RecruitmentBoardRow, key: string): SortValue {
+  if (key === "displayName") return row.displayName;
+  if (key === "firstContact") return instantOf(row.firstContactOn);
   const value = rawValue(row, key);
-  if (value === null) return null;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  if (typeof value === "number") return value;
+  if (value === null || value === "") return null;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
   return value;
 }
 
@@ -65,38 +109,34 @@ const STATUS_LADDER_RANK: Readonly<Record<string, number>> = Object.freeze({
   void: 6,
 });
 
-/** Default sort — `W1`: ladder order, then most recent first contact. */
+/** Default sort — `W1`: ladder order, then most recent first contact (LAN-486: by instant). */
 function defaultCompare(a: RecruitmentBoardRow, b: RecruitmentBoardRow): number {
   const rankDiff = (STATUS_LADDER_RANK[a.status] ?? 99) - (STATUS_LADDER_RANK[b.status] ?? 99);
   if (rankDiff !== 0) return rankDiff;
-  // LAN-486: ISO instants, so string order is time order, to the minute and beyond.
-  const aAt = a.firstContactOn ?? "";
-  const bAt = b.firstContactOn ?? "";
-  return bAt.localeCompare(aAt);
+  const aAt = instantOf(a.firstContactOn) ?? Number.NEGATIVE_INFINITY;
+  const bAt = instantOf(b.firstContactOn) ?? Number.NEGATIVE_INFINITY;
+  return aAt === bAt ? 0 : aAt > bAt ? -1 : 1;
 }
 
 export function applyBoard(
   rows: readonly RecruitmentBoardRow[],
-  options: { search: string; filters: BoardFilters; sort: BoardSort | null },
+  options: {
+    search: string;
+    filters: BoardFilters;
+    /** Up to three keys (LAN-495); none is the board's default, ladder then newest first contact. */
+    sort: readonly SortKey[];
+  },
 ): readonly RecruitmentBoardRow[] {
   const filtered = rows.filter(
     (row) => matchesSearch(row, options.search) && matchesFilters(row, options.filters),
   );
-
-  if (!options.sort) return [...filtered].sort(defaultCompare);
-
-  const { key, direction } = options.sort;
-  const factor = direction === "desc" ? -1 : 1;
-  // Null always sorts last, in either direction — reversing the comparison, not just the array.
-  return [...filtered].sort((a, b) => {
-    const av = comparable(a, key);
-    const bv = comparable(b, key);
-    if (av === null && bv === null) return 0;
-    if (av === null) return 1;
-    if (bv === null) return -1;
-    if (typeof av === "number" && typeof bv === "number") return (av - bv) * factor;
-    return String(av).localeCompare(String(bv)) * factor;
-  });
+  return sortRows(
+    filtered,
+    options.sort,
+    sortValue,
+    { name: (row) => row.displayName, id: (row) => row.prospectId },
+    defaultCompare,
+  );
 }
 
 export function displayOf(value: string | number | boolean | null): string {

@@ -11,6 +11,7 @@ import {
   onboardingLabel,
   optionListLabel,
   rawValue,
+  rosterSortFields,
 } from "./board-data";
 
 const POSITION_OPTIONS = {
@@ -32,6 +33,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     matriculationYear: null,
     expectedGraduationYear: null,
     degreeField: null,
+    dietaryPreference: null,
     hasMobile: false,
     hasEmail: false,
     missingCount: 0,
@@ -85,7 +87,7 @@ describe("applyBoard — search, filter and sort together", () => {
     const applied = applyBoard(rows, {
       search: "Quinn",
       filters: {},
-      sort: { key: "displayName", direction: "asc" },
+      sort: [{ key: "displayName", direction: "asc" }],
     });
     expect(applied.visible.map((r) => r.membershipId)).toEqual(["2"]);
   });
@@ -107,7 +109,7 @@ describe("applyBoard — search, filter and sort together", () => {
     const applied = applyBoard(withAliases, {
       search: "Sammy",
       filters: {},
-      sort: { key: "displayName", direction: "asc" },
+      sort: [{ key: "displayName", direction: "asc" }],
     });
     expect(applied.visible.map((r) => r.membershipId)).toEqual(["2"]);
   });
@@ -116,7 +118,7 @@ describe("applyBoard — search, filter and sort together", () => {
     const applied = applyBoard(rows, {
       search: "",
       filters: { status: "active", missing: "Yes" },
-      sort: { key: "displayName", direction: "asc" },
+      sort: [{ key: "displayName", direction: "asc" }],
     });
     expect(applied.visible.map((r) => r.membershipId)).toEqual(["3"]);
     expect(applied.isFiltered).toBe(true);
@@ -130,7 +132,7 @@ describe("applyBoard — search, filter and sort together", () => {
     const asc = applyBoard(rows, {
       search: "",
       filters: {},
-      sort: { key: "displayName", direction: "asc" },
+      sort: [{ key: "displayName", direction: "asc" }],
     });
     expect(asc.visible.map((r) => r.displayName)).toEqual([
       "Ari",
@@ -140,7 +142,7 @@ describe("applyBoard — search, filter and sort together", () => {
     const desc = applyBoard(rows, {
       search: "",
       filters: {},
-      sort: { key: "displayName", direction: "desc" },
+      sort: [{ key: "displayName", direction: "desc" }],
     });
     expect(desc.visible.map((r) => r.displayName)).toEqual([
       "Samira Quinn",
@@ -158,13 +160,13 @@ describe("applyBoard — search, filter and sort together", () => {
     const asc = applyBoard(withGaps, {
       search: "",
       filters: {},
-      sort: { key: "college", direction: "asc" },
+      sort: [{ key: "college", direction: "asc" }],
     });
     expect(asc.visible.map((r) => r.membershipId)).toEqual(["c", "a", "b"]);
     const desc = applyBoard(withGaps, {
       search: "",
       filters: {},
-      sort: { key: "college", direction: "desc" },
+      sort: [{ key: "college", direction: "desc" }],
     });
     expect(desc.visible.map((r) => r.membershipId)).toEqual(["a", "c", "b"]);
   });
@@ -173,7 +175,7 @@ describe("applyBoard — search, filter and sort together", () => {
     const applied = applyBoard(rows, {
       search: "",
       filters: {},
-      sort: { key: "displayName", direction: "asc" },
+      sort: [{ key: "displayName", direction: "asc" }],
     });
     expect(applied.isFiltered).toBe(false);
     expect(applied.visible).toHaveLength(3);
@@ -393,7 +395,7 @@ describe("the Attendance group — LAN-457", () => {
       applyBoard(players, {
         search: "",
         filters: {},
-        sort: { key: "attendanceMandatory", direction },
+        sort: [{ key: "attendanceMandatory", direction }],
       }).visible.map((player) => player.membershipId);
     expect(order("asc")).toEqual(["third", "half", "all", "none"]);
     expect(order("desc")).toEqual(["all", "half", "third", "none"]);
@@ -449,5 +451,147 @@ describe("the two brace columns — a set, not a pick", () => {
     expect(rawValue(wearing, "kit:braces_left")).toEqual(["Ankle - M", "Knee - L"]);
     expect(rawValue(wearing, "kit:braces_right")).toEqual([]);
     expect(rawValue(wearing, "kit:helmet")).toBe("Speedflex M");
+  });
+});
+
+describe("LAN-495 — three sort keys over the roster", () => {
+  const ids = (rows: readonly RosterBoardRow[]) => rows.map((r) => r.membershipId);
+
+  it("offers First name, Last name, Player, then only the columns it is given, in board order", () => {
+    const shown = COLUMNS.filter((c) => c.band === "person" || c.band === "kit");
+    const fields = rosterSortFields(shown);
+    expect(fields.slice(0, 4).map((f) => f.label)).toEqual([
+      "First name",
+      "Last name",
+      "Player",
+      "College",
+    ]);
+    expect(fields.map((f) => f.key)).not.toContain("status");
+    expect(fields.find((f) => f.key === "matriculation")?.kind).toBe("number");
+    expect(fields.find((f) => f.key === "college")?.kind).toBe("text");
+  });
+
+  it("names a special-teams cell by its squad, and a shared label by its group", () => {
+    const labels = rosterSortFields(COLUMNS).map((f) => f.label);
+    expect(labels).toContain("Kick Return · Starting Position");
+    expect(labels).toContain("Membership · BPS");
+    expect(labels).toContain("Attendance · BPS");
+    expect(labels).toContain("Offensive assignments · Backup position");
+  });
+
+  it("sorts a multi-valued cell by its first value in option order, an empty one last", () => {
+    const rows = [
+      row({ membershipId: "offense", displayName: "A", coachingGroups: ["Offense"] }),
+      row({ membershipId: "none", displayName: "B", coachingGroups: [] }),
+      row({
+        membershipId: "st-def",
+        displayName: "C",
+        coachingGroups: ["Special Teams", "Defense"],
+      }),
+    ];
+    const sorted = (direction: "asc" | "desc") =>
+      ids(
+        applyBoard(rows, {
+          search: "",
+          filters: {},
+          sort: [{ key: "coachingGroups", direction }],
+          columns: COLUMNS,
+        }).visible,
+      );
+    // C sorts by Defense, its first group in option order, not by Special Teams.
+    expect(sorted("asc")).toEqual(["st-def", "offense", "none"]);
+    expect(sorted("desc")).toEqual(["offense", "st-def", "none"]);
+  });
+
+  it("orders by its keys, then by name, then by id, the same from any input order", () => {
+    const rows = [
+      row({ membershipId: "m4", displayName: "Sam", status: "active", college: "Keble" }),
+      row({ membershipId: "m2", displayName: "Sam", status: "active", college: "Balliol" }),
+      row({ membershipId: "m1", displayName: "Sam", status: "active", college: "Balliol" }),
+      row({ membershipId: "m3", displayName: "Ann", status: "inactive", college: "Balliol" }),
+    ];
+    const sort = [
+      { key: "status", direction: "asc" as const },
+      { key: "college", direction: "asc" as const },
+    ];
+    const once = ids(applyBoard(rows, { search: "", filters: {}, sort }).visible);
+    expect(once).toEqual(["m1", "m2", "m4", "m3"]);
+    expect(ids(applyBoard([...rows].reverse(), { search: "", filters: {}, sort }).visible)).toEqual(
+      once,
+    );
+  });
+
+  it("falls back to Player A–Z with no key chosen", () => {
+    const rows = [
+      row({ membershipId: "z", displayName: "Zed" }),
+      row({ membershipId: "a", displayName: "Amy" }),
+    ];
+    expect(ids(applyBoard(rows, { search: "", filters: {}, sort: [] }).visible)).toEqual([
+      "a",
+      "z",
+    ]);
+  });
+});
+
+// LAN-502. The onboarding step's answer, a Person column edited on the record.
+describe("Dietary preference — a Person column with three answers and a blank", () => {
+  const DIETARY_COLUMN = COLUMNS.find((c) => c.key === "dietary")!;
+
+  it("sits in the Person group and routes its edit to the person record", () => {
+    expect(DIETARY_COLUMN).toMatchObject({
+      band: "person",
+      category: "person",
+      edit: "record",
+      sortable: true,
+      filterable: true,
+    });
+  });
+
+  it("shows the label, never the stored code, and Not recorded for no answer", () => {
+    expect(displayOf(row({ dietaryPreference: "none" }), DIETARY_COLUMN)).toBe(
+      "No dietary requirements",
+    );
+    expect(displayOf(row({ dietaryPreference: "vegan" }), DIETARY_COLUMN)).toBe("Vegan");
+    expect(displayOf(row({ dietaryPreference: null }), DIETARY_COLUMN)).toBe(NOT_RECORDED);
+  });
+
+  it("filters by each answer, and by Not recorded for those who were never asked", () => {
+    expect(filterOptions(DIETARY_COLUMN, [])).toEqual([
+      "vegan",
+      "vegetarian",
+      "none",
+      NOT_RECORDED,
+    ]);
+    const rows = [
+      row({ membershipId: "a", dietaryPreference: "vegan" }),
+      row({ membershipId: "b", dietaryPreference: null }),
+      row({ membershipId: "c", dietaryPreference: "vegetarian" }),
+    ];
+    const sort = [{ key: "displayName", direction: "asc" as const }];
+    const vegan = applyBoard(rows, { search: "", filters: { dietary: "vegan" }, sort });
+    expect(vegan.visible.map((r) => r.membershipId)).toEqual(["a"]);
+    const blank = applyBoard(rows, { search: "", filters: { dietary: NOT_RECORDED }, sort });
+    expect(blank.visible.map((r) => r.membershipId)).toEqual(["b"]);
+  });
+
+  it("sorts with no answer last, and is offered by the Sort sheet", () => {
+    const rows = [
+      row({ membershipId: "a", dietaryPreference: null }),
+      row({ membershipId: "b", dietaryPreference: "vegetarian" }),
+      row({ membershipId: "c", dietaryPreference: "vegan" }),
+      row({ membershipId: "d", dietaryPreference: "none" }),
+    ];
+    const sorted = applyBoard(rows, {
+      search: "",
+      filters: {},
+      sort: [{ key: "dietary", direction: "asc" }],
+      columns: COLUMNS,
+    });
+    expect(sorted.visible.map((r) => r.membershipId)).toEqual(["d", "c", "b", "a"]);
+    expect(rosterSortFields(COLUMNS)).toContainEqual({
+      key: "dietary",
+      label: "Dietary preference",
+      kind: "text",
+    });
   });
 });

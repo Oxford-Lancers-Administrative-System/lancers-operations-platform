@@ -1,16 +1,15 @@
 # Brand assets
 
-One file, one job. Brian supplied the first three on **9 September 2026**
-(LAN-277) and two more on **16 September 2026** (LAN-383, LAN-385), and each has
-exactly one place it belongs. Using the wrong one is the mistake this table
-exists to prevent.
+Brian supplied the first three on **9 September 2026** (LAN-277) and two more on
+**16 September 2026** (LAN-383, LAN-385), and each has exactly the places this
+table gives it. Using the wrong one is the mistake the table exists to prevent.
 
-| Supplied file       | Job                                  | Lives here as                                                                                            |
-| ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `Group 2454.svg`    | the **application mark**             | `crest.svg`, `crest-blue.svg`, `crest-email.png`, `crest-email@1x.png`                                   |
-| `Award Sticker.svg` | the **favicon and app icons**        | `icon-mark.svg`, `icon-192.png`, `icon-512.png`, and `src/app/icon.svg`, `apple-icon.png`, `favicon.ico` |
-| `OG Image.png`      | the **site-wide link-preview image** | `src/app/opengraph-image.png`, `twitter-image.png`                                                       |
-| `Join OG Image.png` | the **sign-up link-preview image**   | `src/app/join/[code]/opengraph-image.png`, `twitter-image.png`                                           |
+| Supplied file       | Job                                                            | Lives here as                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Award Sticker.svg` | the **application mark**, the **favicon, app icons and email** | `icon-mark.svg`, `icon-192.png`, `icon-512.png`, `crest-email.png`, `crest-email@1x.png`, and `src/app/icon.svg`, `apple-icon.png`, `favicon.ico` |
+| `OG Image.png`      | the **site-wide link-preview image**                           | `src/app/opengraph-image.png`, `twitter-image.png`                                                                                                |
+| `Join OG Image.png` | the **sign-up link-preview image**                             | `src/app/join/[code]/opengraph-image.png`, `twitter-image.png`                                                                                    |
+| `Group 2454.svg`    | nothing since LAN-509 (was the application mark)               | —                                                                                                                                                 |
 
 The originals are not in this repository. They are kept on the review machine at
 `~/.local/state/lancers-operations-platform/brand/` — Downloads is not durable —
@@ -19,73 +18,37 @@ and `join-og-image.png`. `gold-outline-ops-logo.svg` is the mark the icons were
 cut from between LAN-269 and LAN-385; it is still kept there, and nothing reads
 it any more.
 
-## The application mark
+## The application mark — the round crest (LAN-509)
 
-`Group 2454.svg` is 1094×864: three crowns — one above the cross, one to each
-side — crossed lances, and a brown football (`#492820`), on a transparent ground.
-It replaced the mark taken from `Group 315.svg` on 8 September 2026, which had
-held these same two file names since LAN-225.
-
-Figma's SVG export of that group writes only the top crown; its PNG export of
-the same group draws all three, and the PNG is kept beside the SVG as
-`app-logo-group-2454.png`, the reference. The generator puts the two side crowns
-back from the file's own geometry: the top crown is the one `evenodd` path, and
-each side crown is that path translated by (∓321, +298), the offsets measured
-from the PNG at the artboard's own size (Brian, 2026-09-10). Nothing is redrawn.
-
-- `crest.svg` — the white mark. Geometry untouched beyond the restored crowns;
-  the viewBox is cropped to the tight bounding box of what the file actually
-  draws. Figma exported the artboard, and transparent margin left in the viewBox
-  would sit inside the header box and push the mark off centre.
-- `crest-blue.svg` — the same geometry with the white recoloured to Oxford Blue
-  (`#002147`), for `BrandMark` on light grounds. The football keeps its brown; it
-  is a brown football on either ground. The Figma outside-stroke mask is left
-  alone — its `fill="black"` and its white `<rect>` say which pixels the mask
-  passes and are not ink.
-
-The file names are unchanged from LAN-225, so `BrandMark` and every import keep
-working. It is used by the shared `BrandMark` in the operator shell (48px box),
-the compact phone header (32px), the public masthead, the sign-in screen, the
-policy pages, the player-facing pages and the design-preview kit. The boxes are
-square and the mark is 1.183 wide to tall, so it renders 48×41 and 32×27
-respectively, centred by `preserveAspectRatio`. The club's name beside it stays
-set in Geist.
+Since **21 October 2026** (LAN-509, Brian) the application mark is the round
+crest, `icon-mark.svg`, the same file as the icons below, used as supplied:
+nothing redrawn, recoloured or re-margined. The shared `BrandMark` draws it in
+the operator shell (48px box), the compact phone header (32px), the public
+masthead, the sign-in screen, the policy pages, the player-facing pages and the
+design-preview kit. One file serves both grounds: the badge carries its own navy
+disc and gold ring, so the gold ring outlines it on the Oxford Blue header and
+the disc reads on paper. `tone` now sets only the colour of the club's name
+beside it, which stays set in Geist. The mark is square, so it fills its square
+box — 48×48 and 32×32.
 
 It is not used for the link previews: both cards are supplied pictures, below.
-The recruit sign-up card used to be drawn from `crest.svg` at request time, and
-LAN-383 replaced that with the club's own recruitment image.
 
-### In an email — LAN-398, LAN-456
+### The square crest it replaced
 
-- `crest-email.png` (114×96) and `crest-email@1x.png` (57×48) — the **white**
-  mark, `crest.svg`, on an opaque club-navy (`#002147`) tile at its own 1.183
-  ratio, the mark inset a tenth of the height from each edge. Every email the
-  app sends through Resend carries it twice: 48px tall in the header beside
-  "Oxford Lancers", and 32px tall in the signature block. `crest-email.png` is
-  the 2x of the larger slot and is what `src` points at; `@1x` is offered beside
-  it through `srcset`, so a client that ignores `srcset` still gets the sharp
-  one.
-
-  The same mark the application header shows, white with the brown football on
-  navy, so one mark is in circulation (LAN-456, Brian, 29 September 2026). It
-  replaced LAN-398's blue-on-transparent raster, whose football read as black
-  laces on the white card. The navy is in the raster rather than in the email's
-  HTML because the shell is a white card and a white mark on transparency would
-  vanish into it; a tile needs no change to any template. Raster and not SVG,
-  because Outlook on Windows draws HTML through Word, which renders an SVG
-  `<img>` as an empty box.
-
-  It is served from the application's own origin at `/brand/crest-email.png` and
-  referenced absolutely, off `APP_BASE_URL`: a mail client has no page to
-  resolve a relative path against. Gmail proxies and caches it, which is fine —
-  it is a public logo and carries no token.
+`Group 2454.svg` (1094×864: three crowns, crossed lances and a brown football on
+a transparent ground) was the application mark from 8 September 2026 (LAN-278)
+until LAN-509, committed as `crest.svg` (white) and `crest-blue.svg` (Oxford
+Blue, for light grounds), with the two side crowns Figma's SVG export drops
+restored from the file's own geometry. Both files, and the generator code that
+derived them, were removed with LAN-509. The original is still kept with the
+others on the review machine; nothing reads it.
 
 ## The favicon and app icons
 
 `Award Sticker.svg` is a different mark — a white crest, three crowns, crossed
 lances and the brown football on a navy `#002147` disc inside a gold `#8D7149`
-ring, 1144×1144, transparent outside the circle — and it is used for icons and
-nothing else. The header logo is `crest.svg`, above.
+ring, 1144×1144, transparent outside the circle — and since LAN-509 it is the application mark (above) as well as the icons and
+the email crest (below).
 
 It replaced the gold-outline Ops logo on **16 September 2026** (LAN-385). It is
 used **as supplied**: nothing redrawn, recoloured or re-margined. The badge
@@ -109,6 +72,28 @@ rendered from it:
   cutting its ring off. At 16px the crowns merge into the lance cross and what
   reads is the navy disc, the gold ring and the white cross — which is a badge,
   which is the job.
+
+## In an email — LAN-398, LAN-456, LAN-491
+
+- `crest-email.png` (96×96) and `crest-email@1x.png` (48×48) — the **round
+  badge**, `icon-mark.svg`, rendered square with the transparency outside the
+  disc kept. Every email the app sends through Resend carries it twice: 48px in
+  the header beside "Oxford Lancers", and 32px in the signature block.
+  `crest-email.png` is the 2x of the larger slot and is what `src` points at;
+  `@1x` is offered beside it through `srcset`, so a client that ignores `srcset`
+  still gets the sharp one.
+
+  The round crest and not the square crest (LAN-491, Brian, 7 October
+  2026), with no square treatment around it: the badge carries its own navy
+  ground and gold ring, so it reads on the email's white card with nothing
+  behind it. It replaced LAN-456's white mark on a navy tile. Raster and not
+  SVG, because Outlook on Windows draws HTML through Word, which renders an SVG
+  `<img>` as an empty box.
+
+  It is served from the application's own origin at `/brand/crest-email.png` and
+  referenced absolutely, off `APP_BASE_URL`: a mail client has no page to
+  resolve a relative path against. Gmail proxies and caches it, which is fine —
+  it is a public logo and carries no token.
 
 ## The link previews
 

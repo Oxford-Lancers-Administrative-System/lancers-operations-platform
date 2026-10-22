@@ -47,6 +47,10 @@ insert into agent_readonly_hidden (table_name, column_name) values
   ('people', 'date_of_birth'),
   ('people', 'student_number'),
   ('people', 'bafa_registration_number'),
+  -- LAN-502. A vegan or vegetarian answer can disclose a religious or
+  -- philosophical belief, so agents never read it; the roster shows it to the
+  -- operators who need it.
+  ('people', 'dietary_preference'),
   -- Email addresses and phone numbers. `kind`, `scope` and `is_preferred` stay
   -- visible, so an agent can tell that someone has a WhatsApp number on file.
   ('contact_points', 'raw_value'),

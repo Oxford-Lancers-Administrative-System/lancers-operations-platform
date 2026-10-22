@@ -4,6 +4,7 @@ export interface EditFieldErrors {
   givenName?: string;
   middleName?: string;
   familyName?: string;
+  dietaryPreference?: string;
   mobile?: string;
   mobileReason?: string;
   personalEmail?: string;
@@ -14,6 +15,8 @@ export interface EditFieldErrors {
   matriculationYear?: string;
   expectedGraduationYear?: string;
   degreeField?: string;
+  degreeType?: string;
+  degreeTypeOther?: string;
   studentNumber?: string;
   bafaRegistrationNumber?: string;
   dateOfBirth?: string;
@@ -33,10 +36,15 @@ interface CorrectionReasonFormValues {
   /** LAN-366. Optional everywhere, so a reason is required only to change one that is already recorded. */
   middleNameReason: string;
   familyNameReason: string;
+  /** LAN-502. Required to change an answer already recorded, never to fill a blank one. */
+  dietaryPreferenceReason: string;
   collegeReason: string;
   matriculationYearReason: string;
   expectedGraduationYearReason: string;
   degreeFieldReason: string;
+  /** LAN-494. */
+  degreeTypeReason: string;
+  degreeTypeOtherReason: string;
   /** LAN-267. Same rule as every other person field: required to correct, never to fill. */
   studentNumberReason: string;
   bafaRegistrationNumberReason: string;
@@ -83,6 +91,8 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   givenName: string;
   middleName: string;
   familyName: string;
+  /** LAN-502. A `DIETARY_PREFERENCE_VALUES` code, or blank. */
+  dietaryPreference: string;
   mobile: string;
   mobileReason: string;
   personalEmail: string;
@@ -93,6 +103,10 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   matriculationYear: string;
   expectedGraduationYear: string;
   degreeField: string;
+  /** LAN-494. A `DEGREE_TYPE_VALUES` code, or blank. */
+  degreeType: string;
+  /** LAN-494. The Other name; posted only while the type is Other. */
+  degreeTypeOther: string;
   /** LAN-267. Operator-editable, because a coach never sees the player questionnaire. */
   studentNumber: string;
   bafaRegistrationNumber: string;
@@ -113,6 +127,8 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     middleNameReason: optional(formData.get("middleNameReason")),
     familyName: optional(formData.get("familyName")),
     familyNameReason: optional(formData.get("familyNameReason")),
+    dietaryPreference: optional(formData.get("dietaryPreference")),
+    dietaryPreferenceReason: optional(formData.get("dietaryPreferenceReason")),
     mobile: optional(formData.get("mobile")),
     mobileReason: optional(formData.get("mobileReason")),
     personalEmail: optional(formData.get("personalEmail")),
@@ -127,6 +143,10 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     expectedGraduationYearReason: optional(formData.get("expectedGraduationYearReason")),
     degreeField: optional(formData.get("degreeField")),
     degreeFieldReason: optional(formData.get("degreeFieldReason")),
+    degreeType: optional(formData.get("degreeType")),
+    degreeTypeReason: optional(formData.get("degreeTypeReason")),
+    degreeTypeOther: optional(formData.get("degreeTypeOther")),
+    degreeTypeOtherReason: optional(formData.get("degreeTypeOtherReason")),
     studentNumber: optional(formData.get("studentNumber")),
     studentNumberReason: optional(formData.get("studentNumberReason")),
     bafaRegistrationNumber: optional(formData.get("bafaRegistrationNumber")),

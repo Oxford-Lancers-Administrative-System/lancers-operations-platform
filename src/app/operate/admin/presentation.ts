@@ -326,10 +326,26 @@ export const ACCESS_RECRUITING_LINES: readonly { key: RecruitingCategory; label:
     { key: "recruit_events", label: "Event details" },
   ]);
 
-/** The two switches. */
+/** The two Adding people switches. */
 export const ACCESS_SWITCH_LINES: readonly { key: AccessSwitch; label: string }[] = Object.freeze([
   { key: "add_to_roster", label: "May add to the roster" },
   { key: "add_recruits", label: "May add recruits" },
+]);
+
+/**
+ * The switch the seat page shows with the Recruiting lines, after Event
+ * details — LAN-505 (Brian, 16 October 2026), with its help line.
+ */
+export const ACCESS_RECRUITING_SWITCH_LINES: readonly {
+  key: AccessSwitch;
+  label: string;
+  help: string;
+}[] = Object.freeze([
+  {
+    key: "move_recruits_to_joined",
+    label: "May move recruits to Joined",
+    help: "Moves them onto the roster as Onboarding.",
+  },
 ]);
 
 /** The four group headings, in page order. */
@@ -362,7 +378,11 @@ function accessLineLabel(subject: GrantSubject, templateName: string | null = nu
     case "recruiting":
       return ACCESS_RECRUITING_LINES.find((line) => line.key === subject.key)?.label ?? subject.key;
     case "switch":
-      return ACCESS_SWITCH_LINES.find((line) => line.key === subject.key)?.label ?? subject.key;
+      return (
+        [...ACCESS_SWITCH_LINES, ...ACCESS_RECRUITING_SWITCH_LINES].find(
+          (line) => line.key === subject.key,
+        )?.label ?? subject.key
+      );
     case "template":
       return templateName ?? "A deleted template";
   }
@@ -410,8 +430,14 @@ export function accessLineRank(subject: GrantSubject, templateName: string | nul
       return `1${pad(ACCESS_RECRUITING_LINES.findIndex((line) => line.key === subject.key))}`;
     case "template":
       return `2${(templateName ?? "").toLowerCase()}`;
-    case "switch":
+    case "switch": {
+      // LAN-505: a Recruiting switch sorts after the three Recruiting lines.
+      const recruiting = ACCESS_RECRUITING_SWITCH_LINES.findIndex(
+        (line) => line.key === subject.key,
+      );
+      if (recruiting >= 0) return `1${pad(ACCESS_RECRUITING_LINES.length + recruiting)}`;
       return `3${pad(ACCESS_SWITCH_LINES.findIndex((line) => line.key === subject.key))}`;
+    }
   }
 }
 
@@ -420,7 +446,7 @@ export function accessGroupSummary(
   lines: readonly { subject: GrantSubject; level: string }[],
 ): string {
   if (lines.length === 0) return "None";
-  if (lines[0].subject.kind === "switch") {
+  if (lines.every((line) => line.subject.kind === "switch")) {
     return `${lines.filter((line) => line.level === "yes").length} of ${lines.length}`;
   }
   const held = lines.filter((line) => line.level !== "none");
@@ -428,7 +454,8 @@ export function accessGroupSummary(
   if (held.length === lines.length && held.every((line) => line.level === held[0].level)) {
     return `${accessLevelLabel(held[0].subject, held[0].level)} all`;
   }
-  return ["manage", "edit", "view"]
+  // LAN-505: Recruiting carries one switch, counted as "Yes 1".
+  return ["manage", "edit", "view", "yes"]
     .map((level) => ({ level, count: held.filter((line) => line.level === level).length }))
     .filter((entry) => entry.count > 0)
     .map((entry) => `${LEVEL_LABELS[entry.level]} ${entry.count}`)

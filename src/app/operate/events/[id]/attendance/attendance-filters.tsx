@@ -8,7 +8,11 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import { Field } from "@/components/field";
 import { ATTENDANCE_PRESENCES } from "@/lib/services/attendance-vocabulary";
+import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
+import { SIDEWAYS_PHONE } from "@/theme-tokens";
 import { useFilterSearch } from "../../../filter-search";
+import { useRememberedGroupBy } from "../../../group-by-memory";
+import { GroupBySelect } from "../../../group-by-select";
 import { NOT_MARKED, PRESENCE_LABELS } from "./presentation";
 
 /**
@@ -23,11 +27,19 @@ export function AttendanceFilters({
   search,
   rsvp,
   attendance,
+  groupFamilies = [],
+  groupBy = null,
+  storageKey = null,
 }: {
   basePath: string;
   search: string;
   rsvp: string;
   attendance: string;
+  /** LAN-497: the families this viewer may group by. Empty: no Group by select at all. */
+  groupFamilies?: readonly AttendanceGroupFamily[];
+  groupBy?: AttendanceGroupFamily | null;
+  /** This viewer's key for the remembered choice; null remembers nothing. */
+  storageKey?: string | null;
 }) {
   const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
@@ -40,11 +52,28 @@ export function AttendanceFilters({
   } = useFilterSearch({
     search,
     basePath,
-    filters: { rsvp, attendance },
+    filters: { rsvp, attendance, by: groupBy ?? "" },
     push,
   });
 
   const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
+
+  // LAN-497: a link without `by` opens on the viewer's last choice (shared with the event page).
+  const restore = useCallback(
+    (family: AttendanceGroupFamily) => router.replace(withFilter({ by: family })),
+    [router, withFilter],
+  );
+  const remember = useRememberedGroupBy({
+    storageKey,
+    groupBy,
+    families: groupFamilies,
+    restore,
+  });
+
+  const chooseGroupBy = (value: string) => {
+    remember(value);
+    apply({ by: value });
+  };
 
   return (
     <Box
@@ -56,29 +85,47 @@ export function AttendanceFilters({
     >
       <input type="hidden" name="rsvp" value={rsvp} />
       <input type="hidden" name="attendance" value={attendance} />
+      {groupBy ? <input type="hidden" name="by" value={groupBy} /> : null}
 
       <Stack
         direction={{ xs: "column", md: "row" }}
         spacing={2}
-        sx={{ alignItems: { md: "center" } }}
+        useFlexGap
+        sx={{
+          alignItems: { md: "center" },
+          [SIDEWAYS_PHONE]: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
+        }}
       >
         <Field
           label="Search player"
           name="q"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
-          sx={{ flexGrow: 1, minWidth: { md: 220 } }}
+          sx={{
+            flexGrow: 1,
+            minWidth: { md: 220 },
+            [SIDEWAYS_PHONE]: { width: "auto", flex: "1 1 160px" },
+          }}
         />
 
-        <Button
-          variant="outlined"
-          onClick={() => setShowFilters((open) => !open)}
-          aria-expanded={showFilters}
-          aria-controls="attendance-filter-fields"
-          sx={{ display: { xs: "inline-flex", md: "none" }, alignSelf: "flex-start" }}
-        >
-          Filters
-        </Button>
+        <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: "center", flexShrink: 0 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setShowFilters((open) => !open)}
+            aria-expanded={showFilters}
+            aria-controls="attendance-filter-fields"
+            sx={{ display: { xs: "inline-flex", md: "none" }, minHeight: 44 }}
+          >
+            Filters
+          </Button>
+
+          <GroupBySelect
+            families={groupFamilies}
+            value={groupBy}
+            onChange={chooseGroupBy}
+            sx={{ minWidth: 170, maxWidth: { xs: 220, md: "none" } }}
+          />
+        </Stack>
 
         <Stack
           id="attendance-filter-fields"

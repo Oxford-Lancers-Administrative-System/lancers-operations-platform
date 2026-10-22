@@ -28,6 +28,7 @@ import {
   PREVIOUS_PAGE,
   sendsAtLabel,
   STATE_LABELS,
+  WITHHELD_NO_CONSENT,
 } from "./presentation";
 import Button from "@mui/material/Button";
 
@@ -35,6 +36,7 @@ import Button from "@mui/material/Button";
 function chipFor(row: MessageQueueRow): { status: string; label: string } {
   if (row.noUsableRoute) return { status: "no_channel", label: NO_CHANNEL };
   if (row.notDelivered) return { status: "not_delivered", label: NOT_DELIVERED };
+  if (row.noConsent) return { status: row.state, label: WITHHELD_NO_CONSENT };
   return { status: row.state, label: STATE_LABELS[row.state] ?? row.state };
 }
 

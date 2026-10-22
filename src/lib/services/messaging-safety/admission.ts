@@ -3,17 +3,17 @@ import "server-only";
 import type { Tx } from "@/lib/db";
 import { destinationKey } from "./keys";
 import { emitSafetyEvent } from "./monitor";
+import { isOperatorRecipientIn } from "./operator-recipient";
 import {
   CAPACITY_WARNING_THRESHOLD,
   cooldownMinutesForStage,
   GLOBAL_EMERGENCY_LIMIT,
   GLOBAL_EMERGENCY_WINDOW_HOURS,
-  RECIPIENT_DAILY_LIMIT,
   RECIPIENT_DAILY_WINDOW_HOURS,
   RECIPIENT_PACING_LIMIT,
   RECIPIENT_PACING_WINDOW_MINUTES,
-  RECIPIENT_WEEKLY_LIMIT,
   RECIPIENT_WEEKLY_WINDOW_DAYS,
+  recipientLimits,
   SHARED_PACING_LIMIT,
   SHARED_PACING_WINDOW_MINUTES,
 } from "./policy";
@@ -263,6 +263,16 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
 
   // Per-person and per-destination ceilings. These latch a hold on that one
   // recipient, never anything wider.
+  //
+  // LAN-503: an operator — anyone holding a seat right now — has their own,
+  // higher ceilings, and they apply to the number or address this send goes to
+  // as well as to the person. Without the second half the operator's own
+  // phone would hold at the player ceiling and the higher allowance would be
+  // unreachable. A send to anybody else at that destination still counts every
+  // admission there against the player ceiling.
+  const limits = recipientLimits(
+    request.personId ? await isOperatorRecipientIn(tx, request.personId) : false,
+  );
   let personDay = 0;
   let personWeek = 0;
   if (request.personId) {
@@ -284,7 +294,7 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
         request.personId,
       )
     ).count;
-    if (personDay >= RECIPIENT_DAILY_LIMIT || personWeek >= RECIPIENT_WEEKLY_LIMIT) {
+    if (personDay >= limits.daily || personWeek >= limits.weekly) {
       // The hold is recorded now, which is the moment this person's scope row
       // is allowed to exist at all.
       const scope = personScope ?? (await lockOrCreateScopeIn(tx, "person", request.personId));
@@ -299,7 +309,7 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
   const destinationWeek = (
     await countAdmitted(tx, now, DAYS(RECIPIENT_WEEKLY_WINDOW_DAYS), "safety_destination_key", key)
   ).count;
-  if (destinationDay >= RECIPIENT_DAILY_LIMIT || destinationWeek >= RECIPIENT_WEEKLY_LIMIT) {
+  if (destinationDay >= limits.daily || destinationWeek >= limits.weekly) {
     const scope = destinationScope ?? (await lockOrCreateScopeIn(tx, "destination", key));
     if (scope) await latchScopeIn(tx, scope.id, "destination_hold");
     return deferred("destination_hold", null, scope);
@@ -337,17 +347,11 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
     });
   }
 
-  if (
-    request.personId &&
-    (personDay + 1 >= RECIPIENT_DAILY_LIMIT || personWeek + 1 >= RECIPIENT_WEEKLY_LIMIT)
-  ) {
+  if (request.personId && (personDay + 1 >= limits.daily || personWeek + 1 >= limits.weekly)) {
     const scope = personScope ?? (await lockOrCreateScopeIn(tx, "person", request.personId));
     if (scope) await latchScopeIn(tx, scope.id, "person_hold");
   }
-  if (
-    destinationDay + 1 >= RECIPIENT_DAILY_LIMIT ||
-    destinationWeek + 1 >= RECIPIENT_WEEKLY_LIMIT
-  ) {
+  if (destinationDay + 1 >= limits.daily || destinationWeek + 1 >= limits.weekly) {
     const scope = destinationScope ?? (await lockOrCreateScopeIn(tx, "destination", key));
     if (scope) await latchScopeIn(tx, scope.id, "destination_hold");
   }

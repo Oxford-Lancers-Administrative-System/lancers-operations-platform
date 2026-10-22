@@ -19,10 +19,16 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
+  // LAN-494: never asked on the questionnaire (the step posts neither, so the
+  // save skips them); listed so every person field has its source line.
+  "degree_type",
+  "degree_type_other",
   // LAN-267's two identifiers: same applyDisputableFieldIn path, same audit action, same source line.
   "student_number",
   "bafa_registration_number",
   "date_of_birth",
+  // LAN-502: asked, and required, on the details step.
+  "dietary_preference",
 ]);
 
 const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> = Object.freeze({
@@ -33,9 +39,12 @@ const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> 
   matriculation_year: "person_matriculation_year_updated",
   expected_graduation_year: "person_expected_graduation_year_updated",
   degree_field: "person_degree_field_updated",
+  degree_type: "person_degree_type_updated",
+  degree_type_other: "person_degree_type_other_updated",
   student_number: "person_student_number_updated",
   bafa_registration_number: "person_bafa_registration_number_updated",
   date_of_birth: "person_date_of_birth_updated",
+  dietary_preference: "person_dietary_preference_updated",
 });
 
 /** Who last changed this field. `null` covers "never audited" and, defensively, an actor somehow not recorded. */
@@ -97,9 +106,12 @@ const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof Person
     matriculation_year: "matriculationYearSource",
     expected_graduation_year: "expectedGraduationYearSource",
     degree_field: "degreeFieldSource",
+    degree_type: "degreeTypeSource",
+    degree_type_other: "degreeTypeOtherSource",
     student_number: "studentNumberSource",
     bafa_registration_number: "bafaRegistrationNumberSource",
     date_of_birth: "dateOfBirthSource",
+    dietary_preference: "dietaryPreferenceSource",
   });
 
 const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonRecord>> =
@@ -111,9 +123,12 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     matriculation_year: "matriculationYear",
     expected_graduation_year: "expectedGraduationYear",
     degree_field: "degreeField",
+    degree_type: "degreeType",
+    degree_type_other: "degreeTypeOther",
     student_number: "studentNumber",
     bafa_registration_number: "bafaRegistrationNumber",
     date_of_birth: "dateOfBirth",
+    dietary_preference: "dietaryPreference",
   });
 
 export type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "overwritten";
@@ -130,11 +145,17 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
       return { field, value };
     case "degree_field":
       return { field, value };
+    case "degree_type":
+      return { field, value };
+    case "degree_type_other":
+      return { field, value };
     case "student_number":
       return { field, value };
     case "bafa_registration_number":
       return { field, value };
     case "date_of_birth":
+      return { field, value };
+    case "dietary_preference":
       return { field, value };
     case "matriculation_year":
       return { field, value: Number.parseInt(value, 10) };

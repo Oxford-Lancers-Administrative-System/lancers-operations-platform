@@ -16,7 +16,29 @@ import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import { PROSPECT_STATUS_LABELS, type ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import { StatusPill } from "../board-filter-controls";
+import type { StatusControl } from "@/lib/services/recruitment-board-access";
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
+
+/** LAN-505 (Brian, 16 October 2026): the line the control shows in Joined's place. */
+export const JOINED_NEEDS_PERMISSION =
+  "Moving to Joined needs the May move recruits to Joined permission.";
+
+/** LAN-505: the caption beside a status this seat cannot change. */
+export const STATUS_READ_ONLY = "Read only";
+
+/** The statuses a control offers, in board order. */
+function offeredStatuses(control: StatusControl, current: ProspectStatus): ProspectStatus[] {
+  switch (control) {
+    case "full":
+      return [...STATUS_ORDER];
+    case "without_joined":
+      return STATUS_ORDER.filter((value) => value !== "joined");
+    case "joined_only":
+      return STATUS_ORDER.filter((value) => value === current || value === "joined");
+    case "read_only":
+      return [current];
+  }
+}
 
 const STATUS_ORDER: readonly ProspectStatus[] = [
   "identified",
@@ -51,12 +73,19 @@ export default function StatusCell({
   seasonLabel,
   size = "small",
   testIdPrefix = "recruitment-status",
+  control = "full",
 }: {
   prospectId: string;
   status: ProspectStatus;
   displayName: string;
   seasonLabel: string;
   size?: "small" | "medium";
+  /**
+   * LAN-505 — what this seat may change the status to (`statusControlFor`):
+   * every status, every status but Joined (saying why), the current status
+   * and Joined, or nothing (saying so).
+   */
+  control?: StatusControl;
   /**
    * LAN-319. The board draws this control twice — once in the desktop table's
    * cell and once on the phone card — and only one of them is on screen at a
@@ -107,6 +136,27 @@ export default function StatusCell({
     });
   }
 
+  const offered = offeredStatuses(control, status);
+  // Nothing to change to: neither grant, or the switch alone on a recruit
+  // already Joined.
+  if (control === "read_only" || offered.length < 2) {
+    return (
+      <Box
+        data-testid={`${testIdPrefix}-cell-${prospectId}`}
+        sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}
+      >
+        <StatusPill domain="recruitment" status={status} label={PROSPECT_STATUS_LABELS[status]} />
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          data-testid={`${testIdPrefix}-read-only-${prospectId}`}
+        >
+          {STATUS_READ_ONLY}
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box data-testid={`${testIdPrefix}-cell-${prospectId}`}>
       {editing ? (
@@ -122,11 +172,21 @@ export default function StatusCell({
           sx={{ minHeight: 36 }}
           data-testid={`${testIdPrefix}-select-${prospectId}`}
         >
-          {STATUS_ORDER.map((value) => (
+          {offered.map((value) => (
             <MenuItem key={value} value={value}>
               {PROSPECT_STATUS_LABELS[value]}
             </MenuItem>
           ))}
+          {control === "without_joined" ? (
+            <MenuItem
+              disabled
+              value=""
+              sx={{ whiteSpace: "normal", maxWidth: 320 }}
+              data-testid={`${testIdPrefix}-joined-needs-permission-${prospectId}`}
+            >
+              <Typography variant="caption">{JOINED_NEEDS_PERMISSION}</Typography>
+            </MenuItem>
+          ) : null}
         </Select>
       ) : (
         <Box

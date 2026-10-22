@@ -37,6 +37,7 @@ const FILLED_VALUES: DetailsFormValues = {
   mobile: "07700 900000",
   college_email: "jordan.ashworth@stpeters.ox.ac.uk",
   personal_email: "jordan@example.com",
+  dietary_preference: "vegetarian",
   college: "St Peter's",
   matriculation_year: "2023",
   expected_graduation_year: "2026",
@@ -292,5 +293,33 @@ describe("the confirm box under Mobile phone", () => {
     const posted = vi.mocked(saveDetails).mock.calls[0][1];
     expect(posted.get("mobile")).toBe("+447700900123");
     expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
+  });
+});
+
+// LAN-502. One of three answers, required like every other detail.
+describe("the dietary preference", () => {
+  it("offers exactly the three answers, with the one on record already chosen", () => {
+    const { container } = renderForm(FILLED_VALUES);
+
+    const group = screen.getByRole("radiogroup", { name: labelStartingWith("Dietary preference") });
+    const radios = Array.from(group.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    expect(radios.map((radio) => radio.value)).toEqual(["vegan", "vegetarian", "none"]);
+    expect(screen.getByRole("radio", { name: "No dietary requirements" })).toBeInTheDocument();
+    expect(
+      (container.querySelector('input[name="dietary_preference"]:checked') as HTMLInputElement)
+        .value,
+    ).toBe("vegetarian");
+  });
+
+  it("shows a refusal under the group when it was left unanswered", async () => {
+    vi.mocked(saveDetails).mockResolvedValue({
+      values: { ...FILLED_VALUES, dietary_preference: "" },
+      errors: { dietary_preference: "Dietary preference is required." },
+    });
+    const { container } = renderForm();
+
+    await submit(container);
+
+    expect(screen.getByText("Dietary preference is required.")).toBeInTheDocument();
   });
 });

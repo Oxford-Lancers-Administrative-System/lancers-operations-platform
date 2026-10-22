@@ -1,5 +1,6 @@
 import {
   grantAtLeast,
+  grantRuleHolds,
   type CategoryLevel,
   type GrantRule,
   type OperatorGrants,
@@ -32,11 +33,33 @@ import {
  */
 export const ROSTER_REACH: GrantRule = Object.freeze({ anyOf: "roster", minimum: "view" });
 
-/** Who reaches Recruitment and its records: any recruiting category at `view`. */
-export const RECRUITING_REACH: GrantRule = Object.freeze({
-  anyOf: "recruiting",
-  minimum: "view",
+/**
+ * May move recruits to Joined — LAN-505. The status control's Joined option and
+ * `flipRecruitmentProspectAction` behind it. On its own: no recruiting category
+ * is needed alongside it.
+ */
+export const MOVE_TO_JOINED: GrantRule = Object.freeze({
+  subject: Object.freeze({ kind: "switch", key: "move_recruits_to_joined" }),
+  minimum: "yes",
+}) as GrantRule;
+
+/**
+ * Who reaches Recruitment and its records: any recruiting category at `view`,
+ * or May move recruits to Joined (LAN-505: the switch alone reaches the status
+ * it moves, so it can never be granted in a state where it does nothing). An
+ * `either` of two grant rules, the shape `./access.ts` reads.
+ */
+export const RECRUITING_REACH: { readonly either: readonly GrantRule[] } = Object.freeze({
+  either: Object.freeze([
+    Object.freeze({ anyOf: "recruiting", minimum: "view" }) as GrantRule,
+    MOVE_TO_JOINED,
+  ]),
 });
+
+/** Whether a snapshot holds May move recruits to Joined. */
+export function mayMoveToJoined(grants: OperatorGrants): boolean {
+  return grantRuleHolds(grants, MOVE_TO_JOINED);
+}
 
 /** May add to the roster — Add players, and the pages and actions behind it. */
 export const ADD_TO_ROSTER: GrantRule = Object.freeze({

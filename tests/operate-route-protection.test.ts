@@ -109,6 +109,10 @@ describe("the provider webhook bypasses session refresh", () => {
     expect(matcher.test("/api/webhooks/whatsapp")).toBe(false);
   });
 
+  it("does not match the email receipt webhook — LAN-484", () => {
+    expect(matcher.test("/api/webhooks/email")).toBe(false);
+  });
+
   it("still matches every operator route", () => {
     for (const route of ["/operate", "/operate/events", "/operate/roster", "/dashboard"]) {
       expect(matcher.test(route), `${route} should be protected`).toBe(true);
