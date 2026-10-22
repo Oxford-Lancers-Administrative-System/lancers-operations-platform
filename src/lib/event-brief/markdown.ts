@@ -38,6 +38,8 @@ const BULLET_LINE = /^- +(.+)$/;
 const HEADING_LINE = /^## +(.+)$/;
 const TITLE_LINE = /^# +(.+)$/;
 const CALLOUT_LINE = /^> ?(.+)$/;
+/** Tabs and the Unicode spaces paste brings (no-break, thin, narrow no-break, figure, ideographic). */
+const PASTED_SPACE = /[\t  -   　]/g;
 
 /** `**bold**` and nothing else. An unmatched `**` is the two characters it is. */
 export function parseSpans(line: string): BriefSpan[] {
@@ -68,8 +70,10 @@ export function parseBrief(markdown: string): BriefBlock[] {
   };
 
   for (const raw of markdown.replace(/\r\n|\r/g, "\n").split("\n")) {
-    const line = raw.trimEnd();
-    if (line.trim() === "") {
+    // Text pasted from WhatsApp, Notes or a document arrives indented or with
+    // no-break spaces after the marks; read the line as the coach sees it.
+    const line = raw.replace(PASTED_SPACE, " ").trim();
+    if (line === "") {
       flush();
       continue;
     }

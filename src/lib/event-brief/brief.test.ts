@@ -85,6 +85,17 @@ describe("parseBrief", () => {
     expect(parseSpans("a ** b")).toEqual([{ text: "a ** b", bold: false }]);
   });
 
+  it("reads pasted text that arrives indented or with no-break spaces", () => {
+    const pasted = "  # Game day\n\n  > Kit check\n\n\t## Itinerary\n  - 10:30 Meet\n  - Helmet";
+    expect(parseBrief(pasted).map((block) => block.kind)).toEqual([
+      "title",
+      "callout",
+      "heading",
+      "itinerary",
+      "bullets",
+    ]);
+  });
+
   it("renders anything else as plain text", () => {
     const blocks = parseBrief("### Deep\n[link](https://example.org)\n*italic*\n1. numbered");
     expect(blocks).toEqual([
