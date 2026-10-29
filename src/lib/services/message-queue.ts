@@ -338,29 +338,47 @@ interface SummaryRow {
   held: number;
 }
 
-async function readSummaryIn(tx: Tx, today: string, yesterday: string): Promise<SummaryRow> {
-  const result = await tx.query<SummaryRow>(
-    `with ${MESSAGES_CTE}
+/**
+ * The summary's SQL and parameters for the club day `today` (and the one
+ * before it), separately from running it, so the day boundaries can be proved
+ * on a clock-change day without pinning the database clock. Each day runs from
+ * one London midnight to the next: on the autumn change the day is 25 hours
+ * long and on the spring change 23, so "today" never ends at `+ 1 day` of UTC
+ * arithmetic.
+ */
+export function buildSummaryQuery(
+  today: string,
+  yesterday: string,
+): { text: string; values: unknown[] } {
+  const todayStart = dayStart("$2");
+  const tomorrowStart = dayStart("($2::date + 1)");
+  return {
+    text: `with ${MESSAGES_CTE}
      select count(*) filter (where state = 'queued')::int as queued,
             count(*) filter (where state = 'queued' and at <= now())::int as due_now,
             min(at) filter (where state = 'queued' and at > now()) as next_due_at,
             count(*) filter (where state = 'attempted')::int as attempted,
             count(*) filter (where state = 'delivered'
-                               and at >= ${dayStart("$2")} and at < ${dayStart("$2")} + interval '1 day')::int
+                               and at >= ${todayStart} and at < ${tomorrowStart})::int
               as delivered_today,
             count(*) filter (where state = 'delivered'
-                               and at >= ${dayStart("$3")} and at < ${dayStart("$2")})::int
+                               and at >= ${dayStart("$3")} and at < ${todayStart})::int
               as delivered_yesterday,
             count(*) filter (where state in ('failed', 'retryable')
-                               and at >= ${dayStart("$2")} and at < ${dayStart("$2")} + interval '1 day')::int
+                               and at >= ${todayStart} and at < ${tomorrowStart})::int
               as failed_today,
             count(*) filter (where state in ('failed', 'retryable')
-                               and at >= ${dayStart("$3")} and at < ${dayStart("$2")})::int
+                               and at >= ${dayStart("$3")} and at < ${todayStart})::int
               as failed_yesterday,
             count(*) filter (where state = 'held')::int as held
        from messages`,
-    [NO_CONSENT_REASON, today, yesterday],
-  );
+    values: [NO_CONSENT_REASON, today, yesterday],
+  };
+}
+
+async function readSummaryIn(tx: Tx, today: string, yesterday: string): Promise<SummaryRow> {
+  const query = buildSummaryQuery(today, yesterday);
+  const result = await tx.query<SummaryRow>(query.text, query.values);
   return result.rows[0]!;
 }
 

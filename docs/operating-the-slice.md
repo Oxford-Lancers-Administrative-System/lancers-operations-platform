@@ -1011,7 +1011,8 @@ Vice-President, Secretary, General Manager, IT Officer) and is read-only.
 
 **Expected.** Four tiles: **Queued** (with **Due now** or the next due time
 under it), **Attempted**, **Delivered today** and **Failed today**, the last two
-with **Yesterday** under them. The lights-out line while 22:00–07:00 applies,
+with **Yesterday** under them; each day runs from one London midnight to the
+next, so on a clock-change day it is 25 or 23 hours long. The lights-out line while 22:00–07:00 applies,
 and a warning when any message is held. Filters **When** (opens on **Today**;
 Yesterday, Last 7 days, Next 7 days), **Status**, **Channel** and **Message**
 type. The list — fifty a page, cards on a phone — shows the time, who it is
