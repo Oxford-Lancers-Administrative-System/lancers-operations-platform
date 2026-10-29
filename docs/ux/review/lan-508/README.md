@@ -30,3 +30,15 @@ line added. Measured 1440px and 375px (desktop1440\_ / phone375\_).
 | `R2-editor-guide-open.png`     | Toolbar Title, Heading, Bold, Bullet, Highlight, Itinerary, ? with the guide open   |
 | `R2-itinerary-placeholder.png` | After Itinerary line on an empty line: `- 12:00 Event name`, "Event name" selected  |
 | `R2-preview-crest.png`         | Preview image with the round crest in its header (desktop only shows the full card) |
+
+## Round 3 (29 October 2026)
+
+Production build on the leased overflow slot, signed in as the seeded operator,
+the seeded synthetic draft "End-of-season awards night" (Thursday 4 February
+2027, 19:00) opened in Edit draft, one message added and filled, Recipients set
+to Those who said Yes; nothing saved. Card-only captures at a measured 1440px
+and 375px (desktop1440\_ / phone375\_).
+
+| File                      | What it shows                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `R3-card-helper-text.png` | LAN-515: the send time and one explanatory line under Hours before, Channel, Recipients |
