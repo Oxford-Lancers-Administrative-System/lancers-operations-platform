@@ -89,8 +89,6 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     degreeFieldSource: null,
     degreeType: null,
     degreeTypeSource: null,
-    degreeTypeOther: null,
-    degreeTypeOtherSource: null,
     studentNumber: null,
     studentNumberSource: null,
     bafaRegistrationNumber: null,
@@ -242,7 +240,7 @@ describe("the person record, for an authorized operator", () => {
       "2024",
       "2028",
       "Engineering Science",
-      "MEng — Master of Engineering",
+      "MEng",
       "1234567",
       "BAFA-99",
     ]) {
@@ -258,7 +256,7 @@ describe("the person record, for an authorized operator", () => {
     // College email first, the identifiers last, BAFA after the student number.
     const labels = within(student)
       .getAllByText(
-        /^(College email|College|Matriculation year|Expected graduation|Degree field|Degree type|Student number|BAFA registration number)$/,
+        /^(College email|College|Matriculation year|Expected graduation|Degree|Subject|Student number|BAFA registration number)$/,
       )
       .map((node) => node.textContent);
     expect(labels).toEqual([
@@ -266,8 +264,8 @@ describe("the person record, for an authorized operator", () => {
       "College",
       "Matriculation year",
       "Expected graduation",
-      "Degree field",
-      "Degree type",
+      "Degree",
+      "Subject",
       "Student number",
       "BAFA registration number",
     ]);
@@ -305,18 +303,20 @@ describe("the person record, for an authorized operator", () => {
     expect(screen.queryByText("BAFA registration number")).toBeNull();
   });
 
-  /** LAN-494: an Other type reads as its own name; a person with none reads not recorded. */
-  it("shows an Other degree type by the name entered for it", async () => {
+  /** LAN-512: the letters and the subject, each as stored — a legacy value unchanged. */
+  it("shows the degree letters and the subject as they are on file", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(
-      baseRecord({ degreeType: "Other", degreeTypeOther: "MRes (visiting)" }),
+      baseRecord({ degreeType: "BA", degreeField: "Geog", college: "St. Catz" }),
     );
     stubReads();
 
     render(await PersonRecordPage(pageProps("p1")));
 
     const student = sectionHeaded("Student information");
-    expect(within(student).getByText("Other — MRes (visiting)")).toBeTruthy();
+    expect(within(student).getByText("BA")).toBeTruthy();
+    expect(within(student).getByText("Geog")).toBeTruthy();
+    expect(within(student).getByText("St. Catz")).toBeTruthy();
   });
 
   it("shows Student information once a BAFA number is recorded for a non-playing coach", async () => {

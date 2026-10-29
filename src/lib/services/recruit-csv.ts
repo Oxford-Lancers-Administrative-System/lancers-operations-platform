@@ -21,6 +21,15 @@ import {
   validatePhoneNumber,
 } from "./person-validation";
 import { RECRUITMENT_ADD_OPT_IN_OPTIONS } from "./recruitment-vocabulary";
+import {
+  COLLEGE_NOT_LISTED,
+  LETTERS_NOT_LISTED,
+  listedCollegeFor,
+  listedLettersFor,
+  listedSubjectFor,
+  SUBJECT_NOT_LISTED,
+  SUBJECT_WITHOUT_LETTERS,
+} from "./oxford-academic";
 
 import { formatCsvCell, isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 import { MAX_IMPORT_BYTES } from "./roster-csv";
@@ -35,6 +44,8 @@ export const RECRUIT_IMPORT_COLUMNS = [
   "college",
   "matriculation_year",
   "expected_graduation_year",
+  // LAN-512: the degree letters, then the subject offered with them.
+  "degree_type",
   "degree_field",
   "date_of_birth",
   "emergency_first_name",
@@ -147,6 +158,30 @@ function parseRow(line: number, raw: Record<RecruitImportColumn, string>): Parse
     reasons,
   );
   checkOptional(cells, "date_of_birth", (value) => validateDateOfBirth(value), reasons);
+
+  // LAN-512: college and degree from the University's lists, each cell read
+  // as the listed name it spells (any case or punctuation) and stored as that.
+  if (cells.college !== "") {
+    const college = listedCollegeFor(cells.college);
+    if (college === null) reasons.push(`"college" reads "${cells.college}". ${COLLEGE_NOT_LISTED}`);
+    else cells.college = college;
+  }
+  if (cells.degree_type !== "") {
+    const letters = listedLettersFor(cells.degree_type);
+    if (letters === null) {
+      reasons.push(`"degree_type" reads "${cells.degree_type}". ${LETTERS_NOT_LISTED}`);
+    } else cells.degree_type = letters;
+  }
+  if (cells.degree_field !== "") {
+    if (cells.degree_type === "") {
+      reasons.push(`"degree_field" reads "${cells.degree_field}". ${SUBJECT_WITHOUT_LETTERS}`);
+    } else {
+      const subject = listedSubjectFor(cells.degree_type, cells.degree_field);
+      if (subject === null) {
+        reasons.push(`"degree_field" reads "${cells.degree_field}". ${SUBJECT_NOT_LISTED}`);
+      } else cells.degree_field = subject;
+    }
+  }
   checkOptional(cells, "emergency_phone", validatePhoneNumber, reasons);
   checkOptional(cells, "emergency_email", validateEmailAddress, reasons);
 

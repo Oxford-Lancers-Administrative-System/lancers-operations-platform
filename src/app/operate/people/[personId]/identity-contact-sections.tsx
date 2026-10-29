@@ -6,7 +6,6 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { selectMobileNumber } from "@/lib/delivery/phone-shape";
 import { DEFAULT_CALLING_CODE } from "@/lib/services/person-validation";
-import { degreeTypeDisplay } from "@/lib/services/oxford-degree-types";
 import { dietaryPreferenceLabel } from "@/lib/services/person-dietary";
 import type { PersonRecord } from "@/lib/services/person-record";
 
@@ -154,19 +153,15 @@ function StudentFactRows({ record }: { record: VisiblePersonRecord }) {
           )}
         </Fact>
       ) : null}
-      {record.degreeField !== undefined ? (
-        <Fact label="Degree field">
-          {record.degreeField != null ? <>{record.degreeField}</> : <NotRecorded />}
+      {/* LAN-512: the degree letters, then the subject, each as stored. */}
+      {record.degreeType !== undefined ? (
+        <Fact label="Degree">
+          {record.degreeType != null ? <>{record.degreeType}</> : <NotRecorded />}
         </Fact>
       ) : null}
-      {/* LAN-494: the award type, its own row beside the degree field. */}
-      {record.degreeType !== undefined ? (
-        <Fact label="Degree type">
-          {record.degreeType != null ? (
-            <>{degreeTypeDisplay(record.degreeType, record.degreeTypeOther)}</>
-          ) : (
-            <NotRecorded />
-          )}
+      {record.degreeField !== undefined ? (
+        <Fact label="Subject">
+          {record.degreeField != null ? <>{record.degreeField}</> : <NotRecorded />}
         </Fact>
       ) : null}
       {record.studentNumber !== undefined ? (

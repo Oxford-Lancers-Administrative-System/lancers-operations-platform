@@ -61,6 +61,7 @@ function cells(overrides: Partial<Record<RecruitImportColumn, string>>) {
     college: "",
     matriculation_year: "",
     expected_graduation_year: "",
+    degree_type: "",
     degree_field: "",
     date_of_birth: "",
     emergency_first_name: "",

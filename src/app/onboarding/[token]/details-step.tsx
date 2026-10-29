@@ -56,6 +56,7 @@ export function DetailsStepPage({ view, token }: { view: QuestionnaireView; toke
     college: p.college ?? "",
     matriculation_year: p.matriculationYear?.toString() ?? "",
     expected_graduation_year: p.expectedGraduationYear?.toString() ?? "",
+    degree_type: p.degreeType ?? "",
     degree_field: p.degreeField ?? "",
     student_number: p.studentNumber ?? "",
     date_of_birth: p.dateOfBirth ?? "",

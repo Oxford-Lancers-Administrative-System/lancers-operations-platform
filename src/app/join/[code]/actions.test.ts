@@ -50,6 +50,7 @@ function values(overrides: Partial<SignupFieldValues> = {}): SignupFieldValues {
     college: "",
     matriculationYear: "",
     expectedGraduationYear: "",
+    degreeType: "",
     degreeField: "",
     ...overrides,
   };
@@ -346,13 +347,17 @@ describe("the partial save (LAN-425)", () => {
     expect(start.retry).toBe(false);
     expect(await peopleCalled(MARKER)).toBe(1);
 
-    await patchPartialQrSignup(code, start.token!, values({ collegeEmail: "", college: "Oriel" }));
+    await patchPartialQrSignup(
+      code,
+      start.token!,
+      values({ collegeEmail: "", college: "Oriel College" }),
+    );
     const midway = await observer.query<{ source: string; college: string | null }>(
       `select rp.source, p.college from public.recruitment_prospects rp
          join public.people p on p.id = rp.person_id where p.given_name = $1`,
       [MARKER],
     );
-    expect(midway.rows[0]).toEqual({ source: "qr_partial", college: "Oriel" });
+    expect(midway.rows[0]).toEqual({ source: "qr_partial", college: "Oriel College" });
     const noConsent = await observer.query(
       `select 1 from public.season_messaging_consents
         where person_id = (select id from public.people where given_name = $1)`,
@@ -505,13 +510,13 @@ describe("the partial save (LAN-425)", () => {
     for (let i = 0; i < RATE_LIMIT_MAX_PER_PARTIAL_TOKEN; i += 1) {
       expect(allowQrPartialPatchRequest(address, start.token!).allowed).toBe(true);
     }
-    await patchPartialQrSignup(code, start.token!, values({ college: "Refused" }));
+    await patchPartialQrSignup(code, start.token!, values({ college: "Linacre College" }));
     resetRsvpRateLimit();
-    await patchPartialQrSignup(code, start.token!, values({ college: "Landed" }));
+    await patchPartialQrSignup(code, start.token!, values({ college: "Lincoln College" }));
     const college = await observer.query<{ college: string | null }>(
       `select college from public.people where given_name = $1`,
       [MARKER],
     );
-    expect(college.rows[0].college).toBe("Landed");
+    expect(college.rows[0].college).toBe("Lincoln College");
   });
 });

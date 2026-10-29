@@ -16,11 +16,19 @@ import {
   preventImplicitSubmit,
   SelectField,
 } from "@/components/field";
-import { DEGREE_TYPE_OPTIONS, DEGREE_TYPE_OTHER } from "@/lib/services/oxford-degree-types";
+import {
+  COLLEGE_LABEL,
+  DEGREE_LETTERS_LABEL,
+  DEGREE_SUBJECT_LABEL,
+  subjectOptions,
+} from "@/components/academic-fields";
+import { ListField, type ListOption } from "@/components/list-field";
+import {
+  COLLEGE_OPTIONS,
+  DEGREE_LETTER_OPTIONS,
+  isSubjectFor,
+} from "@/lib/services/oxford-academic";
 import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
-
-/** LAN-494: the list, grouped, after a blank that leaves the type unrecorded. */
-const DEGREE_TYPE_CHOICES = [{ value: "", label: "Not recorded" }, ...DEGREE_TYPE_OPTIONS];
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -50,7 +58,6 @@ const STUDENT_FIELDS = [
   "expectedGraduationYear",
   "degreeField",
   "degreeType",
-  "degreeTypeOther",
   "studentNumber",
   "bafaRegistrationNumber",
 ] as const satisfies readonly (keyof EditState["errors"])[];
@@ -75,7 +82,6 @@ export type EditablePersonRecord = Pick<
   | "expectedGraduationYear"
   | "degreeField"
   | "degreeType"
-  | "degreeTypeOther"
   | "studentNumber"
   | "bafaRegistrationNumber"
   | "dateOfBirth"
@@ -125,8 +131,10 @@ export default function EditPersonForm({
   const ec = record.emergencyContact;
   // A refused student field opens the section, so the error is never behind a closed disclosure.
   const studentFieldRefused = STUDENT_FIELDS.some((field) => Boolean(state.errors[field]));
-  // LAN-494: the Other name is asked for only while the type is Other.
+  // LAN-512: the subject list follows the letters; letters that do not offer
+  // the subject chosen clear it.
   const [degreeType, setDegreeType] = useState(record.degreeType ?? "");
+  const [degreeField, setDegreeField] = useState(record.degreeField ?? "");
 
   return (
     <Box
@@ -282,8 +290,10 @@ export default function EditPersonForm({
                 <CorrectableField
                   name="college"
                   reasonName="collegeReason"
-                  label="College"
+                  label={COLLEGE_LABEL}
+                  listOptions={COLLEGE_OPTIONS}
                   original={record.college ?? ""}
+                  error={state.errors.college}
                 />
                 <CorrectableField
                   name="matriculationYear"
@@ -303,32 +313,32 @@ export default function EditPersonForm({
                       : ""
                   }
                 />
-                <CorrectableField
-                  name="degreeField"
-                  reasonName="degreeFieldReason"
-                  label="Degree field"
-                  original={record.degreeField ?? ""}
-                />
-                {/* LAN-494: the award type, separate from the degree field above. */}
+                {/* LAN-512: the letters, then the subject offered with them. */}
                 <CorrectableField
                   name="degreeType"
                   reasonName="degreeTypeReason"
-                  label="Degree type"
-                  options={DEGREE_TYPE_CHOICES}
+                  label={DEGREE_LETTERS_LABEL}
+                  listOptions={DEGREE_LETTER_OPTIONS}
                   original={record.degreeType ?? ""}
                   error={state.errors.degreeType}
-                  onValueChange={setDegreeType}
+                  value={degreeType}
+                  onValueChange={(next) => {
+                    setDegreeType(next);
+                    if (degreeField !== "" && !(next !== "" && isSubjectFor(next, degreeField))) {
+                      setDegreeField("");
+                    }
+                  }}
                 />
-                {degreeType === DEGREE_TYPE_OTHER ? (
-                  <CorrectableField
-                    name="degreeTypeOther"
-                    reasonName="degreeTypeOtherReason"
-                    label="Other degree type"
-                    required
-                    original={record.degreeTypeOther ?? ""}
-                    error={state.errors.degreeTypeOther}
-                  />
-                ) : null}
+                <CorrectableField
+                  name="degreeField"
+                  reasonName="degreeFieldReason"
+                  label={DEGREE_SUBJECT_LABEL}
+                  listOptions={subjectOptions(degreeType)}
+                  original={record.degreeField ?? ""}
+                  error={state.errors.degreeField}
+                  value={degreeField}
+                  onValueChange={setDegreeField}
+                />
                 {/* LAN-365: BAFA is last because the club fills it in — a
                     student never knows their own registration number, so it is
                     never asked for in onboarding. Never required. */}
@@ -433,6 +443,8 @@ function CorrectableField({
   renderExtra,
   phone,
   options,
+  listOptions,
+  value: controlled,
   onValueChange,
 }: {
   name: string;
@@ -448,10 +460,15 @@ function CorrectableField({
   phone?: boolean;
   /** A fixed vocabulary (LAN-502, LAN-494): the shared `SelectField` in place of free text. */
   options?: ReadonlyArray<{ value: string; label: string; group?: string }>;
+  /** LAN-512: a fixed list with type-to-search (the shared `ListField`) in place of free text. */
+  listOptions?: readonly ListOption[];
+  /** The value, when the form around it owns it (LAN-512's degree pair). */
+  value?: string;
   /** Told every change, for a field whose value decides what else is drawn (LAN-494). */
   onValueChange?: (value: string) => void;
 }) {
-  const [value, setValueState] = useState(original);
+  const [own, setValueState] = useState(original);
+  const value = controlled ?? own;
   const setValue = (next: string) => {
     setValueState(next);
     onValueChange?.(next);
@@ -472,6 +489,17 @@ function CorrectableField({
           error={Boolean(error)}
           helperText={error ?? (changed ? undefined : unchangedHelperText)}
           onValueChange={setValue}
+        />
+      ) : listOptions ? (
+        <ListField
+          name={name}
+          label={label}
+          options={listOptions}
+          value={value}
+          onChange={setValue}
+          required={required}
+          error={error}
+          helperText={changed ? undefined : unchangedHelperText}
         />
       ) : options ? (
         <SelectField

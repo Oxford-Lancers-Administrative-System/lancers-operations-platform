@@ -158,9 +158,10 @@ function baseDetailsInput(
     fields: {
       given_name: "Jordan",
       family_name: "Ashworth",
-      college: "Brasenose",
+      college: "Brasenose College",
       matriculation_year: "2024",
       expected_graduation_year: "2027",
+      degree_type: "MEng",
       degree_field: "Engineering Science",
       student_number: "1234567",
       bafa_registration_number: "BAFA-1234",
@@ -392,7 +393,7 @@ describe("saveDetailsStep", () => {
     // The nine other valid fields committed even though mobile did not.
     expect(view?.person.givenName).toBe("Jordan");
     expect(view?.person.familyName).toBe("Ashworth");
-    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.college).toBe("Brasenose College");
     expect(view?.emergencyContact?.email).not.toBeNull();
     expect(view?.needsConsentStep).toBe(false); // grantConsent is unaffected
   });
@@ -405,13 +406,13 @@ describe("saveDetailsStep", () => {
       baseDetailsInput(personId, openSeasonId, membershipId, {
         grantConsent: false,
         mobile: "not a phone number",
-        fields: { college: "Farrowgate" },
+        fields: { college: "Keble College" },
       }),
     );
 
     const view = await readQuestionnaireView(personId, openSeasonId);
     // College (valid) changed; mobile (invalid) kept its prior, well-formed value.
-    expect(view?.person.college).toBe("Farrowgate");
+    expect(view?.person.college).toBe("Keble College");
     const mobile = view?.person.contacts.find((c) => c.kind === "phone" && c.validUntil === null);
     expect(mobile?.rawValue).toBe("07700 900123");
   });
@@ -424,9 +425,10 @@ describe("saveDetailsStep", () => {
         fields: {
           given_name: "Jordan",
           family_name: "Ashworth",
-          college: "Brasenose",
+          college: "Brasenose College",
           matriculation_year: "not-a-year",
           expected_graduation_year: "2027",
+          degree_type: "MEng",
           degree_field: "Engineering Science",
           date_of_birth: "2005-03-14",
         },
@@ -435,7 +437,7 @@ describe("saveDetailsStep", () => {
     expect(result.errors.matriculation_year).toBeTruthy();
 
     const view = await readQuestionnaireView(personId, openSeasonId);
-    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.college).toBe("Brasenose College");
     expect(view?.person.expectedGraduationYear).toBe(2027);
     expect(view?.person.matriculationYear).toBeNull(); // the malformed one alone stayed unwritten
   });
@@ -455,9 +457,10 @@ describe("saveDetailsStep", () => {
         fields: {
           given_name: "Jordan",
           family_name: "Ashworth",
-          college: "Brasenose",
+          college: "Brasenose College",
           matriculation_year: "2024",
           expected_graduation_year: "2027",
+          degree_type: "MEng",
           degree_field: "Engineering Science",
           date_of_birth: "2030-12-31",
         },
@@ -468,7 +471,7 @@ describe("saveDetailsStep", () => {
 
     const view = await readQuestionnaireView(personId, openSeasonId);
     expect(view?.person.dateOfBirth).toBeNull(); // the future one alone stayed unwritten
-    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.college).toBe("Brasenose College");
     expect(view?.person.matriculationYear).toBe(2024);
   });
 
@@ -500,7 +503,7 @@ describe("saveDetailsStep", () => {
     expect(result.errors.dietary_preference).toBe("Choose one of the three answers.");
     const record = await readPersonRecord(personId);
     expect(record.dietaryPreference).toBeNull();
-    expect(record.college).toBe("Brasenose");
+    expect(record.college).toBe("Brasenose College");
   });
 
   it("completes the details step without a dietary preference, so nobody already onboarded is reopened — LAN-502", async () => {
@@ -546,7 +549,7 @@ describe("saveDetailsStep", () => {
 
     // Everything else in the same submission committed.
     const view = await readQuestionnaireView(personId, openSeasonId);
-    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.college).toBe("Brasenose College");
     expect(view?.person.dateOfBirth).not.toBeNull();
 
     // The refused email itself stayed unwritten — the other record still holds it alone.
@@ -590,13 +593,13 @@ describe("saveDetailsStep", () => {
     const result = await saveDetailsStep(
       baseDetailsInput(personId, openSeasonId, membershipId, {
         grantConsent: false,
-        fields: { college: "Farrowgate" },
+        fields: { college: "Keble College" },
       }),
     );
     expect(result.outcomes.college).toBe("self-corrected");
 
     const view = await readQuestionnaireView(personId, openSeasonId);
-    expect(view?.person.college).toBe("Farrowgate");
+    expect(view?.person.college).toBe("Keble College");
     expect(view?.openDisputedFields.has("college")).toBe(false);
   });
 
@@ -626,13 +629,13 @@ describe("saveDetailsStep", () => {
       actorPersonId,
       personId,
       field: "college",
-      value: "Farrowgate",
+      value: "Keble College",
     });
 
     const result = await saveDetailsStep(
       baseDetailsInput(personId, openSeasonId, membershipId, {
         grantConsent: false,
-        fields: { college: "Brasenose" },
+        fields: { college: "Brasenose College" },
       }),
     );
     expect(result.outcomes.college).toBe("overwritten");
@@ -640,7 +643,7 @@ describe("saveDetailsStep", () => {
     const view = await readQuestionnaireView(personId, openSeasonId);
     // The disputed-fact mechanism is gone (B-002): the player's answer simply
     // takes effect, and no open dispute is ever raised.
-    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.college).toBe("Brasenose College");
     expect(view?.openDisputedFields.has("college")).toBe(false);
   });
 
@@ -656,13 +659,13 @@ describe("saveDetailsStep", () => {
     const result = await saveDetailsStep(
       baseDetailsInput(personId, openSeasonId, membershipId, {
         grantConsent: false,
-        fields: { college: "Brasenose" },
+        fields: { college: "Brasenose College" },
       }),
     );
     expect(result.outcomes.college).toBe("filled");
 
     const view = await readQuestionnaireView(personId, openSeasonId);
-    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.college).toBe("Brasenose College");
     expect(view?.openDisputedFields.has("college")).toBe(false);
   });
 

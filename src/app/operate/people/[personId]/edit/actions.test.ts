@@ -120,8 +120,6 @@ async function formFrom(
     expectedGraduationYear: record.expectedGraduationYear?.toString() ?? "",
     degreeField: record.degreeField ?? "",
     degreeType: record.degreeType ?? "",
-    // Posted only while the type is Other, as the form does.
-    ...(record.degreeType === "Other" ? { degreeTypeOther: record.degreeTypeOther ?? "" } : {}),
     dietaryPreference: record.dietaryPreference ?? "",
     dateOfBirth: record.dateOfBirth ?? "",
     emergencyGivenName: record.emergencyContact?.givenName ?? "",
@@ -225,12 +223,13 @@ describe("filling and correcting", () => {
     await insertContact(personId, { kind: "phone", rawValue: "07700 900169" });
     const data = await formFrom(personId, {
       mobile: "+447700900169",
-      degreeField: "LAN423 Unchanged Mobile",
+      degreeType: "MSc",
+      degreeField: "Sociology",
     });
 
     await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow(RedirectSignal);
     const after = await readPersonRecord(personId);
-    expect(after.degreeField).toBe("LAN423 Unchanged Mobile");
+    expect(after.degreeField).toBe("Sociology");
     const phones = after.contacts.filter((c) => c.kind === "phone");
     expect(phones).toHaveLength(1);
     expect(phones[0].rawValue).toBe("07700 900169");
@@ -280,7 +279,7 @@ describe("filling and correcting", () => {
     const data = await formFrom(personId, {
       dateOfBirth: "2099-01-01",
       dateOfBirthReason: "Corrected after seeing a passport",
-      college: "Merton",
+      college: "Merton College",
       collegeReason: "Transferred colleges",
     });
 
@@ -350,7 +349,7 @@ describe("filling and correcting", () => {
     await observer.query(
       `update public.people
           set college = 'Beaumont', matriculation_year = 2023, expected_graduation_year = 2026,
-              degree_field = 'Engineering Science', date_of_birth = '2004-03-11'
+              degree_type = 'MEng', degree_field = 'Engineering Science', date_of_birth = '2004-03-11'
         where id = $1::uuid`,
       [personId],
     );
@@ -358,7 +357,7 @@ describe("filling and correcting", () => {
     const data = await formFrom(personId, {
       familyName: "Winterhold",
       familyNameReason: "Corrected spelling from passport",
-      college: "Merton",
+      college: "Merton College",
       collegeReason: "Transferred colleges",
       matriculationYear: "2024",
       matriculationYearReason: "Original year was a typo",
@@ -374,7 +373,7 @@ describe("filling and correcting", () => {
 
     const after = await readPersonRecord(personId);
     expect(after.familyName).toBe("Winterhold");
-    expect(after.college).toBe("Merton");
+    expect(after.college).toBe("Merton College");
     expect(after.matriculationYear).toBe(2024);
     expect(after.expectedGraduationYear).toBe(2027);
     expect(after.degreeField).toBe("Materials Science");
@@ -388,7 +387,7 @@ describe("filling and correcting", () => {
       personId,
     ]);
 
-    const data = await formFrom(personId, { college: "Merton" });
+    const data = await formFrom(personId, { college: "Merton College" });
     const result = await submitPersonEdit(INITIAL_EDIT_STATE, data);
     expect(result.formError).toBeTruthy();
 
@@ -459,68 +458,57 @@ describe("filling and correcting", () => {
     expect((await readPersonRecord(personId)).dietaryPreference).toBe("none");
   });
 
-  it("records a degree type apart from the degree field, which it leaves alone — LAN-494", async () => {
+  it("records the degree letters and a subject offered with them — LAN-512", async () => {
     signedInAs();
     const personId = await insertPerson({ givenName: unique("Degree") });
-    await observer.query(
-      `update public.people set degree_field = 'MSc in Education' where id = $1::uuid`,
-      [personId],
-    );
-
-    await expect(
-      submitPersonEdit(INITIAL_EDIT_STATE, await formFrom(personId, { degreeType: "DPhil" })),
-    ).rejects.toThrow(RedirectSignal);
-
-    const after = await readPersonRecord(personId);
-    expect(after.degreeType).toBe("DPhil");
-    expect(after.degreeTypeOther).toBeNull();
-    expect(after.degreeField).toBe("MSc in Education");
-  });
-
-  it("asks for a name with Other, keeps it, and clears it when the type moves off Other — LAN-494", async () => {
-    signedInAs();
-    const personId = await insertPerson({ givenName: unique("Other") });
-
-    const unnamed = await submitPersonEdit(
-      INITIAL_EDIT_STATE,
-      await formFrom(personId, { degreeType: "Other", degreeTypeOther: "  " }),
-    );
-    expect(unnamed.errors.degreeTypeOther).toBe("Other degree type is required.");
-    expect((await readPersonRecord(personId)).degreeType).toBeNull();
 
     await expect(
       submitPersonEdit(
         INITIAL_EDIT_STATE,
-        await formFrom(personId, { degreeType: "Other", degreeTypeOther: "MRes (visiting)" }),
+        await formFrom(personId, { degreeType: "MSc", degreeField: "Learning and Teaching" }),
       ),
     ).rejects.toThrow(RedirectSignal);
-    const other = await readPersonRecord(personId);
-    expect(other.degreeType).toBe("Other");
-    expect(other.degreeTypeOther).toBe("MRes (visiting)");
 
-    // The form stops posting the name once the type is not Other.
-    const moved = await formFrom(personId, {
-      degreeType: "MSc by Research",
-      degreeTypeReason: "Department confirmed the award",
-    });
-    moved.delete("degreeTypeOther");
-    await expect(submitPersonEdit(INITIAL_EDIT_STATE, moved)).rejects.toThrow(RedirectSignal);
     const after = await readPersonRecord(personId);
-    expect(after.degreeType).toBe("MSc by Research");
-    expect(after.degreeTypeOther).toBeNull();
+    expect([after.degreeType, after.degreeField]).toEqual(["MSc", "Learning and Teaching"]);
   });
 
-  it("refuses a degree type that is not on the list — LAN-494", async () => {
+  it("refuses a college, letters or subject not in the lists, and writes none of them — LAN-512", async () => {
     signedInAs();
     const personId = await insertPerson({ givenName: unique("Unlisted") });
 
     const result = await submitPersonEdit(
       INITIAL_EDIT_STATE,
-      await formFrom(personId, { degreeType: "MRes" }),
+      await formFrom(personId, {
+        college: "St Catz",
+        degreeType: "MRes",
+        degreeField: "Geography",
+      }),
     );
+    expect(result.errors.college).toBe("Choose a college from the list.");
+    expect(result.errors.degreeType).toBe("Choose the degree from the list.");
+    const pair = await submitPersonEdit(
+      INITIAL_EDIT_STATE,
+      await formFrom(personId, { degreeType: "MBA", degreeField: "Geography" }),
+    );
+    expect(pair.errors.degreeField).toBe("Choose a subject from the list for this degree.");
+    const record = await readPersonRecord(personId);
+    expect([record.college, record.degreeType, record.degreeField]).toEqual([null, null, null]);
+  });
 
-    expect(result.errors.degreeType).toBe("Choose a degree type from the list, or Other.");
-    expect((await readPersonRecord(personId)).degreeType).toBeNull();
+  it("asks for a choice on save when a legacy value is on file, even unchanged — LAN-512", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Legacy") });
+    await observer.query("update public.people set college = 'St. Catz' where id = $1::uuid", [
+      personId,
+    ]);
+
+    const result = await submitPersonEdit(
+      INITIAL_EDIT_STATE,
+      await formFrom(personId, { givenName: "Renamed" }),
+    );
+    expect(result.errors.college).toBe("Choose a college from the list.");
+    expect((await readPersonRecord(personId)).college).toBe("St. Catz");
   });
 
   it("moves nothing on the ladder", async () => {
@@ -530,7 +518,7 @@ describe("filling and correcting", () => {
       `select count(*)::int as n from public.season_memberships where person_id = $1::uuid`,
       [personId],
     );
-    const data = await formFrom(personId, { college: "Hallamshire" });
+    const data = await formFrom(personId, { college: "Keble College" });
     await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow(RedirectSignal);
     const after = await observer.query(
       `select count(*)::int as n from public.season_memberships where person_id = $1::uuid`,
@@ -600,7 +588,7 @@ describe("each field needs its own category at edit — LAN-432", () => {
     signedInWith({ person: "edit", contact_emergency: "view" });
 
     async function outcomeOf(guess: string): Promise<unknown> {
-      const data = await formFrom(personId, { degreeField: "LAN423 Oracle Studies" });
+      const data = await formFrom(personId, { degreeType: "MSc", degreeField: "Sociology" });
       // Only the guessed field arrives from the withheld half, as a probe would send it.
       for (const field of [
         "personalEmail",
@@ -641,7 +629,7 @@ describe("each field needs its own category at edit — LAN-432", () => {
   it("writes Person's fields and leaves the contacts it was never sent", async () => {
     const personId = await insertPerson({ givenName: unique("Partial") });
     await insertContact(personId, { kind: "phone", rawValue: "+447700900303" });
-    const full = await formFrom(personId, { degreeField: "LAN432 Studies" });
+    const full = await formFrom(personId, { degreeType: "MSc", degreeField: "Sociology" });
     // The form draws no contact field for this seat, so none arrives.
     const contactFields = [
       "mobile",
@@ -661,7 +649,7 @@ describe("each field needs its own category at edit — LAN-432", () => {
 
     await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toBeInstanceOf(RedirectSignal);
     const after = await readPersonRecord(personId);
-    expect(after.degreeField).toBe("LAN432 Studies");
+    expect(after.degreeField).toBe("Sociology");
     expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900303");
   });
 

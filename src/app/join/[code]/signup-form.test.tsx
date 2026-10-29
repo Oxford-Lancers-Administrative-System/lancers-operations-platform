@@ -23,6 +23,7 @@ const EMPTY: SignupFieldValues = {
   college: "",
   matriculationYear: "",
   expectedGraduationYear: "",
+  degreeType: "",
   degreeField: "",
 };
 
@@ -149,15 +150,15 @@ describe("the partial save (LAN-425)", () => {
     });
 
     // Typing restarts the pause; the patch carries the state at the end of it.
-    type(/^College$/, "Bal");
+    type(/^Known as/, "Bal");
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS - 1000));
-    type(/^College$/, "Balliol");
+    type(/^Known as/, "Balliol");
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS - 1000));
     expect(patchPartial).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(patchPartial).toHaveBeenCalledTimes(1);
     expect(patchPartial.mock.calls[0][0]).toBe("tok-425");
-    expect(patchPartial.mock.calls[0][1]).toMatchObject({ college: "Balliol" });
+    expect(patchPartial.mock.calls[0][1]).toMatchObject({ knownAs: "Balliol" });
     expect(startPartial).toHaveBeenCalledTimes(1);
   });
 
@@ -174,11 +175,11 @@ describe("the partial save (LAN-425)", () => {
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
     expect(startPartial).toHaveBeenCalledTimes(1);
 
-    type(/^College$/, "Balliol");
+    type(/^Known as/, "Balliol");
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
     expect(startPartial).toHaveBeenCalledTimes(2);
 
-    type(/^College$/, "Balliol College");
+    type(/^Known as/, "Balliol College");
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
     expect(startPartial).toHaveBeenCalledTimes(2);
   });
@@ -293,10 +294,10 @@ describe("the partial save (LAN-425)", () => {
     expect(startPartial).toHaveBeenCalledTimes(1);
 
     confirmedMobile("");
-    type(/^College$/, "Balliol");
+    type(/^Known as/, "Balliol");
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
     expect(patchPartial).toHaveBeenCalledTimes(1);
-    expect(patchPartial.mock.calls[0][1]).toMatchObject({ college: "Balliol" });
+    expect(patchPartial.mock.calls[0][1]).toMatchObject({ knownAs: "Balliol" });
   });
 
   it("a graduation before its matriculation turns the field red and holds Sign me up", () => {

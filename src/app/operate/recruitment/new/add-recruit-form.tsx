@@ -1,5 +1,6 @@
 "use client";
 
+import { CollegeField, DegreeFields } from "@/components/academic-fields";
 import { useActionState, useState } from "react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
@@ -299,7 +300,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
         {/* V-2, correction round 2: Academic fields follow the shipped intake forms' own set; every field here stays optional (REQ-missing-never-blocks). */}
         <Section title="Academic">
           <Stack spacing={2}>
-            <Field name="college" label="College" defaultValue={values.college} />
+            <CollegeField key={`college-${values.college}`} defaultValue={values.college} />
             <Field
               name="matriculationYear"
               label="Matriculation year"
@@ -316,7 +317,11 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               error={Boolean(gradFormatError)}
               helperText={gradFormatError ?? undefined}
             />
-            <Field name="degreeField" label="Degree field" defaultValue={values.degreeField} />
+            <DegreeFields
+              key={`degree-${values.degreeType}-${values.degreeField}`}
+              defaultLetters={values.degreeType}
+              defaultSubject={values.degreeField}
+            />
           </Stack>
         </Section>
 

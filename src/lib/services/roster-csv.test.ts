@@ -77,7 +77,7 @@ describe("readRosterImport — the header", () => {
 describe("readRosterImport — one row's shape", () => {
   it("reads a fully populated row cleanly", () => {
     const result = readRosterImport({
-      csvText: csv("Rosalind,Penhaligon,07700 900312,rp@example.ac.uk,Brasenose,2024"),
+      csvText: csv("Rosalind,Penhaligon,07700 900312,rp@example.ac.uk,Brasenose College,2024"),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -87,8 +87,25 @@ describe("readRosterImport — one row's shape", () => {
     expect(row.lastName).toBe("Penhaligon");
     expect(row.mobile).toBe("07700 900312");
     expect(row.personalEmail).toBe("rp@example.ac.uk");
-    expect(row.college).toBe("Brasenose");
+    expect(row.college).toBe("Brasenose College");
     expect(row.matriculationYear).toBe(2024);
+  });
+
+  it("LAN-512: reads a college as the University's name, and refuses one not in the list", () => {
+    const result = readRosterImport({
+      csvText: csv(
+        "Rosalind,Penhaligon,07700 900312,,st. anne’s college,2024",
+        "Tobias,Wrenfield,07700 900184,,St Catz,2024",
+      ),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const [listed, unlisted] = result.read.rows;
+    expect(listed.reasons).toEqual([]);
+    expect(listed.college).toBe("St Anne's College");
+    expect(unlisted.reasons).toEqual([
+      '"college" reads "St Catz". Choose a college from the list.',
+    ]);
   });
 
   it("leaves the three optional columns null when blank", () => {
@@ -188,7 +205,7 @@ describe("readRosterImport — two rows, one person", () => {
   it("refuses the second of two rows carrying the same first name, last name and mobile", () => {
     const result = readRosterImport({
       csvText: csv(
-        "Beatrix,Ashgrove,07700 900450,ba@example.ac.uk,St Anne's,2025",
+        "Beatrix,Ashgrove,07700 900450,ba@example.ac.uk,St Anne's College,2025",
         "Beatrix,Ashgrove,07700 900450,different@example.ac.uk,,",
       ),
     });
@@ -268,7 +285,7 @@ describe("size and row limits", () => {
 describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () => {
   it("is absent from a file that names none of them, and never a reason to refuse a row", () => {
     const result = readRosterImport({
-      csvText: csv("Rosalind,Penhaligon,07700900001,,Balliol,2024"),
+      csvText: csv("Rosalind,Penhaligon,07700900001,,Balliol College,2024"),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -279,7 +296,9 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
   it("reads a cell the file does name, and refuses a value that cell does not allow", () => {
     const header = `${HEADER},st_punt_starting`;
     const good = readRosterImport({
-      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Longsnapper"].join("\r\n"),
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol College,2024,Longsnapper"].join(
+        "\r\n",
+      ),
     });
     expect(good.ok).toBe(true);
     if (good.ok) {
@@ -288,7 +307,9 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
     }
 
     const bad = readRosterImport({
-      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Kicker"].join("\r\n"),
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol College,2024,Kicker"].join(
+        "\r\n",
+      ),
     });
     expect(bad.ok).toBe(true);
     if (bad.ok) {
@@ -300,7 +321,9 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
   it("reads the warmup small group, and refuses a name that is not one of the eight", () => {
     const header = `${HEADER},warmup_small_group`;
     const good = readRosterImport({
-      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Cavalier"].join("\r\n"),
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol College,2024,Cavalier"].join(
+        "\r\n",
+      ),
     });
     expect(good.ok).toBe(true);
     if (good.ok) {
@@ -310,7 +333,7 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
 
     // Blank is blank, not a refusal: the column is optional in every cell.
     const blank = readRosterImport({
-      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,"].join("\r\n"),
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol College,2024,"].join("\r\n"),
     });
     expect(blank.ok).toBe(true);
     if (blank.ok) {
@@ -319,7 +342,9 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
     }
 
     const bad = readRosterImport({
-      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Dragons"].join("\r\n"),
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol College,2024,Dragons"].join(
+        "\r\n",
+      ),
     });
     expect(bad.ok).toBe(true);
     if (bad.ok) {
@@ -338,7 +363,7 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
     const good = readRosterImport({
       csvText: [
         header,
-        'Rosalind,Penhaligon,07700900001,,Balliol,2024,"Ankle - M;Knee - L",Shoulder',
+        'Rosalind,Penhaligon,07700900001,,Balliol College,2024,"Ankle - M;Knee - L",Shoulder',
       ].join("\r\n"),
     });
     expect(good.ok).toBe(true);
@@ -355,7 +380,7 @@ describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () =>
     const bad = readRosterImport({
       csvText: [
         header,
-        'Rosalind,Penhaligon,07700900001,,Balliol,2024,"Ankle - M;Elbow - M",Shoulder',
+        'Rosalind,Penhaligon,07700900001,,Balliol College,2024,"Ankle - M;Elbow - M",Shoulder',
       ].join("\r\n"),
     });
     expect(bad.ok).toBe(true);

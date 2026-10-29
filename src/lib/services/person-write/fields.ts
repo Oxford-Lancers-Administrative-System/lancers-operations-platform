@@ -3,7 +3,6 @@ import "server-only";
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
 import { type PersonRecord, readPersonRecordIn } from "../person-record";
-import { isDegreeType } from "../oxford-degree-types";
 import { isDietaryPreference } from "../person-dietary";
 import { validateDateOfBirth } from "../person-validation";
 import {
@@ -21,14 +20,14 @@ export type PersonFieldUpdate =
   /** LAN-366. Optional everywhere, and cleared by saving it blank. */
   | { field: "middle_name"; value: string | null }
   | { field: "family_name"; value: string | null }
+  /** LAN-512. A college from the University's list (`oxford-academic.ts`). */
   | { field: "college"; value: string | null }
   | { field: "matriculation_year"; value: number | null }
   | { field: "expected_graduation_year"; value: number | null }
+  /** LAN-512. The subject, one the University offers with the person's `degree_type`. */
   | { field: "degree_field"; value: string | null }
-  /** LAN-494. One of `DEGREE_TYPE_VALUES`, separate from the degree field. */
+  /** LAN-512. The degree's award letters, from the University's list. */
   | { field: "degree_type"; value: string | null }
-  /** LAN-494. The name of an Other degree type; held only while the type is Other. */
-  | { field: "degree_type_other"; value: string | null }
   /** LAN-267: collected on the player questionnaire, printed on the BAFRA roster form. Free text. */
   | { field: "student_number"; value: string | null }
   /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
@@ -44,9 +43,8 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   college: "college",
   matriculation_year: "the matriculation year",
   expected_graduation_year: "expected graduation",
-  degree_field: "the degree field",
-  degree_type: "the degree type",
-  degree_type_other: "the Other degree type",
+  degree_field: "the subject",
+  degree_type: "the degree",
   student_number: "the student number",
   bafa_registration_number: "the BAFA registration number",
   date_of_birth: "date of birth",
@@ -62,7 +60,6 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   expected_graduation_year: "expected_graduation_year",
   degree_field: "degree_field",
   degree_type: "degree_type",
-  degree_type_other: "degree_type_other",
   student_number: "student_number",
   bafa_registration_number: "bafa_registration_number",
   date_of_birth: "date_of_birth",
@@ -110,12 +107,10 @@ export async function updatePersonField(
     });
   }
 
-  // LAN-494: the University's own list (`people_degree_type_known`).
-  if (field === "degree_type" && typeof value === "string" && !isDegreeType(value)) {
-    throw new ConstraintViolated("Choose a degree type from the list, or Other.", {
-      rule: "people_degree_type_known",
-    });
-  }
+  // LAN-512: college and degree are held to the University's lists where they
+  // are entered (`academicProblems` in `oxford-academic.ts`, called by every
+  // form and import), not here: a merge or a settled dispute moves a value
+  // already on file, legacy free text included, through this same write.
 
   return withTransaction(async (tx) => {
     await lockPersonRow(tx, personId);

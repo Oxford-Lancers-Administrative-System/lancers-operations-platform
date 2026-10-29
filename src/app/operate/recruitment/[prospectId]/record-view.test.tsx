@@ -104,8 +104,6 @@ const FULL_PERSON: PersonRecord = {
   degreeFieldSource: null,
   degreeType: null,
   degreeTypeSource: null,
-  degreeTypeOther: null,
-  degreeTypeOtherSource: null,
   studentNumber: "1234567",
   studentNumberSource: null,
   bafaRegistrationNumber: "BAFA-9",

@@ -276,7 +276,7 @@ Messaging and What changed read as Person; the mobile, both emails and the
 emergency contact as Contact & emergency, each row drawn only where its line
 allows; Their seasons as Membership. Student information shows for anyone who
 has ever been a player or a recruit, or once any student fact (college email,
-college, matriculation year, expected graduation, degree field, student number,
+college, matriculation year, expected graduation, degree, subject, student number,
 BAFA registration number) is recorded; on Correct this record it is present for
 every person, closed for anyone else, so a non-playing coach's BAFA number can
 still be entered. The missing-data rules are unchanged; Correct this record needs Edit on Person or
@@ -309,26 +309,40 @@ questionnaire again and never triggers a chase. `agent_readonly` cannot read the
 column — a diet can disclose a belief — so it is on the hidden list in
 `scripts/production/agent-readonly.sql`.
 
-**Degree type (LAN-494, Brian 2026-10-10).** Student information, on the
-person record and on Correct this record, has a **Degree type** row after Degree
-field. It is the kind of Oxford award, chosen from a grouped list —
-Undergraduate, Integrated master's, Postgraduate taught, Research,
-Certificates, diplomas and non-degree study (including **Visiting or recognised
-student (non-degree)**), Other Oxford awards, and **Other** — each shown as its
-abbreviation and full name ("DPhil — Doctor of Philosophy"). Choosing **Other**
-adds a required **Other degree type** box, and the record shows "Other —" and
-that name; moving off Other clears the name. **Not recorded** leaves it unset.
-It is separate from Degree field: setting one never touches the other, and no
-existing Degree field was copied into it. It is never required and is not asked
-during onboarding or recruitment; it is read and edited as Person, like the other
-student facts, and recorded on `people.degree_type` and
-`people.degree_type_other`. The list is the University's own, from the
-Examination Regulations' award list
-(https://examregs.admin.ox.ac.uk/Regulation?code=ronfm-p6obandfeeredu) and
-regulation titles (https://examregs.admin.ox.ac.uk/), checked on 19 October
-2026 against the list LAN-494 researched from the University style guide
-(https://www.ox.ac.uk/about/the-university/brand/style-guide/names-titles);
-that check added Certificate of Higher Education and Diploma in Legal Studies.
+**College and degree are fixed lists (LAN-512, Brian and Stewart 2026-10-29;
+replaces LAN-494's Degree type with Other).** Wherever a person's college or
+degree is entered — the onboarding details step, Correct this record (which is
+also where the roster's and Missing data's college and degree are corrected),
+the recruitment hand-add, the QR and tokenised sign-up doors, and the recruit
+and roster imports — the answer comes only from the University's own lists:
+there is no free text and no Other. Each is a type-to-search box (typing
+filters the list; only a listed entry can be chosen).
+
+- **College**: the 39 constituent colleges and 5 permanent private halls, names
+  as the University writes them ("St Catherine's College", "Christ Church",
+  "The Queen's College", "Blackfriars"), plus Ripon College Cuddesdon, listed by
+  the University as an external college. All Souls College is included.
+- **Degree**: the award letters (37), "DPhil — Doctor of Philosophy" and so on,
+  the six most common first (DPhil, BA, MSc, MPhil, MSt, MBA), then the rest
+  alphabetically.
+- **Subject**: filtered to what the University offers with the letters chosen
+  (BA offers its undergraduate subjects, MSc its MSc courses, MBA only
+  "Business Administration"); changing the letters clears a subject they do not
+  offer. The pair is stored on `people.degree_type` and `people.degree_field`.
+  Where the University names a course by the award alone the subject is the
+  research's proposal (MPP Public Policy, EMBA Business Administration
+  (Executive), BCL Civil Law, MJur Law, DM Medicine, DClinPsych Clinical
+  Psychology); the doctoral training programmes are DPhil under their own names.
+
+The lists and their sources are in `src/lib/services/oxford-academic.ts`. The
+onboarding details step now asks for the degree letters as well as the
+subject, both required like the college. Validation is on input only: the
+database holds no list, so a free-text value already on file stays readable and
+is shown as it is on the record. A form opening on such a value shows "On file:
+<value>. Not in the list." beside the empty box and refuses the save until a
+listed entry is chosen; an import refuses the row naming the cell, and accepts a
+listed name in any case or punctuation ("st. anne's college"). LAN-513's
+one-time cleanup moves the existing values onto the lists.
 
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
 board (and a phone on its side) an **Attendance** group sits immediately right

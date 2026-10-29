@@ -5,7 +5,7 @@
  * real database; this proves the page-level refusal is total.
  */
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -82,8 +82,6 @@ function populatedRecord() {
     degreeFieldSource: null,
     degreeType: null,
     degreeTypeSource: null,
-    degreeTypeOther: null,
-    degreeTypeOtherSource: null,
     studentNumber: null,
     studentNumberSource: null,
     bafaRegistrationNumber: null,
@@ -163,8 +161,6 @@ describe("a four-role operator", () => {
       degreeFieldSource: null,
       degreeType: null,
       degreeTypeSource: null,
-      degreeTypeOther: null,
-      degreeTypeOtherSource: null,
       studentNumber: null,
       studentNumberSource: null,
       bafaRegistrationNumber: null,
@@ -223,8 +219,8 @@ describe("a four-role operator", () => {
         "college",
         "matriculationYear",
         "expectedGraduationYear",
-        "degreeField",
         "degreeType",
+        "degreeField",
         "studentNumber",
         "bafaRegistrationNumber",
       ]);
@@ -236,34 +232,32 @@ describe("a four-role operator", () => {
       }
     });
 
-    // LAN-494: the Other name is a field only while the type is Other.
-    it("asks for the Other degree type's name only when the type is Other", async () => {
+    // LAN-512: the lists only; a value on file that is not in them is shown
+    // beside the empty field and posted unchanged, so the save asks for a choice.
+    it("offers the college and degree as lists, and keeps a legacy value visible and unchanged", async () => {
       signedInAs(["secretary"]);
       vi.mocked(personVersion).mockResolvedValue(null);
       vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
       const record = populatedRecord() as unknown as Record<string, unknown>;
       vi.mocked(readPersonRecord).mockResolvedValue({
         ...record,
-        degreeType: "Other",
-        degreeTypeOther: "MRes (visiting)",
+        college: "St. Catz",
+        degreeType: "BA",
+        degreeField: "Geography",
       } as never);
 
-      const { unmount } = render(await EditPersonPage(pageProps()));
-      const student = screen.getByTestId("section-student-information");
-      expect(fieldNamesIn(student)).toContain("degreeTypeOther");
-      expect(
-        (student.querySelector('input[name="degreeTypeOther"]') as HTMLInputElement).value,
-      ).toBe("MRes (visiting)");
-      expect((student.querySelector('input[name="degreeType"]') as HTMLInputElement).value).toBe(
-        "Other",
-      );
-      unmount();
-
-      vi.mocked(readPersonRecord).mockResolvedValue({ ...record, degreeType: "DPhil" } as never);
       render(await EditPersonPage(pageProps()));
-      expect(fieldNamesIn(screen.getByTestId("section-student-information"))).not.toContain(
-        "degreeTypeOther",
+      const student = screen.getByTestId("section-student-information");
+      const posted = (name: string) =>
+        (student.querySelector(`input[type="hidden"][name="${name}"]`) as HTMLInputElement).value;
+      expect(posted("college")).toBe("St. Catz");
+      expect(within(student).getByText("On file: St. Catz. Not in the list.")).toBeTruthy();
+      expect(posted("degreeType")).toBe("BA");
+      expect(posted("degreeField")).toBe("Geography");
+      expect(within(student).getByRole("combobox", { name: "Degree" })).toHaveValue(
+        "BA — Bachelor of Arts",
       );
+      expect(within(student).getByRole("combobox", { name: "Subject" })).toHaveValue("Geography");
     });
 
     it("is present but closed for a coach who has never played, so a BAFA number can still be entered", async () => {
@@ -310,11 +304,11 @@ describe("a four-role operator", () => {
     // A dozen filled fields, nothing touched yet — no reason box anywhere.
     expect(screen.queryAllByLabelText("Reason for the change")).toHaveLength(0);
 
-    const college = screen.getByLabelText("College");
-    fireEvent.change(college, { target: { value: "Balliol" } });
+    const year = screen.getByLabelText("Matriculation year");
+    fireEvent.change(year, { target: { value: "2021" } });
     expect(screen.queryAllByLabelText("Reason for the change")).toHaveLength(1);
 
-    fireEvent.change(college, { target: { value: "Pyrford" } });
+    fireEvent.change(year, { target: { value: "2022" } });
     expect(screen.queryAllByLabelText("Reason for the change")).toHaveLength(0);
   });
 

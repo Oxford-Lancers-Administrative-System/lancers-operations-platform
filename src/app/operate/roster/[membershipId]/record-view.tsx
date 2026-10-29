@@ -487,7 +487,9 @@ export default function PlayerRecordView({
               person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
             }
           />
-          <RecordField label="Degree field" value={person.degreeField ?? null} />
+          {/* LAN-512: the letters, then the subject, each as stored. */}
+          <RecordField label="Degree" value={person.degreeType ?? null} />
+          <RecordField label="Subject" value={person.degreeField ?? null} />
           <RecordField
             label="Date of birth"
             value={person.dateOfBirth ? formatDay(person.dateOfBirth) : null}

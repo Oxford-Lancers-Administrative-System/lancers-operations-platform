@@ -426,7 +426,7 @@ describe("applyRosterImport", () => {
         firstName: first,
         lastName: familyNameFor("Applied"),
         mobile: mobileFor(),
-        college: "Brasenose",
+        college: "Brasenose College",
         year: "2024",
       },
     ]);
@@ -443,7 +443,7 @@ describe("applyRosterImport", () => {
       [first],
     );
     expect(person.rows).toHaveLength(1);
-    expect(person.rows[0].college).toBe("Brasenose");
+    expect(person.rows[0].college).toBe("Brasenose College");
 
     const status = await membershipStatusFor(person.rows[0].id);
     expect(status).toBe("onboarding");
@@ -603,7 +603,7 @@ describe("applyRosterImport", () => {
         firstName: candidate.givenName,
         lastName: familyNameFor("Disagreeing"),
         mobile: candidate.mobile,
-        college: "A college the file claims",
+        college: "Lady Margaret Hall",
       },
     ]);
     const proposal = await planRosterImport({
@@ -827,7 +827,7 @@ describe("applyRosterImport and the audience group rule", () => {
           firstName: first,
           lastName: familyNameFor("NoAutoAdd"),
           mobile: mobileFor(),
-          college: "Brasenose",
+          college: "Brasenose College",
           year: "2024",
         },
       ]);

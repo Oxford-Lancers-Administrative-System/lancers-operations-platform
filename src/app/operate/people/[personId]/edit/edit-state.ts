@@ -16,7 +16,6 @@ export interface EditFieldErrors {
   expectedGraduationYear?: string;
   degreeField?: string;
   degreeType?: string;
-  degreeTypeOther?: string;
   studentNumber?: string;
   bafaRegistrationNumber?: string;
   dateOfBirth?: string;
@@ -44,7 +43,6 @@ interface CorrectionReasonFormValues {
   degreeFieldReason: string;
   /** LAN-494. */
   degreeTypeReason: string;
-  degreeTypeOtherReason: string;
   /** LAN-267. Same rule as every other person field: required to correct, never to fill. */
   studentNumberReason: string;
   bafaRegistrationNumberReason: string;
@@ -103,10 +101,8 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   matriculationYear: string;
   expectedGraduationYear: string;
   degreeField: string;
-  /** LAN-494. A `DEGREE_TYPE_VALUES` code, or blank. */
+  /** LAN-512. The degree letters from the University list, or blank. */
   degreeType: string;
-  /** LAN-494. The Other name; posted only while the type is Other. */
-  degreeTypeOther: string;
   /** LAN-267. Operator-editable, because a coach never sees the player questionnaire. */
   studentNumber: string;
   bafaRegistrationNumber: string;
@@ -145,8 +141,6 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     degreeFieldReason: optional(formData.get("degreeFieldReason")),
     degreeType: optional(formData.get("degreeType")),
     degreeTypeReason: optional(formData.get("degreeTypeReason")),
-    degreeTypeOther: optional(formData.get("degreeTypeOther")),
-    degreeTypeOtherReason: optional(formData.get("degreeTypeOtherReason")),
     studentNumber: optional(formData.get("studentNumber")),
     studentNumberReason: optional(formData.get("studentNumberReason")),
     bafaRegistrationNumber: optional(formData.get("bafaRegistrationNumber")),

@@ -1,5 +1,12 @@
 "use client";
 
+import { ListField } from "@/components/list-field";
+import { subjectOptions } from "@/components/academic-fields";
+import {
+  COLLEGE_OPTIONS,
+  DEGREE_LETTER_OPTIONS,
+  isSubjectFor,
+} from "@/lib/services/oxford-academic";
 import { useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
@@ -41,6 +48,9 @@ export interface SignupFieldValues {
   readonly college: string;
   readonly matriculationYear: string;
   readonly expectedGraduationYear: string;
+  /** LAN-512. The degree letters, from the University's list. */
+  readonly degreeType: string;
+  /** LAN-512. The subject offered with those letters. */
   readonly degreeField: string;
 }
 
@@ -106,6 +116,7 @@ const EMPTY_ALIAS: SignupFieldValues = {
   college: "",
   matriculationYear: "",
   expectedGraduationYear: "",
+  degreeType: "",
   degreeField: "",
 };
 
@@ -199,6 +210,12 @@ export default function SignupForm({
   }, [values, step, partialEnabled, bothNamesPresent, startable]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // LAN-512: a choice from one of the University's lists.
+  function choose(patch: Partial<SignupFieldValues>) {
+    setError(null);
+    setValues((current) => ({ ...current, ...patch }));
+  }
 
   function field(name: keyof SignupFieldValues) {
     return {
@@ -460,7 +477,13 @@ export default function SignupForm({
           helperText="Only if it differs from your first name. It becomes an alias, so the club can find you by it."
           {...field("knownAs")}
         />
-        <Field label="College" {...field("college")} />
+        <ListField
+          name="college"
+          label="College"
+          options={COLLEGE_OPTIONS}
+          value={values.college}
+          onChange={(next) => choose({ college: next })}
+        />
         <Field
           label="Matriculation year"
 
@@ -475,7 +498,28 @@ export default function SignupForm({
           helperText={graduationError ?? undefined}
           {...field("expectedGraduationYear")}
         />
-        <Field label="Degree" {...field("degreeField")} />
+        <ListField
+          name="degreeType"
+          label="Degree"
+          options={DEGREE_LETTER_OPTIONS}
+          value={values.degreeType}
+          onChange={(next) =>
+            choose({
+              degreeType: next,
+              ...(values.degreeField !== "" &&
+              !(next !== "" && isSubjectFor(next, values.degreeField))
+                ? { degreeField: "" }
+                : {}),
+            })
+          }
+        />
+        <ListField
+          name="degreeField"
+          label="Subject"
+          options={subjectOptions(values.degreeType)}
+          value={values.degreeField}
+          onChange={(next) => choose({ degreeField: next })}
+        />
 
         <CheckField
           name="consent"

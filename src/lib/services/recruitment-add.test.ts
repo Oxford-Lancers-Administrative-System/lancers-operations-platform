@@ -150,6 +150,7 @@ describe("finishRecruitmentAddIn", () => {
         academic: {
           knownAs: "Widey",
           expectedGraduationYear: "2029",
+          degreeType: "BA",
           degreeField: "Human Sciences",
           dateOfBirth: "2006-04-12",
           emergencyGivenName: "Rosalind",
@@ -369,7 +370,7 @@ describe("finishRecruitmentAddIn", () => {
         seasonId,
         academic: {
           optInEvidence: "gave_it",
-          college: "Kestrelhall",
+          college: "Kellogg College",
           matriculationYear: "2026",
         },
       }),
@@ -396,7 +397,7 @@ describe("finishRecruitmentAddIn", () => {
       "select college, matriculation_year from public.people where id = $1::uuid",
       [created.personId],
     );
-    expect(person.rows[0].college).toBe("Kestrelhall");
+    expect(person.rows[0].college).toBe("Kellogg College");
     expect(person.rows[0].matriculation_year).toBe(2026);
   });
 

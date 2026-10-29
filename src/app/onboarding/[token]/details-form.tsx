@@ -5,6 +5,13 @@ import { Notice } from "@/components/notice";
 import { Field, CheckField, ChoiceField, DateField } from "@/components/field";
 import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
 import { PhoneField } from "@/components/phone-field";
+import { ListField, type ListOption } from "@/components/list-field";
+import { subjectOptions } from "@/components/academic-fields";
+import {
+  COLLEGE_OPTIONS,
+  DEGREE_LETTER_OPTIONS,
+  isSubjectFor,
+} from "@/lib/services/oxford-academic";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
@@ -28,6 +35,7 @@ import {
   FIELD_COLLEGE_EMAIL_HINT,
   FIELD_DATE_OF_BIRTH,
   FIELD_DEGREE_FIELD,
+  FIELD_DEGREE_TYPE,
   FIELD_DIETARY_PREFERENCE,
   FIELD_EC_EMAIL,
   FIELD_EC_FAMILY_NAME,
@@ -105,6 +113,11 @@ export function DetailsForm({
     initialValues.date_of_birth ? new Date(`${initialValues.date_of_birth}T00:00:00`) : null,
   );
   const [dietaryPreference, setDietaryPreference] = useState(initialValues.dietary_preference);
+  // LAN-512: college and degree from the University's lists; the subject list
+  // follows the letters.
+  const [college, setCollege] = useState(initialValues.college);
+  const [degreeType, setDegreeType] = useState(initialValues.degree_type);
+  const [degreeField, setDegreeField] = useState(initialValues.degree_field);
   const firstInvalid = firstInvalidDetailsField(errors);
   const focusTarget = useRef<HTMLInputElement | null>(null);
 
@@ -123,10 +136,27 @@ export function DetailsForm({
       /** LAN-267's two identifiers carry no asterisk — a player may not have one yet. */
       optional?: boolean;
       hint?: string;
+      /** LAN-512: one choice from a fixed list, with type-to-search. */
+      list?: {
+        options: readonly ListOption[];
+        value: string;
+        onChange: (value: string) => void;
+      };
     } = {},
   ) => (
     <Box>
-      {extra.phone ? (
+      {extra.list ? (
+        <ListField
+          name={name}
+          label={label}
+          options={extra.list.options}
+          value={extra.list.value}
+          onChange={extra.list.onChange}
+          required={!extra.optional}
+          error={errors[name] || undefined}
+          helperText={extra.hint}
+        />
+      ) : extra.phone ? (
         <PhoneField
           name={name}
           label={label}
@@ -215,14 +245,36 @@ export function DetailsForm({
         </Section>
         <Section title={SECTION_WHERE_YOU_STUDY}>
           <Stack spacing={2}>
-            {field("college", FIELD_COLLEGE, { fieldMeta: meta.college })}
+            {field("college", FIELD_COLLEGE, {
+              fieldMeta: meta.college,
+              list: { options: COLLEGE_OPTIONS, value: college, onChange: setCollege },
+            })}
             {field("matriculation_year", FIELD_MATRICULATION_YEAR, {
               fieldMeta: meta.matriculation_year,
             })}
             {field("expected_graduation_year", FIELD_EXPECTED_GRADUATION, {
               fieldMeta: meta.expected_graduation_year,
             })}
-            {field("degree_field", FIELD_DEGREE_FIELD, { fieldMeta: meta.degree_field })}
+            {field("degree_type", FIELD_DEGREE_TYPE, {
+              list: {
+                options: DEGREE_LETTER_OPTIONS,
+                value: degreeType,
+                onChange: (next) => {
+                  setDegreeType(next);
+                  if (degreeField !== "" && !(next !== "" && isSubjectFor(next, degreeField))) {
+                    setDegreeField("");
+                  }
+                },
+              },
+            })}
+            {field("degree_field", FIELD_DEGREE_FIELD, {
+              fieldMeta: meta.degree_field,
+              list: {
+                options: subjectOptions(degreeType),
+                value: degreeField,
+                onChange: setDegreeField,
+              },
+            })}
           </Stack>
         </Section>
         {/* LAN-267: not required — the roster form names the gap instead of

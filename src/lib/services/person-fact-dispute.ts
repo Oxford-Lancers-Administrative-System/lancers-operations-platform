@@ -137,8 +137,6 @@ function updateFor(
       return { ...common, field, value: text };
     case "degree_type":
       return { ...common, field, value: text };
-    case "degree_type_other":
-      return { ...common, field, value: text };
     case "student_number":
       return { ...common, field, value: text };
     case "bafa_registration_number":
