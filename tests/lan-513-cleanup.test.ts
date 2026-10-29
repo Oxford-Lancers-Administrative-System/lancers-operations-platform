@@ -306,8 +306,45 @@ describe.runIf(configured)("the LAN-513 cleanup, against the local database", ()
   it("refuses the whole run, writing nothing, when anything is unexpected", async () => {
     const one = await person("one", { college: "St. Catz" });
     const two = await person("two", { college: "Univ" });
+    const merged = await person("merged", { college: "Christ church" });
+    const survivor = await person("survivor", {});
+    const erased = await person("erased", { college: "LMH", degreeType: "msc" });
     const rows = await sheet();
     const good = rows.get(one)!.approved_line!;
+    const mergedLine = rows.get(merged)!.approved_line!;
+    const erasedLine = rows.get(erased)!.approved_line!;
+
+    // Merged into another record since the sheet was taken.
+    await client.query(
+      `update public.people
+          set merged_into_person_id = $2, merged_at = now(), merged_by_person_id = $2,
+              merge_reason = 'LAN-513 test duplicate'
+        where id = $1`,
+      [merged, survivor],
+    );
+    // Erased at their own request since the sheet was taken. The tombstone also
+    // reads as changed; the erased reason is the one asserted.
+    await client.query(
+      `update public.people
+          set family_name = null, college = null, degree_type = null, erased_at = now()
+        where id = $1`,
+      [erased],
+    );
+    await client.query("savepoint attempt");
+    await expect(apply([good, mergedLine])).rejects.toThrow(
+      new RegExp(`${merged}: no such person, or merged or erased since the sheet`),
+    );
+    await client.query("rollback to savepoint attempt");
+    await expect(apply([good, erasedLine])).rejects.toThrow(
+      new RegExp(`${erased}: no such person, or merged or erased since the sheet`),
+    );
+    await client.query("rollback to savepoint attempt");
+
+    // The same person twice, so which line wins would be an accident.
+    await expect(apply([good, good])).rejects.toThrow(new RegExp(`${one}: listed twice`));
+    await client.query("rollback to savepoint attempt");
+    expect(await onFile(merged)).toMatchObject({ college: "Christ church" });
+    expect(await onFile(erased)).toEqual({ college: null, degree_type: null, degree_field: null });
 
     // Changed on the record since the sheet was taken.
     await client.query("update public.people set college = 'Wadham' where id = $1", [two]);
