@@ -128,7 +128,7 @@ async function visibleCatalogueIn(
 }
 
 /** Whether this seat may see who a message reached: who has an email is a contact fact. */
-export function mayNameRecipients(grants: OperatorGrants): boolean {
+function mayNameRecipients(grants: OperatorGrants): boolean {
   return mayViewRoster(grants, "contact_emergency");
 }
 
