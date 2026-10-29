@@ -102,6 +102,29 @@ describe("the local sink and attachments", () => {
     expect(written).toHaveLength(1);
   });
 
+  it("writes a streamed email's attachment to disk byte for byte", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lan514-sink-"));
+    directories.push(directory);
+    const sink = createDeliverySink(LOCAL, { directory });
+    const file = crypto.randomBytes(200_001);
+    const text = email([{ filename: "playbook.pdf", content: file.toString("base64") }]).body;
+    const response = await sink(EMAILS, {
+      method: "POST",
+      headers: { "content-length": String(Buffer.byteLength(text)) },
+      body: new Response(text).body,
+      duplex: "half",
+    } as RequestInit);
+    expect(response.status).toBe(200);
+    const record = fs.readdirSync(directory).find((name) => name.endsWith(".json"));
+    const saved = JSON.parse(fs.readFileSync(path.join(directory, record ?? ""), "utf8")) as {
+      payload: { attachments: { savedAs: string; bytes: number }[] };
+    };
+    expect(saved.payload.attachments[0].bytes).toBe(file.length);
+    expect(fs.readFileSync(saved.payload.attachments[0].savedAs).equals(file)).toBe(true);
+    // Nothing is left half-written beside it.
+    expect(fs.readdirSync(path.join(directory, ".spool"))).toEqual([]);
+  });
+
   it("answers a repeated Idempotency-Key as Resend does: the first email, or a 409", async () => {
     const written: SinkRecord[] = [];
     const sink = createDeliverySink(LOCAL, { write: (record) => written.push(record) });

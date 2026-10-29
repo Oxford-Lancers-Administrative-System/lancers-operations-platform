@@ -636,7 +636,7 @@ export interface ClubMessageForSend {
  * never read whole (LAN-514; the driver otherwise gathers the whole value into
  * one doubling buffer, which the analysis found dominated a send's memory).
  */
-export async function readClubMessageAttachmentSlice(
+async function readClubMessageAttachmentSlice(
   attachmentId: string,
   offset: number,
   length: number,

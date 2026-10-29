@@ -8,6 +8,12 @@ import { isDeployedRuntime } from "@/lib/db/runtime-target";
 import { RESEND_ENCODED_EMAIL_LIMIT_BYTES } from "@/lib/services/club-message-input";
 
 import { isLoopbackBaseUrl, type EnvironmentSource } from "./config";
+import {
+  base64FileSink,
+  isSpooledAttachment,
+  StreamingJsonParser,
+  type SpooledAttachment,
+} from "./local-sink-body";
 import type { MessageKind, Transport } from "./provider";
 import {
   MESSAGE_KINDS,
@@ -317,6 +323,14 @@ function validateEmail(payload: unknown): Validation {
       if (typeof attachment?.filename !== "string" || attachment.filename.trim() === "") {
         return { ok: false, code: 422, detail: "Every attachment needs a filename." };
       }
+      // A streamed body's content was decoded to disk as it arrived.
+      if (isSpooledAttachment(attachment.content)) {
+        if (!attachment.content.validBase64) {
+          return { ok: false, code: 422, detail: "Every attachment needs its content as base64." };
+        }
+        encoded += attachment.content.encodedLength;
+        continue;
+      }
       if (
         typeof attachment.content !== "string" ||
         !/^[A-Za-z0-9+/]*={0,2}$/.test(attachment.content)
@@ -371,7 +385,7 @@ export function persistAttachments(
 ): SinkRecord {
   const payload = record.payload as {
     html?: unknown;
-    attachments?: { filename: string; content: string }[];
+    attachments?: { filename: string; content: string | SpooledAttachment }[];
   };
   if (record.channel !== "email") return record;
   // The rendered email too, so it opens in a browser as the recipient sees it.
@@ -382,10 +396,15 @@ export function persistAttachments(
   const folder = path.join(directory, `${stem}-attachments`);
   fs.mkdirSync(folder, { recursive: true });
   const saved = payload.attachments.map((attachment, index) => {
-    const bytes = Buffer.from(attachment.content, "base64");
     const name = `${index + 1}-${path.basename(attachment.filename).replace(/[^\w. -]+/g, "_")}`;
-    fs.writeFileSync(path.join(folder, name), bytes, { mode: 0o600 });
-    return { filename: attachment.filename, bytes: bytes.length, savedAs: path.join(folder, name) };
+    const savedAs = path.join(folder, name);
+    if (isSpooledAttachment(attachment.content)) {
+      fs.renameSync(attachment.content.spooledTo, savedAs);
+      return { filename: attachment.filename, bytes: attachment.content.bytes, savedAs };
+    }
+    const bytes = Buffer.from(attachment.content, "base64");
+    fs.writeFileSync(savedAs, bytes, { mode: 0o600 });
+    return { filename: attachment.filename, bytes: bytes.length, savedAs };
   });
   return { ...record, payload: { ...payload, attachments: saved } };
 }
@@ -418,27 +437,74 @@ function headerOf(init: RequestInit, name: string): string | null {
 }
 
 /**
- * The request body as text, whether it came as a string or a stream, and
- * whether a declared `Content-Length` matched it. Local only: a 20 MB email's
- * body is read whole here, which the deployed path never does.
+ * The request body parsed, whether it came as a string or a stream, its
+ * SHA-256 (for the idempotency check), and whether a declared
+ * `Content-Length` matched it. A streamed body is parsed as it arrives, with
+ * each attachment's base64 decoded straight to a file under `spoolDirectory`
+ * (`./local-sink-body.ts`), so the sink holds no whole file either.
  */
-async function readSinkBody(init: RequestInit): Promise<{
-  readonly bytes: Buffer;
-  readonly text: string | null;
+async function readSinkBody(
+  init: RequestInit,
+  spoolDirectory: string,
+  spooled: string[],
+): Promise<{
+  readonly payload: unknown;
+  readonly digest: string;
   readonly lengthMismatch: boolean;
 }> {
-  if (init.body === undefined || init.body === null) {
-    return { bytes: Buffer.alloc(0), text: null, lengthMismatch: false };
-  }
-  const bytes =
-    typeof init.body === "string"
-      ? Buffer.from(init.body, "utf8")
-      : Buffer.from(await new Response(init.body).arrayBuffer());
+  const hash = crypto.createHash("sha256");
   const declared = headerOf(init, "content-length");
+  if (init.body === undefined || init.body === null || typeof init.body === "string") {
+    const text = typeof init.body === "string" ? init.body : "";
+    const bytes = Buffer.from(text, "utf8");
+    let payload: unknown = null;
+    try {
+      payload = JSON.parse(text === "" ? "null" : text);
+    } catch {
+      payload = null;
+    }
+    return {
+      payload,
+      digest: hash.update(bytes).digest("hex"),
+      lengthMismatch: declared !== null && Number(declared) !== bytes.length,
+    };
+  }
+
+  fs.mkdirSync(spoolDirectory, { recursive: true });
+  const parser = new StreamingJsonParser((at) => {
+    if (at.length !== 3 || at[0] !== "attachments" || at[2] !== "content") return null;
+    const file = path.join(spoolDirectory, `${crypto.randomUUID()}.part`);
+    spooled.push(file);
+    return base64FileSink(file);
+  });
+  let length = 0;
+  let parsed = true;
+  const reader = new Response(init.body).body?.getReader();
+  for (;;) {
+    const next = reader ? await reader.read() : { done: true as const, value: undefined };
+    if (next.done) break;
+    length += next.value.byteLength;
+    hash.update(next.value);
+    if (parsed) {
+      try {
+        parser.write(next.value);
+      } catch {
+        parsed = false;
+      }
+    }
+  }
+  let payload: unknown = null;
+  if (parsed) {
+    try {
+      payload = parser.end();
+    } catch {
+      payload = null;
+    }
+  }
   return {
-    bytes,
-    text: bytes.toString("utf8"),
-    lengthMismatch: declared !== null && Number(declared) !== bytes.length,
+    payload,
+    digest: hash.digest("hex"),
+    lengthMismatch: declared !== null && Number(declared) !== length,
   };
 }
 
@@ -480,7 +546,21 @@ export function createDeliverySink(
     // LAN-514. An email with attachments arrives as a stream at a declared
     // length; a body that is not that length is refused, as an HTTP server
     // would refuse it.
-    const received = await readSinkBody(init);
+    const spooled: string[] = [];
+    try {
+      return await respond(init, isEmail, spooled);
+    } finally {
+      // Whatever was not kept as a delivered email's attachment.
+      for (const file of spooled) fs.rmSync(file, { force: true });
+    }
+  };
+
+  async function respond(
+    init: RequestInit,
+    isEmail: boolean,
+    spooled: string[],
+  ): Promise<Response> {
+    const received = await readSinkBody(init, path.join(directory, ".spool"), spooled);
     if (received.lengthMismatch) {
       return new Response(
         JSON.stringify({
@@ -491,18 +571,13 @@ export function createDeliverySink(
       );
     }
 
-    let payload: unknown = null;
-    try {
-      payload = JSON.parse(received.text ?? "null");
-    } catch {
-      payload = null;
-    }
+    const payload = received.payload;
 
     // LAN-514. Resend's `Idempotency-Key`: the same key and the same body
     // answer with the first email and send nothing; the same key with a
     // different body is Resend's 409 `invalid_idempotent_request`.
     const idempotencyKey = isEmail ? headerOf(init, "idempotency-key") : null;
-    const digest = crypto.createHash("sha256").update(received.bytes).digest("hex");
+    const digest = received.digest;
     if (idempotencyKey) {
       const earlier = SINK_IDEMPOTENCY.get(idempotencyKey);
       if (earlier && earlier.digest === digest) {
@@ -574,7 +649,7 @@ export function createDeliverySink(
           }),
           { status: 200, headers: jsonHeaders() },
         );
-  };
+  }
 }
 
 /**

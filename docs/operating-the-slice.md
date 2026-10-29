@@ -937,9 +937,15 @@ slice at a time, at an exact `Content-Length` (a fixed-length body, not
 chunked); no copy of a whole file is ever built in memory, so a send's extra
 memory stays roughly constant whatever the size and fits Cloud Run's 512 MiB.
 Measured against a mock endpoint over a real socket
-(`src/lib/delivery/email-attachment-send.test.ts`): the sender grew by
+(`src/lib/delivery/email-attachment-send.test.ts`): the sender grew by at most
 +43 MB RSS at 10 MB and +17 MB at 20 MB (heap under 3 MB), against +123 MB and
-+227 MB for the old whole-string body.
++227 MB for the old whole-string body. End to end on 29 October (the
+standalone production server, JS heap held at 384 MB, the Messages screen, four
+synthetic players, the local sink): the server peaked at 266 MB RSS sending
+10 MB to four and 276 MB sending 20 MB to four, from about 150 to 195 MB just
+before the send. Each copy took 0.2 s at 10 MB and 0.4 to 0.5 s at 20 MB, all
+four went in one tick of under 2 s, every recipient's file was byte-identical,
+and a further tick sent nothing again.
 
 - **No second copy.** Every copy carries Resend's `Idempotency-Key`, the job's
   own key (`club-message:<message>:<person>`), the same on every attempt; Resend
