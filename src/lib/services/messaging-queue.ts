@@ -103,6 +103,9 @@ export const DUE_JOB_PREDICATE = `held_at is null
             -- LAN-464. The recruit event reminder. It carries its event, so it
             -- takes the approved-and-future check below like the sheet does.
             or (job_type = 'other' and idempotency_key like 'recruit-event-reminder:%')
+            -- LAN-514. A message written on the Messages page, one job per
+            -- recipient, email only.
+            or (job_type = 'other' and idempotency_key like 'club-message:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
@@ -176,6 +179,8 @@ export const DUE_JOB_PREDICATE = `held_at is null
             or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
             -- LAN-459. The operator details request carries no event either.
             or (job_type = 'other' and idempotency_key like 'operator-details:%')
+            -- LAN-514. A club message carries no event either.
+            or (job_type = 'other' and idempotency_key like 'club-message:%')
             or exists (
               select 1
                 from public.events e

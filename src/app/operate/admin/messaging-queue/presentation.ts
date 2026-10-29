@@ -37,6 +37,7 @@ export const KIND_LABELS: Readonly<Record<MessageKind, string>> = Object.freeze(
   onboarding_escalation: "Onboarding escalation",
   attendance_sheet: "Attendance sheet",
   operator_details: "Operator details request",
+  club_message: "Message",
   other: "Other",
 });
 
@@ -48,6 +49,7 @@ export const KIND_FAMILY_LABELS: Readonly<Record<KindFamily, string>> = Object.f
   recruitment: "Recruitment",
   onboarding: "Onboarding",
   attendance: "Attendance sheets",
+  messages: "Messages",
 });
 
 export const STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({

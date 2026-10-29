@@ -126,7 +126,13 @@ export type EmailOnlyMessageKind =
    * attendance sheet, to the General Manager, the President and every coach
    * who answered Yes. To an operator, about an event: no player data.
    */
-  "attendance_sheet";
+  | "attendance_sheet"
+  /**
+   * LAN-514. A message the club wrote on the Messages page, with any files
+   * attached, to an audience it chose. The subject and body are the
+   * operator's own words.
+   */
+  | "club_message";
 
 /**
  * One message, reduced to what any channel would need to send it.
@@ -238,6 +244,23 @@ export interface OutboundMessage {
    * behind the operator login. `attendance_sheet` only.
    */
   readonly attendanceUrl?: string | null;
+  /** LAN-514. The operator's own subject line. `club_message` only. */
+  readonly subject?: string | null;
+  /** LAN-514. The operator's own body, as typed. `club_message` only. */
+  readonly bodyText?: string | null;
+  /**
+   * LAN-514. Files sent with the email, their bytes base64-encoded as Resend
+   * takes them. `club_message` only; never logged.
+   */
+  readonly attachments?: readonly OutboundAttachment[] | null;
+}
+
+/** One file attached to an email — Resend's `{ filename, content }`. */
+export interface OutboundAttachment {
+  readonly filename: string;
+  /** The file's bytes, base64. */
+  readonly content: string;
+  readonly contentType?: string | null;
 }
 
 /**

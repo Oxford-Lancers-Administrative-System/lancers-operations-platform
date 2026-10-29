@@ -96,6 +96,9 @@ export const FIXTURE_MESSAGE: OutboundMessage = {
   formUrl: "https://app.oxfordlancers.example/signup/form-token",
   stopUrl: "https://app.oxfordlancers.example/stop/stop-token",
   attendanceUrl: "https://app.oxfordlancers.example/operate/events/event-id/attendance",
+  // LAN-514: a message written on the Messages page.
+  subject: "Special teams playbook",
+  bodyText: "Hello all,\n\nThe playbook is attached.",
 };
 
 /** The four kinds `stopLine()` renders for today. LAN-372. */

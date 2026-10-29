@@ -1,35 +1,23 @@
 "use client";
 
-import { useActionState, useCallback, useMemo, useState } from "react";
+import { useActionState, useMemo } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
-import { EmptyState } from "@/components/empty-state";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
-import { Field, SelectField, CheckField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import {
-  audienceCategoriesForEventType,
-  audienceGroupCounts,
   audienceOptionsForEventType,
-  audiencePeople,
-  selectionAfterGroupPress,
   resolveSelection,
   type AudienceCandidate,
   type AudienceCapacity,
-  type AudiencePerson,
 } from "@/lib/services/audience-selection";
-import { AudiencePicker } from "../audience-picker";
+import { AudienceChooser, useAudienceChoice } from "../audience-chooser";
 import { saveEventAudienceAction } from "../actions";
 import { EMPTY_TRANSITION_STATE } from "../form-state";
-import {
-  AUDIENCE_BUILDER_HEADLINE,
-  describeAudienceRow,
-  describeBuilderDefault,
-} from "../presentation";
+import { AUDIENCE_BUILDER_HEADLINE, describeBuilderDefault } from "../presentation";
 
 // UX-40 — choosing who an event is for. Owns a tick list only; the
 // confirmation and empty-audience refusal are server-rendered from stored
@@ -51,8 +39,6 @@ export interface AudienceBuilderProps {
   templateGroups: string[];
 }
 
-const UNITS = ["Both", "Offence", "Defence", "Special teams"] as const;
-
 export function AudienceBuilder({
   eventId,
   eventType,
@@ -63,29 +49,13 @@ export function AudienceBuilder({
   initialGroups,
   templateGroups,
 }: AudienceBuilderProps) {
-  // LAN-414 — the catalogue by category, one read shared with the template
-  // editor, the approval review and the event's own audience panel.
-  const categories = audienceCategoriesForEventType(eventType);
   const templateGroupLabels = audienceOptionsForEventType(eventType)
     .filter((option) => templateGroups.includes(option.token))
     .map((option) => option.label);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialKeys));
-  // LAN-392. Which groups were *ticked*, remembered rather than inferred. It
-  // is what the event's live rule is built from after approval: untick one
-  // recruit and every derivation of "the Recruits group was chosen" goes out,
-  // along with the fact that the one person was left out on purpose.
-  //
-  // **LAN-414 round 2 makes it the tick box's state as well.** The pills used
-  // to light by inference — "is everybody this group would invite already
-  // chosen" — which is what Brian rejected: "when I click one pill that's all
-  // active, everything lights up". A row is ticked because it was ticked, and
-  // a group the selection happens to cover says **Included** instead.
-  const [pressedGroups, setPressedGroups] = useState<ReadonlySet<string>>(
-    () => new Set(initialGroups),
-  );
-  const [search, setSearch] = useState("");
-  const [capacity, setCapacity] = useState<"all" | AudienceCapacity>("all");
-  const [unit, setUnit] = useState<string>("all");
+  // LAN-392 / LAN-414 round 2: the ticked groups are remembered, never inferred —
+  // they are what the event's live rule is built from after approval.
+  const choice = useAudienceChoice(initialKeys, initialGroups);
+  const { selected, pressedGroups } = choice;
 
   const [state, formAction, pending] = useActionState(
     saveEventAudienceAction,
@@ -93,78 +63,8 @@ export function AudienceBuilder({
   );
 
   const keys = useMemo(() => [...selected], [selected]);
-
   const resolution = useMemo(() => resolveSelection(candidates, keys), [candidates, keys]);
   const people = resolution.ok ? resolution.members.length : 0;
-
-  // LAN-414 round 2. Every row's size and its overlap with what is chosen, in
-  // one service read per selection change — never a per-row computation in the
-  // render.
-  const groupCounts = useMemo(
-    () =>
-      audienceGroupCounts(
-        candidates,
-        categories.flatMap((section) => section.options.map((option) => option.token)),
-        selected,
-      ),
-    [candidates, categories, selected],
-  );
-
-  const roster = useMemo(() => audiencePeople(candidates), [candidates]);
-
-  const isChosen = useCallback(
-    (person: AudiencePerson) => person.keys.some((key) => selected.has(key)),
-    [selected],
-  );
-
-  // Chosen people first, then everybody else, each alphabetically — Brian
-  // asked for it (unreviewable otherwise). Sorted from the selection, so
-  // ticking moves a name to the top.
-  const visible = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return roster
-      .filter((person) => {
-        if (capacity !== "all" && !person.capacities.includes(capacity)) return false;
-        if (unit !== "all" && person.unit !== unit) return false;
-        if (needle === "") return true;
-        return (
-          person.displayName.toLowerCase().includes(needle) ||
-          person.standings.some((standing) => standing.toLowerCase().includes(needle)) ||
-          (person.contact ?? "").toLowerCase().includes(needle)
-        );
-      })
-      .sort((a, b) => {
-        const order = Number(isChosen(b)) - Number(isChosen(a));
-        return order !== 0 ? order : a.displayName.localeCompare(b.displayName);
-      });
-  }, [roster, search, capacity, unit, isChosen]);
-
-  // Every key the human holds moves together, so a coaching lit state stays
-  // consistent with a hand-ticked player who also coaches.
-  function toggle(person: AudiencePerson) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (person.keys.some((key) => next.has(key))) {
-        for (const key of person.keys) next.delete(key);
-      } else {
-        for (const key of person.keys) next.add(key);
-      }
-      return next;
-    });
-  }
-
-  function pressGroup(groupKey: string) {
-    const turningOn = !pressedGroups.has(groupKey);
-    setSelected((current) =>
-      selectionAfterGroupPress(candidates, groupKey, pressedGroups, current),
-    );
-    setPressedGroups((current) => {
-      const next = new Set(current);
-      if (turningOn) next.add(groupKey);
-      else next.delete(groupKey);
-      return next;
-    });
-  }
 
   return (
     <Section title={AUDIENCE_BUILDER_HEADLINE} testId="audience-builder">
@@ -175,106 +75,12 @@ export function AudienceBuilder({
           </Typography>
         </Box>
 
-        <Box>
-          <Typography variant="overline" color="text.secondary" component="p">
-            Add a group
-          </Typography>
-          <AudiencePicker
-            categories={categories}
-            counts={groupCounts}
-            selectedGroups={pressedGroups}
-            onToggleGroup={pressGroup}
-            people={people}
-            onClear={() => {
-              setSelected(new Set());
-              setPressedGroups(new Set());
-            }}
-          />
-        </Box>
-
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <Field
-            label="Search name, role or contact"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <SelectField
-            label="Capacity"
-            value={capacity}
-            onChange={(event) => setCapacity(event.target.value as "all" | AudienceCapacity)}
-            options={[
-              { value: "all", label: "All" },
-              { value: "player", label: `Players (${counts.player})` },
-              { value: "coach", label: `Coaches (${counts.coach})` },
-              { value: "committee", label: `Committee (${counts.committee})` },
-              ...(counts.recruit > 0
-                ? [{ value: "recruit", label: `Recruits (${counts.recruit})` }]
-                : []),
-            ]}
-          />
-          <SelectField
-            label="Unit"
-            value={unit}
-            onChange={(event) => setUnit(event.target.value)}
-            options={[
-              { value: "all", label: "All" },
-              ...UNITS.map((value) => ({ value, label: value })),
-            ]}
-          />
-        </Stack>
-
-        <Divider />
-
-        {visible.length === 0 ? (
-          <Stack spacing={1}>
-            <EmptyState
-              title="Nobody matches those filters."
-              searched={search || undefined}
-              testId="no-candidates"
-            />
-            <Button
-              onClick={() => {
-                setSearch("");
-                setCapacity("all");
-                setUnit("all");
-              }}
-            >
-              Clear filters
-            </Button>
-          </Stack>
-        ) : (
-          <Stack
-            component="ul"
-            sx={{ listStyle: "none", p: 0, m: 0 }}
-            data-testid="candidate-list"
-            spacing={0}
-          >
-            {visible.map((person) => (
-              <Box
-                component="li"
-                key={person.personId}
-                sx={{ borderBottom: 1, borderColor: "divider", py: 0.5 }}
-              >
-                <CheckField
-                  name={`candidate-${person.personId}`}
-                  checked={isChosen(person)}
-                  onChange={() => toggle(person)}
-                  inputLabel={`Include ${person.displayName} — ${describeAudienceRow(person)}`}
-                  label={
-                    <Box sx={{ py: 1, minWidth: 0 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {person.displayName}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {describeAudienceRow(person)}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Box>
-            ))}
-          </Stack>
-        )}
+        <AudienceChooser
+          eventType={eventType}
+          candidates={candidates}
+          counts={counts}
+          choice={choice}
+        />
 
         {state.error ? (
           <Notice severity="error" testId="audience-save-error">

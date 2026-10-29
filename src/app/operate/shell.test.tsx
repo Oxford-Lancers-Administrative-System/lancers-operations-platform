@@ -512,8 +512,9 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     // not ordinary destinations of their own. LAN-204 adds Recruitment as a
     // fourth ordinary destination, beneath Roster, and LAN-399 adds Guide as a
     // fifth Administration entry: the Secretary is one of the core four.
-    // LAN-468 adds Messaging queue, on `delivery_administration`.
-    expect(screen.getAllByRole("link")).toHaveLength(10);
+    // LAN-468 adds Messaging queue, on `delivery_administration`, and LAN-514
+    // Messages on the same capability, an ordinary destination.
+    expect(screen.getAllByRole("link")).toHaveLength(11);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -1320,7 +1321,7 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/messaging-queue",
       );
-      expect(screen.getAllByRole("link")).toHaveLength(11 + guide);
+      expect(screen.getAllByRole("link")).toHaveLength(12 + guide);
     },
   );
 
@@ -1335,6 +1336,8 @@ describe("LAN-133 — Administration in the shell", () => {
       "Roster",
       "Recruitment",
       "Events",
+      // LAN-514.
+      "Messages",
       "Report",
       "Follow-ups",
       "People",
@@ -1399,7 +1402,7 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/messaging-queue",
       );
-      expect(screen.getAllByRole("link")).toHaveLength(10);
+      expect(screen.getAllByRole("link")).toHaveLength(11);
     },
   );
 

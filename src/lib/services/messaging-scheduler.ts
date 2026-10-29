@@ -102,6 +102,11 @@ import {
   declareDueRecruitEventRemindersIn,
   recruitHasLeftSql,
 } from "./recruit-event-reminder";
+import {
+  CLUB_MESSAGE_KEY_PREFIX,
+  parseClubMessageKey,
+  readClubMessageForSendIn,
+} from "./club-messages";
 
 /**
  * The scheduler sweep. LAN-169.
@@ -902,18 +907,20 @@ export async function runMessagingSweep(
                 job.jobType === "other"
                 ? job.idempotencyKey.startsWith(ATTENDANCE_SHEET_KEY_PREFIX)
                   ? await dispatchAttendanceSheetJob(job.id, options)
-                  : job.idempotencyKey.startsWith(RECRUIT_EVENT_REMINDER_KEY_PREFIX)
-                    ? await dispatchRecruitEventReminderJob(job.id, options)
-                    : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
-                      ? await dispatchOnboardingWelcomeJob(job.id, options)
-                      : job.idempotencyKey.startsWith(OPERATOR_DETAILS_KEY_PREFIX)
-                        ? await dispatchOperatorDetailsJob(job.id, options)
-                        : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
-                            job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
-                          ? await dispatchOnboardingChaseJob(job.id, options)
-                          : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
-                            ? await dispatchOnboardingChaseEscalationJob(job.id, options)
-                            : await dispatchRecruitmentCycleJob(job.id, options)
+                  : job.idempotencyKey.startsWith(CLUB_MESSAGE_KEY_PREFIX)
+                    ? await dispatchClubMessageJob(job.id, options)
+                    : job.idempotencyKey.startsWith(RECRUIT_EVENT_REMINDER_KEY_PREFIX)
+                      ? await dispatchRecruitEventReminderJob(job.id, options)
+                      : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
+                        ? await dispatchOnboardingWelcomeJob(job.id, options)
+                        : job.idempotencyKey.startsWith(OPERATOR_DETAILS_KEY_PREFIX)
+                          ? await dispatchOperatorDetailsJob(job.id, options)
+                          : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
+                              job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+                            ? await dispatchOnboardingChaseJob(job.id, options)
+                            : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
+                              ? await dispatchOnboardingChaseEscalationJob(job.id, options)
+                              : await dispatchRecruitmentCycleJob(job.id, options)
                 : await dispatchJob(job.id, { ...options, automatic: true });
 
         if (outcome === "accepted") accepted += 1;
@@ -4427,4 +4434,161 @@ export async function dispatchNoticeJob(
   });
 
   return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+// ---------------------------------------------------------------------------
+// A club message — LAN-514
+// ---------------------------------------------------------------------------
+
+const CLUB_MESSAGE_GONE_REASON = "This message no longer exists, so nothing was sent.";
+
+/**
+ * Sends one recipient's copy of a message written on the Messages page
+ * (`club-messages.ts` says who gets one). Lock, read, admit, claim, send,
+ * record — the operator details request's shape, by email only, to the
+ * person's current email, preferred first. The message and its files are read
+ * here, at send time; a recruit-only recipient's consent is read again too.
+ */
+export async function dispatchClubMessageJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<DispatchOutcome> {
+  const context = await resolveOtherJobProvider(jobId, options);
+  if (context === null) return "deferred";
+  if (context === "refused") return "refused";
+
+  type ClubMessageOutcome =
+    | { readonly kind: "no-send" }
+    | { readonly kind: "deferred" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<ClubMessageOutcome> => {
+    const locked = await tx.query<{
+      person_id: string;
+      idempotency_key: string;
+      attempt_count: number;
+      consent_season_id: string | null;
+    }>(
+      `select person_id, idempotency_key, attempt_count,
+              template_variables ->> 'consentSeasonId' as consent_season_id
+         from public.notification_jobs
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${CLUB_MESSAGE_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $2
+          and person_id is not null
+        for update`,
+      [jobId, MAX_ATTEMPTS],
+    );
+    const job = locked.rows[0];
+    const key = job ? parseClubMessageKey(job.idempotency_key) : null;
+    if (!job || !key) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
+    const failTerminally = async (reason: string) =>
+      failClaimTerminallyIn(
+        tx,
+        jobId,
+        reason,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+
+    const content = await readClubMessageForSendIn(tx, key.messageId);
+    if (!content) {
+      await failTerminally(CLUB_MESSAGE_GONE_REASON);
+      return { kind: "no-send" };
+    }
+
+    if (
+      job.consent_season_id !== null &&
+      !(await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, job.consent_season_id))
+    ) {
+      await failTerminally(NO_CONSENT_REASON);
+      return { kind: "no-send" };
+    }
+
+    const person = await tx.query<{
+      given_name: string;
+      display_alias: string | null;
+      recipient: string | null;
+    }>(
+      `select p.given_name, ${personDisplayAliasSql("p")} as display_alias,
+              (select coalesce(c.normalised_value, c.raw_value)
+                 from public.contact_points c
+                where c.person_id = p.id
+                  and c.kind = 'email'
+                  and c.valid_from <= current_date
+                  and (c.valid_until is null or c.valid_until > current_date)
+                order by c.is_preferred desc, c.valid_from desc, c.created_at desc, c.id
+                limit 1) as recipient
+         from public.people p
+        where p.id = $1`,
+      [job.person_id],
+    );
+    const recipient = person.rows[0]?.recipient ?? null;
+    if (!recipient) {
+      await failTerminally(NO_USABLE_EMAIL_REASON);
+      return { kind: "no-send" };
+    }
+
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning id`,
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
+    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber,
+      safety: admission,
+      message: {
+        kind: "club_message",
+        recipient,
+        inviteeName: person.rows[0].display_alias ?? person.rows[0].given_name,
+        eventName: "",
+        whenLabel: "",
+        rsvpUrl: "",
+        subject: content.subject,
+        bodyText: content.body,
+        attachments: content.attachments,
+      },
+    };
+  });
+
+  if (claim.kind === "deferred") return "deferred";
+  if (claim.kind !== "send") return "skipped";
+  return concludeClaimedSend(jobId, context, claim);
 }

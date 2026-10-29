@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { isDeployedRuntime } from "@/lib/db/runtime-target";
+import { RESEND_ENCODED_EMAIL_LIMIT_BYTES } from "@/lib/services/club-message-input";
 
 import { isLoopbackBaseUrl, type EnvironmentSource } from "./config";
 import type { MessageKind, Transport } from "./provider";
@@ -304,6 +305,35 @@ function validateEmail(payload: unknown): Validation {
     return { ok: false, code: 422, detail: "An email needs a body." };
   }
 
+  // LAN-514. Resend's attachment shape and its 40 MB ceiling after encoding,
+  // refused here the way Resend would refuse them.
+  const attachments = (payload as { attachments?: unknown }).attachments;
+  if (attachments !== undefined) {
+    if (!Array.isArray(attachments)) {
+      return { ok: false, code: 422, detail: "Attachments must be a list." };
+    }
+    let encoded = 0;
+    for (const attachment of attachments as { filename?: unknown; content?: unknown }[]) {
+      if (typeof attachment?.filename !== "string" || attachment.filename.trim() === "") {
+        return { ok: false, code: 422, detail: "Every attachment needs a filename." };
+      }
+      if (
+        typeof attachment.content !== "string" ||
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(attachment.content)
+      ) {
+        return { ok: false, code: 422, detail: "Every attachment needs its content as base64." };
+      }
+      encoded += attachment.content.length;
+    }
+    if (encoded > RESEND_ENCODED_EMAIL_LIMIT_BYTES) {
+      return {
+        ok: false,
+        code: 422,
+        detail: "The email is larger than 40 MB after encoding, which Resend refuses.",
+      };
+    }
+  }
+
   // The kind is not recoverable from a rendered email — that is the honest
   // answer rather than a guess parsed out of the subject line — so the record
   // says so and the registry check that matters has already happened on the
@@ -329,12 +359,44 @@ function jsonHeaders(): Record<string, string> {
   return { "content-type": "application/json" };
 }
 
+/**
+ * LAN-514. An email's HTML and its attachments, written beside its record as
+ * files so a reviewer can open what the club sent; the record keeps each
+ * attachment's name, size and where it was saved instead of a wall of base64.
+ */
+export function persistAttachments(
+  record: SinkRecord,
+  directory: string,
+  stem: string,
+): SinkRecord {
+  const payload = record.payload as {
+    html?: unknown;
+    attachments?: { filename: string; content: string }[];
+  };
+  if (record.channel !== "email") return record;
+  // The rendered email too, so it opens in a browser as the recipient sees it.
+  if (typeof payload?.html === "string") {
+    fs.writeFileSync(path.join(directory, `${stem}.html`), payload.html, { mode: 0o600 });
+  }
+  if (!Array.isArray(payload?.attachments)) return record;
+  const folder = path.join(directory, `${stem}-attachments`);
+  fs.mkdirSync(folder, { recursive: true });
+  const saved = payload.attachments.map((attachment, index) => {
+    const bytes = Buffer.from(attachment.content, "base64");
+    const name = `${index + 1}-${path.basename(attachment.filename).replace(/[^\w. -]+/g, "_")}`;
+    fs.writeFileSync(path.join(folder, name), bytes, { mode: 0o600 });
+    return { filename: attachment.filename, bytes: bytes.length, savedAs: path.join(folder, name) };
+  });
+  return { ...record, payload: { ...payload, attachments: saved } };
+}
+
 function persist(record: SinkRecord, directory: string): void {
   try {
     fs.mkdirSync(directory, { recursive: true });
+    const stem = `${record.at.replace(/[:.]/g, "-")}-${record.providerMessageId}`;
     fs.writeFileSync(
-      path.join(directory, `${record.at.replace(/[:.]/g, "-")}-${record.providerMessageId}.json`),
-      `${JSON.stringify(record, null, 2)}\n`,
+      path.join(directory, `${stem}.json`),
+      `${JSON.stringify(persistAttachments(record, directory, stem), null, 2)}\n`,
       { mode: 0o600 },
     );
   } catch {

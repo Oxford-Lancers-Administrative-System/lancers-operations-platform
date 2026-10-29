@@ -859,6 +859,61 @@ than sent late. On the **Messaging queue** these read **Recruit reminder**, and
 a dropped one is **Cancelled** with **Quiet hours ran past the event start.**
 under its time.
 
+### Messages: email any audience, with attachments
+
+**Messages** (`/operate/messages`, its own entry in the navigation after
+Events; LAN-514, Brian and Stewart 2026-10-29, a first pass for Brian's
+review) sends one email, with files attached, to people already in the
+system. Email only — never WhatsApp. It opens for the seats that administer
+delivery (`delivery_administration`: President, Vice-President, Secretary,
+General Manager, IT Officer); the send action checks that capability again on
+the server.
+
+**The list** shows every message, newest first: when it sends or sent, the
+subject (and how many files), the audience (the groups ticked, or **Chosen by
+name**), how many people it was queued for, who sent it, and **Scheduled**,
+**Sending** or **Sent**. A message opens on its own page: the body, the files
+with their sizes, and every recipient with their delivery state in the
+club's usual words (Queued, Attempted, Delivered, Failed…), with the reason
+where one was recorded.
+
+**New message** is one page in three steps:
+
+1. **Audience** — the event audience builder itself (the group bands, the
+   search, Capacity and Unit, one row per person). A person with no current
+   email is marked **Not reachable · No email**; a recruit with no granted
+   season messaging consent is **Not reachable · No consent**, as their event
+   invitation would be.
+2. **Email** — subject (200 characters), message (20,000; each line one
+   paragraph, no images), and **Attach files**. Files go up as they are
+   chosen, in 4 MB pieces, with a progress bar; the running total reads
+   `12.4 MB of 29.9 MB`. Resend takes 40 MB per email after base64 encoding,
+   so the files may total about 30 MB; a file that would take the total over
+   is refused with "The attachments are too large to send by email." At most
+   ten files.
+3. **Send** — **Send now** or **Schedule** (a date and a 24-hour time, club
+   time). Below it, **Recipients · N** names everybody it will reach and **Not
+   reachable · M** names who it will not, before anything is sent. The button
+   reads **Send to N people** or **Schedule for N people**.
+
+**What happens.** One `club_messages` row, its files claimed, and one email
+job per reachable person (`notification_jobs`, `other`, keyed
+`club-message:<message>:<person>`), with an audit row. Send now is due at once
+and goes on the next scheduler tick (every five minutes); a scheduled message
+is due at its time. From there it is an ordinary message: it appears in the
+**Messaging queue** as **Message**, waits through lights-out (22:00–07:00) like
+every other non-urgent message, is paced and capped by messaging safety, and
+each copy is recorded as a delivery attempt with Resend's own receipt. At send
+time the email is re-read from the person's record, and a recruit's consent is
+read again, so a Stop in between is honoured.
+
+**Locally**, the delivery sink writes each email to
+`.lancers-runtime/delivery-sink/` as the JSON record, the rendered `.html`, and
+a `-attachments/` folder holding each file as sent.
+
+Not in this pass: per-group variants of one message, cancelling a scheduled
+message, editing one, and WhatsApp.
+
 ### The Messaging queue: every message in one place
 
 **Administration → Messaging queue** (`/operate/admin/messaging-queue`,

@@ -204,7 +204,30 @@ export function buildEmailBody(
       stopLine: stop ? (lines.at(-1) ?? null) : null,
     }),
     ...(config.replyToAddress ? { reply_to: config.replyToAddress } : {}),
+    // LAN-514. Resend's own shape: a filename and the bytes as base64.
+    ...(message.attachments && message.attachments.length > 0
+      ? {
+          attachments: message.attachments.map((attachment) => ({
+            filename: attachment.filename,
+            content: attachment.content,
+            ...(attachment.contentType ? { content_type: attachment.contentType } : {}),
+          })),
+        }
+      : {}),
   };
+}
+
+/**
+ * LAN-514. How long one send may take: {@link EMAIL_TIMEOUT_MS}, plus a second
+ * for every encoded megabyte attached, so a 30 MB playbook is not cut off
+ * mid-upload by a deadline sized for a plain email. At most two minutes.
+ */
+export function emailTimeoutFor(message: OutboundMessage): number {
+  const encoded = (message.attachments ?? []).reduce(
+    (total, attachment) => total + attachment.content.length,
+    0,
+  );
+  return Math.min(EMAIL_TIMEOUT_MS + Math.ceil(encoded / 1_000_000) * 1_000, 120_000);
 }
 
 /** Resend's success shape, as far as this adapter is willing to look at it. */
@@ -271,7 +294,7 @@ export function createEmailProvider(
       }
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), EMAIL_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), emailTimeoutFor(message));
 
       try {
         const response = await transport(`${config.apiBaseUrl}/emails`, {
