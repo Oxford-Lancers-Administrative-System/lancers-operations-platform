@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { Field } from "@/components/field";
 
 import {
@@ -26,12 +27,12 @@ import {
   CLEAR_FILTERS,
   DELIVERY_LABELS,
   DELIVERY_NOT_QUEUED,
-  FILTER_ALL,
   FILTER_ANSWER_LABEL,
   FILTER_ATTENDANCE_LABEL,
   FILTER_CAPACITIES,
   FILTER_CAPACITY_LABEL,
   FILTER_DELIVERY_LABEL,
+  FILTER_HEADING,
   FILTER_SEARCH_LABEL,
   NEEDS_ATTENTION_FILTER_LABEL,
   NOT_DELIVERED,
@@ -45,10 +46,12 @@ import {
  * operator tier. Brian, 2026-08-21: "I also should have filters to only
  * players, a filter to only yes, a filter to only no." State lives in the URL
  * (filtering done once, server-side, one pure function for both tiers).
- * Native `<select>`s, not MUI menus: no portal, so the element a test drives
- * is the element the operator drives — this mission has already shipped an
- * inert control that looked right. `showDelivery` is the tier; those rows
- * carry no delivery state to filter on.
+ *
+ * LAN-511 (Brian and Stewart, 29 October): one-tap buttons in the calendar's
+ * idiom (its period and term buttons) instead of dropdowns — every choice
+ * visible, the chosen one filled, a second tap on it clears that filter. One
+ * choice per row, as before, and the same URL parameters, so links still
+ * work. `showDelivery` is the tier; those rows carry no delivery state.
  */
 const ANSWER_LABELS: Readonly<Record<string, string>> = Object.freeze({
   yes: ANSWER_YES,
@@ -56,41 +59,63 @@ const ANSWER_LABELS: Readonly<Record<string, string>> = Object.freeze({
   none: ANSWER_NONE,
 });
 
-function FilterSelect({
+function FilterButtons({
   label,
   testId,
   value,
   options,
   onPick,
-  minWidth,
 }: {
   label: string;
   testId: string;
   value: string;
   options: readonly { value: string; label: string }[];
   onPick: (value: string) => void;
-  minWidth: number;
 }) {
   return (
-    <Field
-      select
-      label={label}
-      value={value}
-      onChange={(event) => onPick(event.target.value)}
-      slotProps={{
-        select: { native: true },
-        inputLabel: { shrink: true },
-        htmlInput: { "data-testid": testId },
-      }}
-      sx={{ minWidth }}
+    <Stack
+      role="group"
+      aria-label={label}
+      data-testid={testId}
+      data-value={value}
+      direction={{ xs: "column", sm: "row" }}
+      sx={{ gap: { xs: 0.5, sm: 1.5 }, alignItems: { sm: "center" } }}
     >
-      <option value="">{FILTER_ALL}</option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </Field>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ minWidth: { sm: 80 }, fontWeight: 600 }}
+      >
+        {label}
+      </Typography>
+      {/* The calendar's buttons: they wrap at desktop and scroll in one row at 375. */}
+      <Stack
+        direction="row"
+        sx={{
+          gap: 1,
+          flexWrap: { xs: "nowrap", sm: "wrap" },
+          overflowX: { xs: "auto", sm: "visible" },
+          pb: { xs: 0.5, sm: 0 },
+        }}
+      >
+        {options.map((option) => {
+          const chosen = option.value === value;
+          return (
+            <Button
+              key={option.value}
+              size="small"
+              variant={chosen ? "contained" : "outlined"}
+              aria-pressed={chosen}
+              data-testid={`${testId}-${option.value}`}
+              sx={{ minHeight: 44, flexShrink: 0, whiteSpace: "nowrap" }}
+              onClick={() => onPick(chosen ? "" : option.value)}
+            >
+              {option.label}
+            </Button>
+          );
+        })}
+      </Stack>
+    </Stack>
   );
 }
 
@@ -149,42 +174,42 @@ export function ParticipationFilterBar({
 
   return (
     <Stack
-      direction="row"
-      spacing={1}
-      sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}
+      component="section"
+      aria-label={FILTER_HEADING}
+      spacing={1.25}
       data-testid="participation-filters"
     >
+      <Typography variant="subtitle2" component="h3">
+        {FILTER_HEADING}
+      </Typography>
       <Field
         label={FILTER_SEARCH_LABEL}
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
         slotProps={{ htmlInput: { "data-testid": "filter-search" } }}
-        sx={{ flex: 1, minWidth: 170 }}
+        sx={{ maxWidth: { sm: 320 } }}
       />
-      <FilterSelect
+      <FilterButtons
         label={FILTER_CAPACITY_LABEL}
         testId="filter-capacity"
         value={filters.capacity}
-        minWidth={140}
         options={[
           ...FILTER_CAPACITIES.map((value) => ({ value, label: CAPACITY_LABELS[value] })),
           { value: "walk_up", label: WALK_UP_LABEL },
         ]}
         onPick={(value) => apply({ [PARTICIPATION_PARAMS.capacity]: value })}
       />
-      <FilterSelect
+      <FilterButtons
         label={FILTER_ANSWER_LABEL}
         testId="filter-answer"
         value={filters.answer}
-        minWidth={140}
         options={ANSWER_FILTERS.map((value) => ({ value, label: ANSWER_LABELS[value] }))}
         onPick={(value) => apply({ [PARTICIPATION_PARAMS.answer]: value })}
       />
-      <FilterSelect
+      <FilterButtons
         label={FILTER_ATTENDANCE_LABEL}
         testId="filter-attendance"
         value={filters.attendance}
-        minWidth={150}
         options={ATTENDANCE_FILTERS.map((value) => ({
           value,
           label:
@@ -195,11 +220,10 @@ export function ParticipationFilterBar({
         onPick={(value) => apply({ [PARTICIPATION_PARAMS.attendance]: value })}
       />
       {showDelivery ? (
-        <FilterSelect
+        <FilterButtons
           label={FILTER_DELIVERY_LABEL}
           testId="filter-delivery"
           value={filters.delivery}
-          minWidth={150}
           options={[
             { value: "attention", label: NEEDS_ATTENTION_FILTER_LABEL },
             ...Object.entries(DELIVERY_LABELS).map(([value, label]) => ({ value, label })),
@@ -210,23 +234,27 @@ export function ParticipationFilterBar({
           onPick={(value) => apply({ [PARTICIPATION_PARAMS.delivery]: value })}
         />
       ) : null}
-      <GroupBySelect
-        families={groupFamilies}
-        value={groupBy}
-        onChange={(value) => {
-          remember(value);
-          apply({ [GROUP_BY_PARAM]: value });
-        }}
-        sx={{ minWidth: 170 }}
-      />
-      {anyFilter ? (
-        <Button
-          size="small"
-          href={groupBy === null ? basePath : `${basePath}?${GROUP_BY_PARAM}=${groupBy}`}
-          data-testid="filter-clear"
-        >
-          {CLEAR_FILTERS}
-        </Button>
+      {groupFamilies.length > 0 || anyFilter ? (
+        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}>
+          <GroupBySelect
+            families={groupFamilies}
+            value={groupBy}
+            onChange={(value) => {
+              remember(value);
+              apply({ [GROUP_BY_PARAM]: value });
+            }}
+            sx={{ minWidth: 220 }}
+          />
+          {anyFilter ? (
+            <Button
+              size="small"
+              href={groupBy === null ? basePath : `${basePath}?${GROUP_BY_PARAM}=${groupBy}`}
+              data-testid="filter-clear"
+            >
+              {CLEAR_FILTERS}
+            </Button>
+          ) : null}
+        </Stack>
       ) : null}
     </Stack>
   );

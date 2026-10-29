@@ -90,6 +90,7 @@ vi.mock("@/lib/services/rsvp", async (importOriginal) => {
 
 import {
   EMPTY_FILTERS,
+  readParticipationFilters,
   type ClubLinkParticipation,
   type OperatorParticipation,
   type OperatorParticipationPerson,
@@ -478,7 +479,7 @@ describe("the filter bar", () => {
       ["filter-capacity", "coach", "as=coach"],
     ] as const) {
       routerPush.mockReset();
-      fireEvent.change(screen.getByTestId(testId), { target: { value } });
+      fireEvent.click(screen.getByTestId(`${testId}-${value}`));
       expect(routerPush, testId).toHaveBeenCalledTimes(1);
       const href = routerPush.mock.calls[0][0] as string;
       expect(href, testId).toContain(key);
@@ -489,13 +490,81 @@ describe("the filter bar", () => {
     }
   });
 
+  it("LAN-511: shows every choice at once as a button, the chosen one pressed", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes", delivery: "failed" })}
+        showDelivery
+      />,
+    );
+    expect(screen.queryByRole("combobox", { name: "Answer" })).toBeNull();
+    const answer = within(screen.getByRole("group", { name: "Answer" }));
+    expect(answer.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Yes",
+      "No",
+      "No answer",
+    ]);
+    expect(answer.getByRole("button", { name: "Yes" }).getAttribute("aria-pressed")).toBe("true");
+    expect(answer.getByRole("button", { name: "No" }).getAttribute("aria-pressed")).toBe("false");
+    expect(
+      within(screen.getByRole("group", { name: "Delivery" }))
+        .getAllByRole("button", { pressed: true })
+        .map((button) => button.textContent),
+    ).toEqual(["Failed"]);
+    expect(screen.getByRole("heading", { name: "Filter Everyone asked" })).toBeTruthy();
+  });
+
+  it("LAN-511: a second tap on the chosen filter clears it and keeps the others", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes", attendance: "absent" })}
+        showDelivery
+      />,
+    );
+    fireEvent.click(screen.getByTestId("filter-answer-yes"));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).not.toContain("answer=");
+    expect(href).toContain("att=absent");
+  });
+
+  it("LAN-511: tapping another choice in the same row replaces the first", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes" })}
+        showDelivery
+      />,
+    );
+    fireEvent.click(screen.getByTestId("filter-answer-no"));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).toContain("answer=no");
+    expect(href).not.toContain("answer=yes");
+  });
+
+  it("LAN-511: the link a tap produces reads back as the same filters", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ capacity: "player" })}
+        showDelivery
+      />,
+    );
+    fireEvent.click(screen.getByTestId("filter-delivery-attention"));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    const query = Object.fromEntries(new URL(href, "http://x").searchParams);
+    const read = readParticipationFilters(query, [], "operator");
+    expect(read).toMatchObject({ capacity: "player", delivery: "attention", answer: "" });
+  });
+
   it("LAN-440: offers the capacities a row can read as, never Committee", () => {
     render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
     const options = Array.from(
-      screen.getByTestId("filter-capacity").querySelectorAll("option"),
+      screen.getByTestId("filter-capacity").querySelectorAll("button"),
       (option) => option.textContent,
     );
-    expect(options).toEqual(["All", "Recruit", "Player", "Coach", "Walk-up"]);
+    expect(options).toEqual(["Recruit", "Player", "Coach", "Walk-up"]);
   });
 
   it("R157C-B2: does not scroll to the top when the search box changes", async () => {
@@ -513,7 +582,7 @@ describe("the filter bar", () => {
     render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
     fireEvent.change(screen.getByTestId("filter-search"), { target: { value: "wolver" } });
     routerPush.mockReset();
-    fireEvent.change(screen.getByTestId("filter-answer"), { target: { value: "yes" } });
+    fireEvent.click(screen.getByTestId("filter-answer-yes"));
 
     const href = routerPush.mock.calls[0][0] as string;
     expect(href).toContain("q=wolver");

@@ -1296,6 +1296,18 @@ and every question answer as labelled pairs sharing lines — every fact the
 desktop row carries, several to a line. The public **Event info link** page
 keeps its own order and card layout.
 
+**The filters above it are one-tap buttons** (LAN-511, Brian and Stewart,
+2026-10-29), in the calendar's idiom, under the heading **Filter Everyone
+asked**: the name search, then one row each for **As** (Recruit, Player, Coach,
+Walk-up), **Answer** (Yes, No, No answer), **Attendance** and, at the operator
+tier, **Delivery** (Needs attention, each state, Not delivered, Nothing queued).
+Every choice is visible; the chosen one is filled; a second tap on it clears
+that row; one choice per row, as the dropdowns allowed. Each row wraps at
+desktop and scrolls sideways in one line on a phone. The URL parameters are
+unchanged (`as`, `answer`, `att`, `delivery`, `q`, `by`), so old links still
+work. **Group by** and **Clear filters** sit on the last line. The same bar
+serves the club's **Event info link** table, without Delivery.
+
 **There is no Showed tile on this page at all** (Brian's visual review,
 2026-09-22): "Remove the Showed / Invited card entirely. The register panel
 below it stays; attendance is still recorded there." Stewart had moved it below
@@ -1425,8 +1437,8 @@ a later visit to a link without `by` opens on the last choice. A family in a
 link that the viewer may not see is ignored, and the register opens on **None**.
 
 **On the event page too.** The same select sits in the **Everyone asked** filter
-bar, after Answer, Attendance and Delivery (the bar wraps on a phone; there is
-no Filters sheet on that page). It is the same component, the same families, the
+bar, after the Answer, Attendance and Delivery buttons (there is no Filters
+sheet on that page). It is the same component, the same families, the
 same permission gating and the same `by` link parameter, and it shares the
 register's remembered choice (one browser key per viewer), so choosing on
 either page applies to both. With a family chosen the table splits into the

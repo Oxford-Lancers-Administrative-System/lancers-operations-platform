@@ -754,6 +754,19 @@ describe("readParticipationFilters", () => {
     }
   });
 
+  it("LAN-511: accepts the two named exceptions the Delivery filter offers", () => {
+    for (const value of ["attention", "not_delivered"]) {
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "operator").delivery,
+        value,
+      ).toBe(value);
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "club_link").delivery,
+        value,
+      ).toBe("");
+    }
+  });
+
   it("names the same delivery states the table renders", () => {
     // So that a state added to `DeliveryState` fails here as well as at
     // `tsc`, and a filter value that renders no label cannot be introduced.

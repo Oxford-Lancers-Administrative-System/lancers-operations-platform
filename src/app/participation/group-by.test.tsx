@@ -285,4 +285,47 @@ describe("the Group by select in the filter bar", () => {
     bar(["offensive", "warmup"], "offensive");
     expect(routerReplace).not.toHaveBeenCalled();
   });
+
+  it("LAN-511: a filter button keeps the chosen Group by in the link", () => {
+    bar(["offensive", "warmup"], "warmup");
+    fireEvent.click(screen.getByTestId("filter-attendance-present"));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).toContain("by=warmup");
+    expect(href).toContain("att=present");
+  });
+
+  it("LAN-511: choosing a Group by keeps the filters already on", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes", delivery: "failed" })}
+        showDelivery
+        groupFamilies={["offensive"]}
+        groupBy={null}
+        storageKey={STORAGE_KEY}
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /Group by/ }));
+    fireEvent.click(screen.getByRole("option", { name: "Offensive position group" }));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).toContain("by=offensive");
+    expect(href).toContain("answer=yes");
+    expect(href).toContain("delivery=failed");
+  });
+
+  it("LAN-511: Clear filters keeps the Group by", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes" })}
+        showDelivery
+        groupFamilies={["offensive"]}
+        groupBy="offensive"
+        storageKey={STORAGE_KEY}
+      />,
+    );
+    expect(screen.getByTestId("filter-clear").getAttribute("href")).toBe(
+      "/operate/events/event-1?by=offensive",
+    );
+  });
 });

@@ -173,6 +173,8 @@ export const FILTER_ANSWER_LABEL = "Answer";
 export const FILTER_ATTENDANCE_LABEL = "Attendance";
 export const FILTER_DELIVERY_LABEL = "Delivery";
 export const FILTER_ALL = "All";
+/** LAN-511: the filter bar names the list it filters (Brian and Stewart, 29 October). */
+export const FILTER_HEADING = "Filter Everyone asked";
 export const CLEAR_FILTERS = "Clear filters";
 
 /** `slice-ux.md` § 9: a filtered-empty table must not read like an empty one. */

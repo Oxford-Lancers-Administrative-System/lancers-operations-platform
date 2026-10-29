@@ -228,6 +228,18 @@ type _EveryDeliveryStateIsFilterable = UnlistedDeliveryState extends never ? tru
 const _deliveryFiltersCoverEveryState: _EveryDeliveryStateIsFilterable = true;
 void _deliveryFiltersCoverEveryState;
 
+/**
+ * Every value the Delivery filter offers: the states above plus the two named
+ * exceptions the matcher reads (Needs attention, LAN-411's Not delivered).
+ * LAN-511: the reader had accepted only the states, so a link to either
+ * exception read back as no filter at all.
+ */
+const DELIVERY_FILTER_CHOICES = Object.freeze([
+  ...DELIVERY_FILTERS,
+  "attention",
+  "not_delivered",
+] as const);
+
 export interface ParticipationFilters {
   readonly search: string;
   readonly capacity: string;
@@ -518,7 +530,7 @@ export function readParticipationFilters(
     answer: (ANSWER_FILTERS as readonly string[]).includes(answer) ? answer : "",
     attendance: (ATTENDANCE_FILTERS as readonly string[]).includes(attendance) ? attendance : "",
     delivery:
-      tier === "operator" && (DELIVERY_FILTERS as readonly string[]).includes(delivery)
+      tier === "operator" && (DELIVERY_FILTER_CHOICES as readonly string[]).includes(delivery)
         ? delivery
         : "",
     sort: isParticipationSort(sort, questions) ? sort : "",
