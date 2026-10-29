@@ -96,6 +96,19 @@ describe("parseBrief", () => {
     ]);
   });
 
+  it("reads pasted lines whose spaces are no-break or thin spaces", () => {
+    const nbsp = " ";
+    const thin = " ";
+    const pasted = `#${nbsp}Game day\n\n>${thin}Kit check\n\n##${nbsp}Itinerary\n-${nbsp}10:30${thin}Meet\n-${thin}Helmet`;
+    expect(parseBrief(pasted)).toEqual([
+      { kind: "title", spans: [{ text: "Game day", bold: false }] },
+      { kind: "callout", spans: [{ text: "Kit check", bold: false }] },
+      { kind: "heading", spans: [{ text: "Itinerary", bold: false }] },
+      { kind: "itinerary", rows: [{ time: "10:30", spans: [{ text: "Meet", bold: false }] }] },
+      { kind: "bullets", items: [[{ text: "Helmet", bold: false }]] },
+    ]);
+  });
+
   it("renders anything else as plain text", () => {
     const blocks = parseBrief("### Deep\n[link](https://example.org)\n*italic*\n1. numbered");
     expect(blocks).toEqual([
@@ -127,6 +140,13 @@ describe("the toolbar", () => {
       selectionStart: 8,
       selectionEnd: 18,
     });
+    // A line of only spaces is an empty line.
+    expect(applyBriefFormat("Bus\n   ", 6, 6, "itinerary")).toEqual({
+      value: "Bus\n- 12:00 Event name",
+      selectionStart: 12,
+      selectionEnd: 22,
+    });
+    expect(applyBriefFormat(" \t", 0, 0, "itinerary").value).toBe("- 12:00 Event name");
     expect(applyBriefFormat("Kick-off", 0, 0, "itinerary").value).toBe("- 12:00 Kick-off");
     expect(applyBriefFormat("- 8:30 AM Bus", 0, 0, "bullet").value).toBe("- Bus");
   });

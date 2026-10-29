@@ -190,10 +190,10 @@ export function applyBriefFormat(
   );
   const replaced = marked.join("\n");
   if (format === "itinerary" && lines.length === 1) {
-    // One line: an empty one gets the whole row with its name selected; a written
-    // one keeps its words, selected, behind the time.
+    // One line: an empty (or whitespace-only) one gets the whole row with its name
+    // selected; a written one keeps its words, selected, behind the time.
     const text = marked[0].slice(prefix.length);
-    const name = text === "" ? ITINERARY_PLACEHOLDER : text;
+    const name = text.replace(PASTED_SPACE, " ").trim() === "" ? ITINERARY_PLACEHOLDER : text;
     const row = `${prefix}${name}`;
     return {
       value: `${value.slice(0, lineStart)}${row}${value.slice(lineEnd)}`,

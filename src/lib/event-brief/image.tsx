@@ -55,20 +55,36 @@ const CREST_SIZE = 64;
 
 let crestUri: Promise<string> | null = null;
 
+/**
+ * Read once and kept, but only once the read succeeds: a rejected read is
+ * forgotten, so the next render tries the file again rather than failing for
+ * the life of the process.
+ */
 function loadCrest(): Promise<string> {
   crestUri ??= readFile(CREST_FILE).then(
     (svg) => `data:image/svg+xml;base64,${svg.toString("base64")}`,
+    (error: unknown) => {
+      crestUri = null;
+      throw error;
+    },
   );
   return crestUri;
 }
 
 let fonts: Promise<{ regular: Buffer; bold: Buffer }> | null = null;
 
+/** As the crest: kept once read, forgotten if the read fails. */
 function loadFonts(): Promise<{ regular: Buffer; bold: Buffer }> {
   fonts ??= Promise.all([
     readFile(path.join(FONT_DIRECTORY, "Geist-Regular.ttf")),
     readFile(path.join(FONT_DIRECTORY, "Geist-Bold.ttf")),
-  ]).then(([regular, bold]) => ({ regular, bold }));
+  ]).then(
+    ([regular, bold]) => ({ regular, bold }),
+    (error: unknown) => {
+      fonts = null;
+      throw error;
+    },
+  );
   return fonts;
 }
 
