@@ -473,13 +473,22 @@ async function applyFieldChoices(
         reason: reasonNote,
       });
     } else if (field === "degree_field") {
-      await updatePersonField({
-        actorPersonId,
-        personId: survivorId,
-        field: "degree_field",
-        value: incoming,
-        reason: reasonNote,
-      });
+      // LAN-512: the letters and the subject move together, each column only
+      // where it differs (a correction to the same value is refused).
+      const pair = [
+        ["degree_type", loserRecord.degreeType, survivorRecord.degreeType],
+        ["degree_field", loserRecord.degreeField, survivorRecord.degreeField],
+      ] as const;
+      for (const [column, value, held] of pair) {
+        if ((value ?? null) === (held ?? null)) continue;
+        await updatePersonField({
+          actorPersonId,
+          personId: survivorId,
+          field: column,
+          value: value ?? null,
+          reason: reasonNote,
+        });
+      }
     } else if (field === "date_of_birth") {
       await updatePersonField({
         actorPersonId,

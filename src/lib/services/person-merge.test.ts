@@ -865,6 +865,92 @@ describe("mergePersons — the successful merge", () => {
     // anyway — the survivor's own value is untouched.
     expect(row.rows[0].family_name).toBe("Alderfield");
   });
+
+  describe("LAN-512 — the degree letters and the subject merge as one pair", () => {
+    async function pairOf(personId: string) {
+      const row = await observer.query<{ degree_type: string | null; degree_field: string | null }>(
+        "select degree_type, degree_field from public.people where id = $1::uuid",
+        [personId],
+      );
+      return row.rows[0];
+    }
+
+    async function twoDegrees(): Promise<{ survivorId: string; loserId: string }> {
+      const survivorId = await insertPerson({ givenName: unique("Degree"), familyName: "Pair" });
+      const loserId = await insertPerson({ givenName: unique("Degree"), familyName: "Pair" });
+      await observer.query(
+        "update public.people set degree_type = 'BA', degree_field = 'Geography' where id = $1::uuid",
+        [survivorId],
+      );
+      // The same subject, other letters: only the pair tells them apart.
+      await observer.query(
+        "update public.people set degree_type = 'MSc', degree_field = 'Geography' where id = $1::uuid",
+        [loserId],
+      );
+      return { survivorId, loserId };
+    }
+
+    it("shows both halves of each side's degree in one row", async () => {
+      const { survivorId, loserId } = await twoDegrees();
+      const preview = await previewPersonMerge(survivorId, loserId);
+      expect(preview.fields.find((field) => field.field === "degree_field")).toMatchObject({
+        label: "Degree and subject",
+        survivorValue: "BA · Geography",
+        loserValue: "MSc · Geography",
+        differs: true,
+        needsChoice: true,
+      });
+      expect(preview.fields.some((field) => (field.field as string) === "degree_type")).toBe(false);
+    });
+
+    it("moves the letters with the subject when the losing record's degree is chosen", async () => {
+      const { survivorId, loserId } = await twoDegrees();
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Same person, degree updated",
+        fieldChoices: { given_name: "survivor", degree_field: "loser" },
+      });
+      expect(await pairOf(survivorId)).toEqual({ degree_type: "MSc", degree_field: "Geography" });
+    });
+
+    it("keeps both halves of the surviving record's degree when it is chosen", async () => {
+      const { survivorId, loserId } = await twoDegrees();
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Same person",
+        fieldChoices: { given_name: "survivor", degree_field: "survivor" },
+      });
+      expect(await pairOf(survivorId)).toEqual({ degree_type: "BA", degree_field: "Geography" });
+    });
+
+    it("never pairs one side's letters with the other's subject", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Degree"), familyName: "Half" });
+      const loserId = await insertPerson({ givenName: unique("Degree"), familyName: "Half" });
+      await observer.query(
+        "update public.people set degree_type = 'BA', degree_field = 'Geography' where id = $1::uuid",
+        [survivorId],
+      );
+      await observer.query("update public.people set degree_type = 'DPhil' where id = $1::uuid", [
+        loserId,
+      ]);
+      const preview = await previewPersonMerge(survivorId, loserId);
+      expect(preview.fields.find((field) => field.field === "degree_field")?.loserValue).toBe(
+        "DPhil · —",
+      );
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Same person",
+        fieldChoices: { given_name: "survivor", degree_field: "loser" },
+      });
+      expect(await pairOf(survivorId)).toEqual({ degree_type: "DPhil", degree_field: null });
+    });
+  });
 });
 
 /**
