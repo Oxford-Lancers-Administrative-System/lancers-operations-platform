@@ -92,14 +92,18 @@ function append(id: string, offset: number, bytes: Uint8Array, origin: string | 
 
 /**
  * A chunk sent as a stream of `total` bytes, declaring `declared` as its
- * length or nothing; `pulled` counts the bytes the route read.
+ * length or nothing; `pulled` counts the bytes the route read, and
+ * `cancelled` says whether the route cancelled the rest of the body.
  */
 function appendStreamed(id: string, total: number, declared: string | null) {
   const requestHeaders = headers(ORIGIN);
   if (declared !== null) requestHeaders.set("content-length", declared);
   const piece = 64 * 1024;
-  const read = { pulled: 0 };
+  const read = { pulled: 0, cancelled: false };
   const body = new ReadableStream<Uint8Array>({
+    cancel() {
+      read.cancelled = true;
+    },
     pull(controller) {
       if (read.pulled >= total) {
         controller.close();
@@ -146,9 +150,9 @@ async function uploads() {
 }
 
 /** An upload the owner started through the route, as the compose form does. */
-async function ownersUpload(): Promise<string> {
+async function ownersUpload(byteSize = 10): Promise<string> {
   signedInAs(ownerPersonId);
-  const response = await start();
+  const response = await start(ORIGIN, byteSize);
   expect(response.status).toBe(200);
   const body = (await response.json()) as { id: string };
   return body.id;
@@ -292,6 +296,31 @@ describe("a chunk's size", () => {
     expect(response.status).toBe(413);
     expect(sent.read.pulled).toBeLessThan(total);
     expect(sent.read.pulled).toBeLessThanOrEqual(UPLOAD_CHUNK_BYTES + 2 * 64 * 1024);
+    expect(sent.read.cancelled).toBe(true);
+    expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
+  });
+
+  it("is accepted and stored at exactly one chunk, declared as such", async () => {
+    const id = await ownersUpload(UPLOAD_CHUNK_BYTES);
+    const sent = appendStreamed(id, UPLOAD_CHUNK_BYTES, String(UPLOAD_CHUNK_BYTES));
+    const response = await sent.response;
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "ok",
+      received: UPLOAD_CHUNK_BYTES,
+      complete: true,
+    });
+    expect(sent.read.cancelled).toBe(false);
+    expect(await uploads()).toEqual([
+      { id, uploaded_by_person_id: ownerPersonId, held: UPLOAD_CHUNK_BYTES },
+    ]);
+  });
+
+  it("is refused at one byte over one chunk, declared honestly", async () => {
+    const id = await ownersUpload(UPLOAD_CHUNK_BYTES + 1);
+    const sent = appendStreamed(id, UPLOAD_CHUNK_BYTES + 1, String(UPLOAD_CHUNK_BYTES + 1));
+    const response = await sent.response;
+    expect(response.status).toBe(413);
     expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
   });
 });
