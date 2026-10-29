@@ -1,4 +1,5 @@
 // @vitest-environment node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -82,5 +83,41 @@ describe("the local sink and attachments", () => {
     expect(saved.bytes).toBe(bytes.length);
     expect(path.dirname(saved.savedAs)).toBe(path.join(directory, "stem-attachments"));
     expect(fs.readFileSync(saved.savedAs).equals(bytes)).toBe(true);
+  });
+
+  it("reads a streamed body and refuses one that is not its declared length", async () => {
+    const written: SinkRecord[] = [];
+    const sink = createDeliverySink(LOCAL, { write: (record) => written.push(record) });
+    const text = email([{ filename: "a.pdf", content: "QUJD" }]).body;
+    const streamed = (length: number) => ({
+      method: "POST",
+      headers: { "content-length": String(length) },
+      body: new Response(text).body,
+      duplex: "half",
+    });
+    expect((await sink(EMAILS, streamed(Buffer.byteLength(text)) as RequestInit)).status).toBe(200);
+    expect((await sink(EMAILS, streamed(Buffer.byteLength(text) + 1) as RequestInit)).status).toBe(
+      400,
+    );
+    expect(written).toHaveLength(1);
+  });
+
+  it("answers a repeated Idempotency-Key as Resend does: the first email, or a 409", async () => {
+    const written: SinkRecord[] = [];
+    const sink = createDeliverySink(LOCAL, { write: (record) => written.push(record) });
+    const key = `club-message:${crypto.randomUUID()}:${crypto.randomUUID()}`;
+    const keyed = (attachments: unknown) => ({
+      ...email(attachments),
+      headers: { "idempotency-key": key },
+    });
+    const first = await sink(EMAILS, keyed([{ filename: "a.pdf", content: "QUJD" }]));
+    const again = await sink(EMAILS, keyed([{ filename: "a.pdf", content: "QUJD" }]));
+    const changed = await sink(EMAILS, keyed([{ filename: "b.pdf", content: "QUJD" }]));
+    expect(((await again.json()) as { id: string }).id).toBe(
+      ((await first.json()) as { id: string }).id,
+    );
+    expect(changed.status).toBe(409);
+    expect(((await changed.json()) as { name: string }).name).toBe("invalid_idempotent_request");
+    expect(written).toHaveLength(1);
   });
 });

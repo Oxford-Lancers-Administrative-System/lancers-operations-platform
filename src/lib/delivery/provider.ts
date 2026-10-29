@@ -249,18 +249,34 @@ export interface OutboundMessage {
   /** LAN-514. The operator's own body, as typed. `club_message` only. */
   readonly bodyText?: string | null;
   /**
-   * LAN-514. Files sent with the email, their bytes base64-encoded as Resend
-   * takes them. `club_message` only; never logged.
+   * LAN-514. Files sent with the email, read in slices as the request body is
+   * streamed (`email.ts`), never held whole. `club_message` only; never logged.
    */
   readonly attachments?: readonly OutboundAttachment[] | null;
+  /**
+   * LAN-514. Sent as Resend's `Idempotency-Key`, so a retried attempt of the
+   * same job cannot deliver a second copy. The job's own key, the same on every
+   * attempt. Set only where the payload is identical on every attempt
+   * (`club_message`): Resend refuses a reused key with a changed body, and the
+   * other kinds mint a fresh link per attempt.
+   */
+  readonly idempotencyKey?: string | null;
 }
 
-/** One file attached to an email — Resend's `{ filename, content }`. */
+/**
+ * One file attached to an email — Resend's `{ filename, content }`, with the
+ * content supplied a slice at a time rather than as one string.
+ */
 export interface OutboundAttachment {
   readonly filename: string;
-  /** The file's bytes, base64. */
-  readonly content: string;
   readonly contentType?: string | null;
+  /** The file's length in bytes, known before any of it is read. */
+  readonly byteSize: number;
+  /**
+   * `length` bytes from `offset` (fewer only at the end of the file). Called in
+   * order, one slice at a time, while the body streams.
+   */
+  readonly readSlice: (offset: number, length: number) => Promise<Uint8Array>;
 }
 
 /**
@@ -309,6 +325,12 @@ export type SendOutcome =
        * nobody supplied.
        */
       readonly faultScope?: SendFaultScope;
+      /**
+       * LAN-514. Resend's `409 invalid_idempotent_request`: this job's key was
+       * already used, so an earlier attempt reached the provider and nothing
+       * was sent now. Not a failure to send, and never retried.
+       */
+      readonly earlierAttemptReachedProvider?: boolean;
     };
 
 /**

@@ -13,7 +13,7 @@ import {
   type Transport,
 } from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
+import { emailTimeoutForEncodedBytes, NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { OutboundMessage } from "@/lib/delivery/provider";
 
@@ -107,6 +107,11 @@ import {
   parseClubMessageKey,
   readClubMessageForSendIn,
 } from "./club-messages";
+import {
+  attachmentsFit,
+  DRAFT_PROBLEM_MESSAGES,
+  encodedAttachmentBytes,
+} from "./club-message-input";
 
 /**
  * The scheduler sweep. LAN-169.
@@ -207,15 +212,33 @@ export interface SweepSummary {
 export const SWEEP_BATCH_LIMIT = 50;
 
 /**
- * How long one tick may spend dispatching before it stops claiming jobs.
+ * The latest moment, measured from the start of the tick, by which every send
+ * the tick starts must have finished or been cut off by its own deadline.
+ *
+ * The trigger is a Cloud Run request with a sixty-second limit (LAN-352), and a
+ * send still in flight when that request is cut off leaves its job
+ * `processing` with nobody knowing whether the email went. Five seconds short
+ * of sixty leaves room to record the last answer and reply with the summary.
+ */
+export const SWEEP_REQUEST_LIMIT_MS = 55_000;
+
+/**
+ * How long one tick may spend starting sends, measured from the start of the
+ * tick, before it stops claiming jobs.
  *
  * The count bounds the ordinary case; this bounds the unhealthy one. Fifty
- * jobs against a provider that answers only at its fifteen-second deadline is
- * twelve minutes, and the trigger behind this is a Cloud Run request with a
- * sixty-second limit (LAN-352). Forty-five seconds leaves room to answer with
- * the summary. Jobs not reached are still due on the next tick.
+ * jobs against a provider that answers only at its deadline is twelve minutes.
+ * The invariant it keeps: a send started before this budget runs out finishes
+ * inside {@link SWEEP_REQUEST_LIMIT_MS}. An ordinary send — every WhatsApp
+ * message and every email without attachments — is cut off at fifteen
+ * seconds (`EMAIL_TIMEOUT_MS`, the WhatsApp adapter's own), and forty plus
+ * fifteen is fifty-five. A message with attachments has a longer deadline
+ * (`emailTimeoutFor`: 42 s at 20 MB), so it carries its own check: it is
+ * started only when its deadline also ends inside the limit, and otherwise
+ * left due for the next tick (LAN-514). Jobs not reached are still due on the
+ * next tick.
  */
-export const SWEEP_BUDGET_MS = 45_000;
+export const SWEEP_BUDGET_MS = 40_000;
 
 export const SWEEP_ACTOR_LABEL = "system: messaging scheduler";
 
@@ -830,6 +853,8 @@ export async function runMessagingSweep(
     scanLimit?: number;
   } = {},
 ): Promise<SweepSummary> {
+  const tickStart = Date.now();
+  const requestDeadline = tickStart + SWEEP_REQUEST_LIMIT_MS;
   const raised = await raiseDueEscalations();
   // LAN-218. Declared and escalated before the sweep reads what is due, on
   // `raiseDueEscalations`'s own ordering reasoning above: a chase declared
@@ -860,6 +885,10 @@ export async function runMessagingSweep(
     await clearExpiredSafetyScopesIn(tx);
   });
 
+  // LAN-514. A club message's send cut off mid-flight on an earlier tick is
+  // made due again before this tick reads what is due, so it goes this tick.
+  await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx));
+
   const sendLimit = options.limit ?? SWEEP_BATCH_LIMIT;
   const scanLimit = options.scanLimit ?? SWEEP_SCAN_LIMIT;
 
@@ -868,7 +897,7 @@ export async function runMessagingSweep(
   let skipped = 0;
   let deferred = 0;
   let examined = 0;
-  const deadline = Date.now() + SWEEP_BUDGET_MS;
+  const deadline = tickStart + SWEEP_BUDGET_MS;
 
   // LAN-394. Stable keyset pages rather than one fixed slice, so a run of
   // candidates the guard defers does not consume the whole tick. The tick stops
@@ -908,7 +937,7 @@ export async function runMessagingSweep(
                 ? job.idempotencyKey.startsWith(ATTENDANCE_SHEET_KEY_PREFIX)
                   ? await dispatchAttendanceSheetJob(job.id, options)
                   : job.idempotencyKey.startsWith(CLUB_MESSAGE_KEY_PREFIX)
-                    ? await dispatchClubMessageJob(job.id, options)
+                    ? await dispatchClubMessageJob(job.id, { ...options, requestDeadline })
                     : job.idempotencyKey.startsWith(RECRUIT_EVENT_REMINDER_KEY_PREFIX)
                       ? await dispatchRecruitEventReminderJob(job.id, options)
                       : job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
@@ -3378,6 +3407,35 @@ async function concludeClaimedSend(
       "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
       [claimed.attemptId, outcome.reason],
     );
+
+    // LAN-514. Resend says this job's key was already used: an earlier attempt
+    // reached it, and this one sent nothing. Not a failure, and never retried.
+    // The attempt is concluded with no result, and the job stays where a sent
+    // message whose outcome will not arrive stays (`processing`, read as
+    // **unknown** by `DELIVERY_STATE_EXPRESSION`), rather than **Failed**.
+    if (outcome.earlierAttemptReachedProvider === true) {
+      await tx.query(
+        `update public.notification_jobs
+            set last_error = $2, next_attempt_at = null, updated_at = now()
+          where id = $1`,
+        [jobId, outcome.reason],
+      );
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        reason: outcome.reason,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          earlierAttemptReachedProvider: true,
+        },
+      });
+      return;
+    }
+
     await tx.query(
       `insert into public.delivery_results
          (notification_job_id, attempt_number, outcome, channel, provider, detail)
@@ -3403,7 +3461,8 @@ async function concludeClaimedSend(
     );
   });
 
-  return outcome.status === "accepted" ? "accepted" : "refused";
+  if (outcome.status === "accepted") return "accepted";
+  return outcome.earlierAttemptReachedProvider === true ? "accepted" : "refused";
 }
 
 /**
@@ -4442,6 +4501,103 @@ export async function dispatchNoticeJob(
 
 const CLUB_MESSAGE_GONE_REASON = "This message no longer exists, so nothing was sent.";
 
+export const CLUB_MESSAGE_INTERRUPTED_REASON =
+  "This send was cut off before the email provider answered. It will be attempted again, " +
+  "and the provider will not deliver a second copy.";
+
+/**
+ * When an attempt that never got an answer is certainly no longer in flight:
+ * well past the longest send deadline (`emailTimeoutFor`, two minutes at most)
+ * and the sweep's own sixty-second request.
+ */
+const INTERRUPTED_SEND_AFTER = "10 minutes";
+
+/**
+ * Resend keeps an `Idempotency-Key` for 24 hours. A retry inside that window
+ * cannot deliver twice; one after it could, so an older interrupted attempt is
+ * left as it is — **Attempted** — for an operator to judge.
+ */
+const IDEMPOTENT_RETRY_WINDOW = "23 hours";
+
+/**
+ * LAN-514. Makes a club message's send that was cut off mid-flight
+ * recoverable, on every tick.
+ *
+ * A send is cut off when the process running it stops before the provider
+ * answers: the instance is replaced or runs out of memory, or the request is
+ * killed. The claim has already committed — job `processing`, attempt recorded
+ * with no answer — and nothing else ever picks a `processing` job up again, so
+ * the recipient may or may not have the email and the row would read
+ * **Attempted** for ever.
+ *
+ * Such an attempt is concluded as failed and the job made due at once, inside
+ * Resend's 24-hour window, so the retry carries the same `Idempotency-Key`:
+ * if the cut-off attempt did reach Resend, Resend answers with that email
+ * rather than sending another. Club messages only, because only they carry the
+ * key (`dispatchClubMessageJob`); any other job left so still waits for an
+ * operator.
+ */
+export async function recoverInterruptedClubMessageSendsIn(tx: Tx): Promise<number> {
+  const interrupted = await tx.query<{
+    job_id: string;
+    attempt_id: string;
+    attempt_number: number;
+    channel: string;
+    provider: string;
+  }>(
+    `select j.id as job_id, a.id as attempt_id, a.attempt_number,
+            a.channel::text as channel, a.provider
+       from public.notification_jobs j
+       join public.delivery_attempts a
+         on a.notification_job_id = j.id and a.attempt_number = j.attempt_count
+      where j.job_type = 'other'
+        and j.idempotency_key like $1
+        and j.status = 'processing'
+        and a.accepted_at is null
+        and a.concluded_at is null
+        and a.requested_at < now() - interval '${INTERRUPTED_SEND_AFTER}'
+        and a.requested_at > now() - interval '${IDEMPOTENT_RETRY_WINDOW}'
+        and not exists (
+          select 1 from public.delivery_results r
+           where r.notification_job_id = a.notification_job_id
+             and r.attempt_number = a.attempt_number)
+      for update of j, a`,
+    [`${CLUB_MESSAGE_KEY_PREFIX}%`],
+  );
+
+  for (const row of interrupted.rows) {
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [row.attempt_id, CLUB_MESSAGE_INTERRUPTED_REASON],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, 'failed', $3::public.notification_channel, $4, $5)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [row.job_id, row.attempt_number, row.channel, row.provider, CLUB_MESSAGE_INTERRUPTED_REASON],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when attempt_count < $3 then now() else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [row.job_id, CLUB_MESSAGE_INTERRUPTED_REASON, MAX_ATTEMPTS],
+    );
+    await recordAudit(tx, {
+      actorLabel: DISPATCH_ACTOR_LABEL,
+      action: "delivery.failed",
+      entityTable: "notification_jobs",
+      entityId: row.job_id,
+      reason: CLUB_MESSAGE_INTERRUPTED_REASON,
+      context: { attemptNumber: row.attempt_number, provider: row.provider, interrupted: true },
+    });
+  }
+  return interrupted.rows.length;
+}
+
 /**
  * Sends one recipient's copy of a message written on the Messages page
  * (`club-messages.ts` says who gets one). Lock, read, admit, claim, send,
@@ -4451,7 +4607,16 @@ const CLUB_MESSAGE_GONE_REASON = "This message no longer exists, so nothing was 
  */
 export async function dispatchClubMessageJob(
   jobId: string,
-  options: { source?: EnvironmentSource; transport?: Transport } = {},
+  options: {
+    source?: EnvironmentSource;
+    transport?: Transport;
+    /**
+     * LAN-514. When the sweep's request must be finished by (epoch ms). A send
+     * whose own deadline would end after it is not started: the job is left
+     * due, untouched, for the next tick.
+     */
+    requestDeadline?: number;
+  } = {},
 ): Promise<DispatchOutcome> {
   const context = await resolveOtherJobProvider(jobId, options);
   if (context === null) return "deferred";
@@ -4459,6 +4624,7 @@ export async function dispatchClubMessageJob(
 
   type ClubMessageOutcome =
     | { readonly kind: "no-send" }
+    | { readonly kind: "next-tick" }
     | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
@@ -4506,6 +4672,22 @@ export async function dispatchClubMessageJob(
     if (!content) {
       await failTerminally(CLUB_MESSAGE_GONE_REASON);
       return { kind: "no-send" };
+    }
+
+    // LAN-514. The size rule once more, from the bytes actually held, and then
+    // whether this send's own deadline ends inside the sweep's request. Both
+    // read sizes only; no file content has been read yet.
+    const sizes = content.attachments.map((file) => file.byteSize);
+    if (!attachmentsFit(sizes)) {
+      await failTerminally(DRAFT_PROBLEM_MESSAGES.attachments_too_large);
+      return { kind: "no-send" };
+    }
+    if (
+      options.requestDeadline !== undefined &&
+      Date.now() + emailTimeoutForEncodedBytes(encodedAttachmentBytes(sizes)) >
+        options.requestDeadline
+    ) {
+      return { kind: "next-tick" };
     }
 
     if (
@@ -4584,6 +4766,9 @@ export async function dispatchClubMessageJob(
         subject: content.subject,
         bodyText: content.body,
         attachments: content.attachments,
+        // LAN-514. The job's key, the same on every attempt, so a retry after
+        // an attempt that reached Resend cannot deliver a second copy.
+        idempotencyKey: job.idempotency_key,
       },
     };
   });

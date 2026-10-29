@@ -908,10 +908,13 @@ the count.
 2. **Email** — subject (200 characters), message (20,000; each line one
    paragraph, no images), and **Attach files**. Files go up as they are
    chosen, in 4 MB pieces, with a progress bar; the running total reads
-   `12.4 MB of 29.9 MB`. Resend takes 40 MB per email after base64 encoding,
-   so the files may total about 30 MB; a file that would take the total over
-   is refused with "The attachments are too large to send by email." At most
-   ten files.
+   `12.4 MB of 20.0 MB`. The files may total **20 MB** (Brian, 2026-10-29): 20 MB
+   is about 27 MB once base64-encoded, inside Resend's 40 MB per email after
+   encoding and Microsoft 365's default 36 MB receive limit (Oxford's
+   Nexus365). A file that would take the total over is refused with "The
+   attachments are too large to send by email. One email can carry 20.0 MB of
+   files." — when it is chosen, again when the message is sent, and again at
+   send time from the bytes held. At most ten files.
 3. **Send** — **Send now** or **Schedule** (a date and a 24-hour time, club
    time). Below it, **Recipients · N** names everybody it will reach and **Not
    reachable · M** names who it will not, before anything is sent. The button
@@ -927,6 +930,43 @@ every other non-urgent message, is paced and capped by messaging safety, and
 each copy is recorded as a delivery attempt with Resend's own receipt. At send
 time the email is re-read from the person's record, and a recruit's consent is
 read again, so a Stop in between is honoured.
+
+**Sending files** (LAN-514, Brian 2026-10-29). Each copy reads the files out
+of the database in 3 MiB slices and streams the Resend request body, base64 a
+slice at a time, at an exact `Content-Length` (a fixed-length body, not
+chunked); no copy of a whole file is ever built in memory, so a send's extra
+memory stays roughly constant whatever the size and fits Cloud Run's 512 MiB.
+Measured against a mock endpoint over a real socket
+(`src/lib/delivery/email-attachment-send.test.ts`): the sender grew by
++43 MB RSS at 10 MB and +17 MB at 20 MB (heap under 3 MB), against +123 MB and
++227 MB for the old whole-string body.
+
+- **No second copy.** Every copy carries Resend's `Idempotency-Key`, the job's
+  own key (`club-message:<message>:<person>`), the same on every attempt; Resend
+  keeps it 24 hours. A retry after an attempt that did reach Resend gets the
+  first email back and sends nothing. Resend's `409
+concurrent_idempotent_requests` (the earlier attempt still in progress) is
+  retried on the ordinary 15-minute backoff; `409 invalid_idempotent_request`
+  (the key already used with a different body, for instance after the
+  person's name or email changed between attempts) means an earlier attempt
+  already reached Resend, so the copy reads **Unknown** — sent, outcome not
+  coming — never **Failed**, and is not retried. Only club messages carry the
+  key: the other emails mint a fresh link on every attempt, so their body
+  differs each time and Resend would refuse the retry.
+- **Fits the scheduler's request.** A tick may run 60 s (Cloud Run). A copy
+  with files is started only when its own deadline (15 s plus 1 s per encoded
+  MB: 29 s at 10 MB, 42 s at 20 MB) ends within 55 s of the tick's start;
+  otherwise it stays due, untouched, for the next tick. Every other send is
+  started only in the first 40 s, and its 15 s deadline ends by 55 s too.
+  At 20 MB that is a few copies a tick, so a large file to a big audience goes
+  out over several ticks (every five minutes).
+- **A send cut off mid-flight** (the instance replaced or out of memory before
+  Resend answered) leaves the copy `processing` with an attempt and no answer.
+  Ten minutes on, the next tick concludes that attempt as failed ("This send
+  was cut off before the email provider answered…") and makes the copy due at
+  once, still inside Resend's 24 hours, so the retry carries the same key and
+  cannot deliver twice. One older than 23 hours is left reading **Attempted**
+  for an operator to judge.
 
 **Locally**, the delivery sink writes each email to
 `.lancers-runtime/delivery-sink/` as the JSON record, the rendered `.html`, and

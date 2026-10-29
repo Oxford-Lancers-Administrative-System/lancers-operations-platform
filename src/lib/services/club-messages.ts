@@ -630,7 +630,32 @@ export interface ClubMessageForSend {
   readonly attachments: readonly OutboundAttachment[];
 }
 
-/** The message and its files, encoded as Resend takes them. Read at send time. */
+/**
+ * Reads `length` bytes of one attachment from `offset`, in its own short
+ * transaction. `substring` on a `bytea` fetches only that range, so the row is
+ * never read whole (LAN-514; the driver otherwise gathers the whole value into
+ * one doubling buffer, which the analysis found dominated a send's memory).
+ */
+export async function readClubMessageAttachmentSlice(
+  attachmentId: string,
+  offset: number,
+  length: number,
+): Promise<Uint8Array> {
+  const slice = await withTransaction((tx) =>
+    tx.query<{ bytes: Buffer | null }>(
+      `select substring(content from $2::int + 1 for $3::int) as bytes
+         from public.club_message_attachments
+        where id = $1 and complete`,
+      [attachmentId, offset, length],
+    ),
+  );
+  return slice.rows[0]?.bytes ?? new Uint8Array(0);
+}
+
+/**
+ * The message and its files, read at send time. The files are their names and
+ * sizes and a way to read each a slice at a time; no content is read here.
+ */
 export async function readClubMessageForSendIn(
   tx: Tx,
   messageId: string,
@@ -640,8 +665,13 @@ export async function readClubMessageForSendIn(
     [messageId],
   );
   if (!message.rows[0]) return null;
-  const files = await tx.query<{ filename: string; content_type: string; content: string }>(
-    `select filename, content_type, encode(content, 'base64') as content
+  const files = await tx.query<{
+    id: string;
+    filename: string;
+    content_type: string;
+    byte_size: number;
+  }>(
+    `select id, filename, content_type, octet_length(content) as byte_size
        from public.club_message_attachments
       where club_message_id = $1 and complete
       order by position, created_at`,
@@ -652,9 +682,10 @@ export async function readClubMessageForSendIn(
     body: message.rows[0].body,
     attachments: files.rows.map((file) => ({
       filename: file.filename,
-      // PostgreSQL wraps base64 at 76 characters; Resend wants it whole.
-      content: file.content.replace(/\s+/g, ""),
       contentType: file.content_type,
+      byteSize: file.byte_size,
+      readSlice: (offset: number, length: number) =>
+        readClubMessageAttachmentSlice(file.id, offset, length),
     })),
   };
 }

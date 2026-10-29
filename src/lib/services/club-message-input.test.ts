@@ -4,6 +4,7 @@ import {
   attachmentsFit,
   clubMessageParagraphs,
   draftProblems,
+  encodedAttachmentBytes,
   formatMegabytes,
   MAX_ATTACHMENT_BYTES,
   RESEND_ENCODED_EMAIL_LIMIT_BYTES,
@@ -22,24 +23,26 @@ function draft(patch: Partial<Parameters<typeof draftProblems>[0]> = {}) {
 }
 
 describe("LAN-514 — what one email may carry", () => {
-  it("fits Resend's 40 MB after base64 encoding, so about 30 MB of files", () => {
+  it("caps one message's files at 20 MB, well inside Resend's 40 MB after encoding", () => {
     expect(RESEND_ENCODED_EMAIL_LIMIT_BYTES).toBe(40_000_000);
-    expect(MAX_ATTACHMENT_BYTES).toBeGreaterThan(29_500_000);
-    expect(MAX_ATTACHMENT_BYTES).toBeLessThan(30_000_000);
-    expect(Math.ceil(MAX_ATTACHMENT_BYTES / 3) * 4).toBeLessThanOrEqual(
+    expect(MAX_ATTACHMENT_BYTES).toBe(20_000_000);
+    expect(encodedAttachmentBytes([MAX_ATTACHMENT_BYTES])).toBeLessThan(
       RESEND_ENCODED_EMAIL_LIMIT_BYTES,
     );
+    expect(formatMegabytes(MAX_ATTACHMENT_BYTES)).toBe("20.0 MB");
   });
 
-  it("takes a typical 10 MB playbook and refuses files over the limit together", () => {
+  it("takes 10 MB and exactly 20 MB, and refuses anything over 20 MB together", () => {
     expect(attachmentsFit([10_000_000])).toBe(true);
     expect(attachmentsFit([MAX_ATTACHMENT_BYTES])).toBe(true);
-    expect(attachmentsFit([MAX_ATTACHMENT_BYTES + 3])).toBe(false);
+    expect(attachmentsFit([10_000_000, 10_000_000])).toBe(true);
+    expect(attachmentsFit([MAX_ATTACHMENT_BYTES + 1])).toBe(false);
+    expect(attachmentsFit([10_000_000, 10_000_001])).toBe(false);
     expect(attachmentsFit([15_000_000, 15_000_000])).toBe(false);
   });
 
   it("refuses an oversized draft with the size problem, and nothing else", () => {
-    expect(draftProblems(draft({ attachmentSizes: [20_000_000, 11_000_000] }), NOW)).toEqual([
+    expect(draftProblems(draft({ attachmentSizes: [12_000_000, 9_000_000] }), NOW)).toEqual([
       "attachments_too_large",
     ]);
   });

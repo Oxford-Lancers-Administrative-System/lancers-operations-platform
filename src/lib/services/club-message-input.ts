@@ -22,12 +22,14 @@ function base64EncodedSize(bytes: number): number {
 }
 
 /**
- * The most file bytes one message may carry: whatever encodes inside Resend's
- * limit once the body's allowance is taken off. About 29.85 MB.
+ * The most file bytes one message may carry: 20 MB (Brian, 29 October 2026,
+ * LAN-514). Below what encodes inside Resend's limit (about 29.85 MB), on
+ * purpose: Microsoft 365 mailboxes, Oxford's Nexus365 among them, refuse
+ * incoming mail over 36 MB by default, and 20 MB of files is about 27 MB once
+ * encoded. The send streams the file out of the database in slices
+ * (`email.ts`), so memory stays flat at this size on Cloud Run's 512 MiB.
  */
-export const MAX_ATTACHMENT_BYTES = Math.floor(
-  ((RESEND_ENCODED_EMAIL_LIMIT_BYTES - NON_ATTACHMENT_ALLOWANCE_BYTES) / 4) * 3,
-);
+export const MAX_ATTACHMENT_BYTES = 20_000_000;
 
 /** The per-file ceiling the database also holds (`club_message_attachments_size_bounded`). */
 export const MAX_SINGLE_FILE_BYTES = 31_457_280;
@@ -43,10 +45,23 @@ export const MAX_ATTACHMENTS = 10;
 export const SUBJECT_MAX_LENGTH = 200;
 export const BODY_MAX_LENGTH = 20_000;
 
-/** Whether files of these sizes fit one email, encoded, beside the body. */
+/** What files of these sizes take in an email once base64-encoded. */
+export function encodedAttachmentBytes(sizes: readonly number[]): number {
+  return sizes.reduce((total, size) => total + base64EncodedSize(size), 0);
+}
+
+/**
+ * Whether files of these sizes may go in one message: within the club's
+ * {@link MAX_ATTACHMENT_BYTES}, and, as a second guard, within Resend's limit
+ * once encoded beside the body.
+ */
 export function attachmentsFit(sizes: readonly number[]): boolean {
-  const encoded = sizes.reduce((total, size) => total + base64EncodedSize(size), 0);
-  return encoded + NON_ATTACHMENT_ALLOWANCE_BYTES <= RESEND_ENCODED_EMAIL_LIMIT_BYTES;
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  if (total > MAX_ATTACHMENT_BYTES) return false;
+  return (
+    encodedAttachmentBytes(sizes) + NON_ATTACHMENT_ALLOWANCE_BYTES <=
+    RESEND_ENCODED_EMAIL_LIMIT_BYTES
+  );
 }
 
 /** "12.4 MB" — decimal, one place, as the limit is stated. */

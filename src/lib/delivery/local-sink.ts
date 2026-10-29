@@ -407,6 +407,42 @@ function persist(record: SinkRecord, directory: string): void {
 }
 
 /**
+ * LAN-514. The emails this process's sink accepted under an `Idempotency-Key`,
+ * so a retried attempt is answered the way Resend answers it. Held for the
+ * process's life; a local process does not live the 24 hours Resend keeps one.
+ */
+const SINK_IDEMPOTENCY = new Map<string, { readonly id: string; readonly digest: string }>();
+
+function headerOf(init: RequestInit, name: string): string | null {
+  return new Headers(init.headers).get(name);
+}
+
+/**
+ * The request body as text, whether it came as a string or a stream, and
+ * whether a declared `Content-Length` matched it. Local only: a 20 MB email's
+ * body is read whole here, which the deployed path never does.
+ */
+async function readSinkBody(init: RequestInit): Promise<{
+  readonly bytes: Buffer;
+  readonly text: string | null;
+  readonly lengthMismatch: boolean;
+}> {
+  if (init.body === undefined || init.body === null) {
+    return { bytes: Buffer.alloc(0), text: null, lengthMismatch: false };
+  }
+  const bytes =
+    typeof init.body === "string"
+      ? Buffer.from(init.body, "utf8")
+      : Buffer.from(await new Response(init.body).arrayBuffer());
+  const declared = headerOf(init, "content-length");
+  return {
+    bytes,
+    text: bytes.toString("utf8"),
+    lengthMismatch: declared !== null && Number(declared) !== bytes.length,
+  };
+}
+
+/**
  * Builds the sink transport.
  *
  * Exported separately from {@link selectDeliverySink} so a test can drive it
@@ -441,11 +477,51 @@ export function createDeliverySink(
       );
     }
 
+    // LAN-514. An email with attachments arrives as a stream at a declared
+    // length; a body that is not that length is refused, as an HTTP server
+    // would refuse it.
+    const received = await readSinkBody(init);
+    if (received.lengthMismatch) {
+      return new Response(
+        JSON.stringify({
+          message: "The request body was not the length its Content-Length declared.",
+          name: "validation_error",
+        }),
+        { status: 400, headers: jsonHeaders() },
+      );
+    }
+
     let payload: unknown = null;
     try {
-      payload = JSON.parse(typeof init.body === "string" ? init.body : "null");
+      payload = JSON.parse(received.text ?? "null");
     } catch {
       payload = null;
+    }
+
+    // LAN-514. Resend's `Idempotency-Key`: the same key and the same body
+    // answer with the first email and send nothing; the same key with a
+    // different body is Resend's 409 `invalid_idempotent_request`.
+    const idempotencyKey = isEmail ? headerOf(init, "idempotency-key") : null;
+    const digest = crypto.createHash("sha256").update(received.bytes).digest("hex");
+    if (idempotencyKey) {
+      const earlier = SINK_IDEMPOTENCY.get(idempotencyKey);
+      if (earlier && earlier.digest === digest) {
+        return new Response(JSON.stringify({ id: earlier.id }), {
+          status: 200,
+          headers: jsonHeaders(),
+        });
+      }
+      if (earlier) {
+        return new Response(
+          JSON.stringify({
+            statusCode: 409,
+            name: "invalid_idempotent_request",
+            message:
+              "This idempotency key has been used with this HTTP method and endpoint within the last 24 hours, but the request body was modified and doesn't match the original request.",
+          }),
+          { status: 409, headers: jsonHeaders() },
+        );
+      }
     }
 
     const verdict = isEmail ? validateEmail(payload) : validateWhatsApp(payload, source);
@@ -483,6 +559,7 @@ export function createDeliverySink(
 
     (options.write ?? ((entry: SinkRecord) => persist(entry, directory)))(record);
     options.onAccepted?.(record);
+    if (idempotencyKey) SINK_IDEMPOTENCY.set(idempotencyKey, { id: providerMessageId, digest });
 
     return isEmail
       ? new Response(JSON.stringify({ id: providerMessageId }), {

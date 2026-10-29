@@ -45,7 +45,11 @@ import {
 } from "./club-messages";
 import { MAX_ATTEMPTS } from "./delivery";
 import { DUE_JOB_PREDICATE } from "./messaging-queue";
-import { dispatchClubMessageJob } from "./messaging-scheduler";
+import {
+  CLUB_MESSAGE_INTERRUPTED_REASON,
+  dispatchClubMessageJob,
+  recoverInterruptedClubMessageSendsIn,
+} from "./messaging-scheduler";
 import { OPERATING_SEASON_STATUSES } from "./seasons";
 import {
   clearRecipientSafetyState,
@@ -77,12 +81,33 @@ let observer: Client;
 let seasonId: string;
 let actorPersonId: string;
 
-function acceptingTransport() {
-  const sent: { url: string; body: Record<string, unknown> }[] = [];
+function acceptingTransport(
+  answer: (key: string | null) => { status: number; body: unknown } = () => ({
+    status: 200,
+    body: { id: `msg.${MARKER}.${crypto.randomUUID()}` },
+  }),
+) {
+  const sent: {
+    url: string;
+    body: Record<string, unknown>;
+    idempotencyKey: string | null;
+    contentLength: string | null;
+    bytes: number;
+  }[] = [];
   const transport = async (url: string, init: RequestInit) => {
-    sent.push({ url, body: JSON.parse(typeof init.body === "string" ? init.body : "{}") });
-    return new Response(JSON.stringify({ id: `msg.${MARKER}.${crypto.randomUUID()}` }), {
-      status: 200,
+    // A streamed body (LAN-514) as well as a string one.
+    const bytes = Buffer.from(await new Response(init.body ?? null).arrayBuffer());
+    const headers = new Headers(init.headers);
+    sent.push({
+      url,
+      body: JSON.parse(bytes.length > 0 ? bytes.toString("utf8") : "{}"),
+      idempotencyKey: headers.get("idempotency-key"),
+      contentLength: headers.get("content-length"),
+      bytes: bytes.length,
+    });
+    const reply = answer(headers.get("idempotency-key"));
+    return new Response(JSON.stringify(reply.body), {
+      status: reply.status,
       headers: { "content-type": "application/json" },
     });
   };
@@ -370,13 +395,13 @@ describe("when it goes", () => {
 });
 
 describe("attachments", () => {
-  it("refuses a file larger than one email can carry before any byte is sent", async () => {
+  it("refuses a file over the 20 MB a message may carry before any byte is sent", async () => {
     await expect(
       startAttachmentUpload({
         actorPersonId,
         filename: `${MARKER}-huge.pdf`,
         contentType: "application/pdf",
-        byteSize: 31_000_000,
+        byteSize: 20_000_001,
       }),
     ).rejects.toMatchObject({ rule: "club_message_attachments_too_large" });
   });
@@ -455,6 +480,115 @@ describe("attachments", () => {
     const detail = await readClubMessage(created.id, GRANTS);
     expect(detail.attachments.map((file) => file.byteSize)).toEqual([playbook.length]);
     expect(detail.recipients.map((recipient) => recipient.state)).toEqual(["attempted"]);
+    // LAN-514. The job's own key, and a body of exactly its declared length.
+    expect(sent[0].idempotencyKey).toBe(`club-message:${created.id}:${reached.personId}`);
+    expect(sent[0].contentLength).toBe(String(sent[0].bytes));
+  });
+
+  it("reads a file larger than one slice back from the database byte for byte", async () => {
+    const reached = await player("Slices", "lan514.slices@example.test");
+    // Over two 3 MiB slices, and not a multiple of three.
+    const playbook = crypto.randomBytes(7_000_001);
+    const fileId = await upload(`${MARKER}-slices.pdf`, playbook);
+    const created = await send({ audienceKeys: [reached.key], attachmentIds: [fileId] });
+    const [job] = await jobsOf(created.id);
+    const { sent, transport } = acceptingTransport();
+
+    expect(await dispatchClubMessageJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "accepted",
+    );
+    const body = sent[0].body as { attachments: { content: string }[] };
+    expect(Buffer.from(body.attachments[0].content, "base64").equals(playbook)).toBe(true);
+    expect(body.attachments[0].content).toBe(playbook.toString("base64"));
+  });
+
+  it("leaves a send for the next tick when its deadline would outrun the request", async () => {
+    const reached = await player("NextTick", "lan514.nexttick@example.test");
+    const fileId = await upload(`${MARKER}-late.pdf`, crypto.randomBytes(1_000));
+    const created = await send({ audienceKeys: [reached.key], attachmentIds: [fileId] });
+    const [job] = await jobsOf(created.id);
+    const { sent, transport } = acceptingTransport();
+
+    // Fifteen seconds and more of deadline; five seconds of request left.
+    expect(
+      await dispatchClubMessageJob(job.id, {
+        source: CONFIGURED,
+        transport,
+        requestDeadline: Date.now() + 5_000,
+      }),
+    ).toBe("skipped");
+    expect(sent).toHaveLength(0);
+    const after = await jobsOf(created.id);
+    expect(after[0].due).toBe(true);
+    const attempts = await observer.query(
+      "select 1 from public.delivery_attempts where notification_job_id = $1",
+      [job.id],
+    );
+    expect(attempts.rowCount).toBe(0);
+  });
+
+  it("records a reused key with a changed body as already sent, not as failed", async () => {
+    const reached = await player("Reused", "lan514.reused@example.test");
+    const created = await send({ audienceKeys: [reached.key] });
+    const [job] = await jobsOf(created.id);
+    const { transport } = acceptingTransport(() => ({
+      status: 409,
+      body: { statusCode: 409, name: "invalid_idempotent_request", message: "modified" },
+    }));
+
+    expect(await dispatchClubMessageJob(job.id, { source: CONFIGURED, transport })).toBe(
+      "accepted",
+    );
+    const row = await observer.query<{ status: string; next_attempt_at: Date | null }>(
+      "select status::text as status, next_attempt_at from public.notification_jobs where id = $1",
+      [job.id],
+    );
+    expect(row.rows[0]).toEqual({ status: "processing", next_attempt_at: null });
+    const detail = await readClubMessage(created.id, GRANTS);
+    expect(detail.recipients.map((recipient) => recipient.state)).toEqual(["unknown"]);
+  });
+
+  it("makes a send cut off mid-flight due again, and the retry carries the same key", async () => {
+    const reached = await player("CutOff", "lan514.cutoff@example.test");
+    const created = await send({ audienceKeys: [reached.key] });
+    const [job] = await jobsOf(created.id);
+    const first = acceptingTransport();
+    expect(
+      await dispatchClubMessageJob(job.id, { source: CONFIGURED, transport: first.transport }),
+    ).toBe("accepted");
+
+    // As the claim leaves it when the process stops before the answer: the
+    // job `processing`, the attempt with no answer, begun twenty minutes ago.
+    await observer.query(
+      `update public.delivery_attempts
+          set accepted_at = null, provider_message_id = null,
+              requested_at = now() - interval '20 minutes',
+              safety_admitted_at = now() - interval '20 minutes'
+        where notification_job_id = $1`,
+      [job.id],
+    );
+    expect(await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx))).toBe(1);
+    const recovered = await observer.query<{ status: string; due_now: boolean }>(
+      `select status::text as status, next_attempt_at <= now() as due_now
+         from public.notification_jobs where id = $1`,
+      [job.id],
+    );
+    expect(recovered.rows[0]).toEqual({ status: "failed", due_now: true });
+    const result = await observer.query<{ outcome: string; detail: string }>(
+      `select outcome::text as outcome, detail from public.delivery_results
+        where notification_job_id = $1`,
+      [job.id],
+    );
+    expect(result.rows).toEqual([{ outcome: "failed", detail: CLUB_MESSAGE_INTERRUPTED_REASON }]);
+    // A second pass finds nothing more to do.
+    expect(await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx))).toBe(0);
+
+    await clearRecipientSafetyState(observer);
+    const retry = acceptingTransport();
+    expect(
+      await dispatchClubMessageJob(job.id, { source: CONFIGURED, transport: retry.transport }),
+    ).toBe("accepted");
+    expect(retry.sent[0].idempotencyKey).toBe(first.sent[0].idempotencyKey);
   });
 
   it("re-reads a recruit's consent when it sends, so a Stop in between is honoured", async () => {
