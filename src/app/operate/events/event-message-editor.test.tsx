@@ -4,7 +4,7 @@
  * would post: the hidden inputs are the only thing that reaches the service.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 
 vi.mock("server-only", () => ({}));
@@ -77,6 +77,35 @@ describe("the Event messages section", () => {
     expect(posted("eventMessageHoursBefore")).toEqual(["48"]);
     expect(posted("eventMessageChannel")).toEqual(["both"]);
     expect(posted("eventMessageRecipients")).toEqual(["everyone"]);
+  });
+
+  it("explains each control under it, keeping the send time, and follows the choice (LAN-515)", () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
+    render(<Harness initial={[brief({ channel: "both", recipients: "everyone" })]} />);
+    const card = screen.getByTestId("event-message-card");
+    const help = () =>
+      within(card)
+        .getAllByTestId("event-message-help")
+        .map((n) => n.textContent);
+    expect(within(card).getByText("Fri 6 Nov · 14:00")).toBeTruthy();
+    expect(help()).toEqual([
+      "48 = sent two days before the event starts",
+      "WhatsApp and email; anyone without WhatsApp consent gets the email only",
+      "Everyone invited when it sends, whatever they answered",
+    ]);
+
+    cleanup();
+    render(<Harness initial={[brief({ channel: "whatsapp", recipients: "yes" })]} />);
+    const next = screen.getByTestId("event-message-card");
+    expect(
+      within(next)
+        .getAllByTestId("event-message-help")
+        .map((n) => n.textContent),
+    ).toEqual([
+      "48 = sent two days before the event starts",
+      "WhatsApp only; anyone without WhatsApp consent gets it by email",
+      "Only those whose answer is Yes when it sends",
+    ]);
   });
 
   it("writes the toolbar's formats into the box, and the Itinerary line", () => {

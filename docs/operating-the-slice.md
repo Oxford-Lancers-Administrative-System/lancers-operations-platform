@@ -786,9 +786,12 @@ question editor:
 - **Hours before** — a whole number from 1 to 336. The helper under it is the
   send time, worked out from the event's date and start: the start less the
   hours, and **07:00** if that falls between 22:00 and 07:00 (lights-out,
-  above).
-- **Channel** — WhatsApp, Email or Both.
-- **Recipients** — **Everyone invited**, or **Those who said Yes**.
+  above). A second line explains the number (LAN-515):
+  `48 = sent two days before the event starts`.
+- **Channel** — WhatsApp, Email or Both. The line under it says what the
+  choice means, including that anyone without WhatsApp consent gets email.
+- **Recipients** — **Everyone invited**, or **Those who said Yes**. The line
+  under it says the list is read when the message sends.
 - **Message** — one Markdown box at full card width, with four buttons above
   it: **Heading** (`## `), **Bold** (`**…**`), **Bullet** (`- `) and
   **Itinerary line** (`- 12:00 `, a time then what happens). A `# ` title line

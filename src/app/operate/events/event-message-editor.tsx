@@ -12,15 +12,20 @@ import { applyBriefFormat, type BriefFormat } from "@/lib/event-brief/markdown";
 import {
   DEFAULT_EVENT_MESSAGE_HOURS,
   EVENT_MESSAGES_HEADLINE,
+  EVENT_MESSAGE_CHANNEL_HELP,
   EVENT_MESSAGE_CHANNEL_LABELS,
   EVENT_MESSAGE_CHANNELS,
+  EVENT_MESSAGE_HOURS_HELP,
+  EVENT_MESSAGE_RECIPIENT_HELP,
   EVENT_MESSAGE_RECIPIENT_LABELS,
   EVENT_MESSAGE_RECIPIENTS,
   MAX_EVENT_MESSAGE_HOURS,
   MIN_EVENT_MESSAGE_HOURS,
   eventMessageSendAt,
   formatEventMessageWhen,
+  type EventMessageChannel,
   type EventMessageIssue,
+  type EventMessageRecipients,
   type RawEventMessage,
 } from "@/lib/services/event-messages-input";
 import { BriefFormatGuide } from "./brief-format-guide";
@@ -32,6 +37,8 @@ import { BriefPreview } from "./brief-preview";
  * the list, no filler when there are none. Each card: Hours before (its helper
  * is the computed send time), Channel, Recipients, the toolbar,
  * the Markdown box at full card width, and the Preview disclosure below it.
+ * Under each of the three controls one short line says what it means
+ * (LAN-515); an issue or the send time, when there is one, sits above it.
  *
  * The same editor serves the draft form, the edit page of an approved event
  * and the template editor (which has no date, so no helper). A message that
@@ -64,6 +71,22 @@ const TOOLBAR: readonly { format: BriefFormat; label: string; path: string }[] =
     path: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2M12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8m.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z",
   },
 ];
+
+/** The field's own helper text as lines: the issue or send time when present, then the explanation (LAN-515). */
+function helperLines(first: string | undefined, help: string) {
+  return (
+    <>
+      {first ? (
+        <Box component="span" sx={{ display: "block" }}>
+          {first}
+        </Box>
+      ) : null}
+      <Box component="span" sx={{ display: "block" }} data-testid="event-message-help">
+        {help}
+      </Box>
+    </>
+  );
+}
 
 function blankEventMessage(): RawEventMessage {
   return {
@@ -224,7 +247,7 @@ function EventMessageCard({
             value={hoursText}
             onChange={(event) => onUpdate({ hoursBefore: event.target.value })}
             error={Boolean(issueFor("hoursBefore"))}
-            helperText={issueFor("hoursBefore") ?? sendAt}
+            helperText={helperLines(issueFor("hoursBefore") ?? sendAt, EVENT_MESSAGE_HOURS_HELP)}
             disabled={disabled}
             slotProps={{
               inputLabel: { shrink: true },
@@ -237,7 +260,11 @@ function EventMessageCard({
             value={channel}
             onChange={(event) => onUpdate({ channel: event.target.value })}
             error={Boolean(issueFor("channel"))}
-            helperText={issueFor("channel")}
+            helperText={helperLines(
+              issueFor("channel"),
+              EVENT_MESSAGE_CHANNEL_HELP[channel as EventMessageChannel] ??
+                EVENT_MESSAGE_CHANNEL_HELP.both,
+            )}
             disabled={disabled}
             options={EVENT_MESSAGE_CHANNELS.map((value) => ({
               value,
@@ -249,7 +276,11 @@ function EventMessageCard({
             value={recipients}
             onChange={(event) => onUpdate({ recipients: event.target.value })}
             error={Boolean(issueFor("recipients"))}
-            helperText={issueFor("recipients")}
+            helperText={helperLines(
+              issueFor("recipients"),
+              EVENT_MESSAGE_RECIPIENT_HELP[recipients as EventMessageRecipients] ??
+                EVENT_MESSAGE_RECIPIENT_HELP.everyone,
+            )}
             disabled={disabled}
             options={EVENT_MESSAGE_RECIPIENTS.map((value) => ({
               value,

@@ -32,6 +32,26 @@ export const EVENT_MESSAGE_CHANNEL_LABELS: Readonly<Record<EventMessageChannel, 
 export const EVENT_MESSAGE_RECIPIENT_LABELS: Readonly<Record<EventMessageRecipients, string>> =
   Object.freeze({ everyone: "Everyone invited", yes: "Those who said Yes" });
 
+/**
+ * One short line under each control explaining what it means — LAN-515
+ * (Stewart, 29 Oct: "it's just right there for the people that are making
+ * this stuff"). Brian's explicit exception to the no-narrative-text rule.
+ */
+export const EVENT_MESSAGE_HOURS_HELP = "48 = sent two days before the event starts";
+
+export const EVENT_MESSAGE_CHANNEL_HELP: Readonly<Record<EventMessageChannel, string>> =
+  Object.freeze({
+    whatsapp: "WhatsApp only; anyone without WhatsApp consent gets it by email",
+    email: "Email only",
+    both: "WhatsApp and email; anyone without WhatsApp consent gets the email only",
+  });
+
+export const EVENT_MESSAGE_RECIPIENT_HELP: Readonly<Record<EventMessageRecipients, string>> =
+  Object.freeze({
+    everyone: "Everyone invited when it sends, whatever they answered",
+    yes: "Only those whose answer is Yes when it sends",
+  });
+
 /** How the plan row and the event page name a channel: "WhatsApp and email" (W1-03). */
 const CHANNEL_PHRASES: Readonly<Record<EventMessageChannel, string>> = Object.freeze({
   whatsapp: "WhatsApp",
