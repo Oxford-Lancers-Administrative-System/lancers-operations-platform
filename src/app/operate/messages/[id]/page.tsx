@@ -46,7 +46,7 @@ export default async function MessagePage({
 
   let message: ClubMessageDetail;
   try {
-    message = await readClubMessage(id);
+    message = await readClubMessage(id, gate.operator.grants);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -120,28 +120,31 @@ export default async function MessagePage({
         </Section>
       ) : null}
 
-      <Section
-        title={`${RECIPIENTS_HEADING} · ${message.recipients.length}`}
-        testId="club-message-recipients"
-      >
-        <RowCardList at="all" dense testId="club-message-recipient-list">
-          {message.recipients.map((recipient) => (
-            <RowCard
-              key={recipient.personId}
-              dense
-              title={recipient.displayName}
-              chips={
-                <StatusChip
-                  domain="delivery"
-                  status={recipient.state}
-                  label={DELIVERY_LABELS[recipient.state] ?? recipient.state}
-                />
-              }
-              sublines={recipient.lastError ? [recipient.lastError] : []}
-            />
-          ))}
-        </RowCardList>
-      </Section>
+      {/* Named only for a seat that reads Contact & emergency: the list says who had an email. */}
+      {message.recipientsNamed ? (
+        <Section
+          title={`${RECIPIENTS_HEADING} · ${message.recipients.length}`}
+          testId="club-message-recipients"
+        >
+          <RowCardList at="all" dense testId="club-message-recipient-list">
+            {message.recipients.map((recipient) => (
+              <RowCard
+                key={recipient.personId}
+                dense
+                title={recipient.displayName}
+                chips={
+                  <StatusChip
+                    domain="delivery"
+                    status={recipient.state}
+                    label={DELIVERY_LABELS[recipient.state] ?? recipient.state}
+                  />
+                }
+                sublines={recipient.lastError ? [recipient.lastError] : []}
+              />
+            ))}
+          </RowCardList>
+        </Section>
+      ) : null}
     </Stack>
   );
 }

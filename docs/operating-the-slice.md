@@ -889,15 +889,22 @@ name**), how many people it was queued for, who sent it, and **Scheduled**,
 **Sending** or **Sent**. A message opens on its own page: the body, the files
 with their sizes, and every recipient with their delivery state in the
 club's usual words (Queued, Attempted, Delivered, Failed…), with the reason
-where one was recorded.
+where one was recorded. The recipients are the chosen people who had an
+email, so their names are listed only for a seat that reads Contact &
+emergency, as the event review names who is unreachable; any other seat sees
+the count.
 
 **New message** is one page in three steps:
 
 1. **Audience** — the event audience builder itself (the group bands, the
-   search, Capacity and Unit, one row per person). A person with no current
-   email is marked **Not reachable · No email**; a recruit with no granted
-   season messaging consent is **Not reachable · No consent**, as their event
-   invitation would be.
+   search, Capacity and Unit, one row per person), its per-person detail
+   narrowed to the sender's roster and recruiting grants as the event builder
+   narrows it (LAN-423). The send resolves the chosen keys against that same
+   narrowed catalogue, so a key the page did not offer is refused. A person
+   with no current email is marked **Not reachable · No email**, and a recruit
+   with no granted season messaging consent **Not reachable · No consent**, as
+   their event invitation would be; both marks show only to a seat that reads
+   Contact & emergency, and the send refuses them either way.
 2. **Email** — subject (200 characters), message (20,000; each line one
    paragraph, no images), and **Attach files**. Files go up as they are
    chosen, in 4 MB pieces, with a progress bar; the running total reads

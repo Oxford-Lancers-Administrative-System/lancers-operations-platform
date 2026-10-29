@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { OperatorGrants } from "@/lib/auth/grants";
+import { mayViewRoster } from "@/lib/auth/roster-access";
 import { withTransaction, ConstraintViolated, NotFound, type Tx } from "@/lib/db";
 import type { OutboundAttachment } from "@/lib/delivery/provider";
 
@@ -18,6 +20,7 @@ import {
   type DeliveryState,
 } from "./delivery";
 import { listAudienceCatalogueIn, resolveSelection } from "./event-audience";
+import { redactAudienceCandidates } from "./event-audience-access";
 import type { AudienceCandidate, AudienceCatalogue } from "./audience-selection";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { personDisplayName } from "./person-name";
@@ -106,12 +109,44 @@ async function unreachableIn(
   return unreachable;
 }
 
-/** Everybody who can be chosen, as the event builder offers them, and who of them cannot be emailed. */
-export async function readClubMessageAudience(): Promise<ClubMessageAudience> {
+/**
+ * The catalogue as one seat may see it: the event builder's, narrowed to the
+ * seat's grants as it is there (LAN-423). The compose page shows exactly this
+ * and the send resolves its keys against exactly this, so a key the seat was
+ * not shown is refused.
+ */
+async function visibleCatalogueIn(
+  tx: Tx,
+  seasonId: string,
+  grants: OperatorGrants,
+): Promise<AudienceCatalogue> {
+  const catalogue = await listAudienceCatalogueIn(tx, seasonId, null, CATALOGUE_EVENT_TYPE);
+  return {
+    ...catalogue,
+    candidates: redactAudienceCandidates(catalogue.candidates, grants, CATALOGUE_EVENT_TYPE),
+  };
+}
+
+/** Whether this seat may see who a message reached: who has an email is a contact fact. */
+export function mayNameRecipients(grants: OperatorGrants): boolean {
+  return mayViewRoster(grants, "contact_emergency");
+}
+
+/**
+ * Everybody this seat can choose, and who of them cannot be emailed. Who has
+ * no email is a contact fact, so it is named only for a seat that reads
+ * Contact & emergency; the send refuses them either way.
+ */
+export async function readClubMessageAudience(
+  grants: OperatorGrants,
+): Promise<ClubMessageAudience> {
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
-    const catalogue = await listAudienceCatalogueIn(tx, season.id, null, CATALOGUE_EVENT_TYPE);
-    return { catalogue, unreachable: await unreachableIn(tx, season.id, catalogue.candidates) };
+    const catalogue = await visibleCatalogueIn(tx, season.id, grants);
+    const unreachable = mayNameRecipients(grants)
+      ? await unreachableIn(tx, season.id, catalogue.candidates)
+      : {};
+    return { catalogue, unreachable };
   });
 }
 
@@ -245,6 +280,8 @@ export async function removeAttachmentUpload(input: {
 
 export interface ClubMessageInput {
   readonly actorPersonId: string;
+  /** The sender's grants: the audience resolves against the catalogue they were shown. */
+  readonly grants: OperatorGrants;
   readonly subject: string;
   readonly body: string;
   /** The audience builder's selection keys (`capacity:anchorId`). */
@@ -327,7 +364,7 @@ export async function createClubMessage(input: ClubMessageInput): Promise<ClubMe
     }
 
     const season = await readCurrentSeasonIn(tx);
-    const catalogue = await listAudienceCatalogueIn(tx, season.id, null, CATALOGUE_EVENT_TYPE);
+    const catalogue = await visibleCatalogueIn(tx, season.id, input.grants);
     const resolution = resolveSelection(catalogue.candidates, input.audienceKeys);
     if (!resolution.ok) {
       throw new ConstraintViolated(
@@ -512,11 +549,22 @@ interface ClubMessageRecipient {
 export interface ClubMessageDetail extends ClubMessageSummary {
   readonly body: string;
   readonly attachments: readonly { id: string; filename: string; byteSize: number }[];
+  /**
+   * Every recipient and their delivery state, or empty when the seat may not
+   * name them (`recipientsNamed`). The list is the chosen people who had an
+   * email, so naming it says who had none; the count always travels, as the
+   * event review's unreachable panel does (LAN-423).
+   */
   readonly recipients: readonly ClubMessageRecipient[];
+  readonly recipientsNamed: boolean;
 }
 
-/** One message, its files and every recipient's delivery state. */
-export async function readClubMessage(id: string): Promise<ClubMessageDetail> {
+/** One message, its files and, as far as the seat may see them, its recipients. */
+export async function readClubMessage(
+  id: string,
+  grants: OperatorGrants,
+): Promise<ClubMessageDetail> {
+  const recipientsNamed = mayNameRecipients(grants);
   return withTransaction(async (tx) => {
     const found = await tx.query<SummaryRow & { body: string }>(
       `${SUMMARY_SELECT.replace("select m.id,", "select m.body, m.id,")}
@@ -533,23 +581,25 @@ export async function readClubMessage(id: string): Promise<ClubMessageDetail> {
         order by position, created_at`,
       [id],
     );
-    const recipients = await tx.query<{
-      person_id: string;
-      given_name: string;
-      family_name: string | null;
-      state: DeliveryState;
-      last_error: string | null;
-    }>(
-      `select j.person_id, p.given_name, p.family_name,
-              ${DELIVERY_STATE_EXPRESSION} as state,
-              j.last_error
-         from public.notification_jobs j
-         join public.people p on p.id = j.person_id
-         ${DELIVERY_LATEST_RESULT_JOIN}
-        where j.idempotency_key like $1
-        order by p.given_name, p.family_name, j.person_id`,
-      [`${CLUB_MESSAGE_KEY_PREFIX}${id}:%`],
-    );
+    const recipients = recipientsNamed
+      ? await tx.query<{
+          person_id: string;
+          given_name: string;
+          family_name: string | null;
+          state: DeliveryState;
+          last_error: string | null;
+        }>(
+          `select j.person_id, p.given_name, p.family_name,
+                  ${DELIVERY_STATE_EXPRESSION} as state,
+                  j.last_error
+             from public.notification_jobs j
+             join public.people p on p.id = j.person_id
+             ${DELIVERY_LATEST_RESULT_JOIN}
+            where j.idempotency_key like $1
+            order by p.given_name, p.family_name, j.person_id`,
+          [`${CLUB_MESSAGE_KEY_PREFIX}${id}:%`],
+        )
+      : { rows: [] };
 
     return {
       ...toSummary(row),
@@ -565,6 +615,7 @@ export async function readClubMessage(id: string): Promise<ClubMessageDetail> {
         state: recipient.state,
         lastError: recipient.state === "delivered" ? null : recipient.last_error,
       })),
+      recipientsNamed,
     };
   });
 }

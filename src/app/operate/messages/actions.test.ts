@@ -53,7 +53,9 @@ describe("LAN-514 — who may send a message", () => {
   });
 
   it("posts the selection, the files and the schedule, then opens the message", async () => {
-    requireCapability.mockResolvedValue({ personId: "person-1" });
+    // The sender's own grants go with the selection: it resolves against what they were shown.
+    const grants = { roster: {}, recruiting: {}, templates: {}, switches: {} };
+    requireCapability.mockResolvedValue({ personId: "person-1", grants });
     createClubMessage.mockResolvedValue({ id: "message-1", queued: 2, unreachable: 0 });
     await expect(
       sendClubMessageAction(
@@ -72,6 +74,7 @@ describe("LAN-514 — who may send a message", () => {
     ).rejects.toThrow("redirect:/operate/messages/message-1?sent=1");
     expect(createClubMessage).toHaveBeenCalledWith({
       actorPersonId: "person-1",
+      grants,
       subject: "Playbook",
       body: "Attached.",
       audienceKeys: ["player:a", "coach:b"],

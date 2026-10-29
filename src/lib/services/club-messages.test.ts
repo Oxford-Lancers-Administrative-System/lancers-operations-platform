@@ -15,9 +15,22 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 vi.mock("server-only", () => ({}));
 
+// The real redaction withholds detail and never a whole candidate today, so a
+// test hides one to prove the send resolves against the redacted catalogue.
+const hidden = vi.hoisted(() => ({ keys: new Set<string>() }));
+vi.mock("./event-audience-access", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./event-audience-access")>();
+  return {
+    ...actual,
+    redactAudienceCandidates: (...args: Parameters<typeof actual.redactAudienceCandidates>) =>
+      actual.redactAudienceCandidates(...args).filter((c) => !hidden.keys.has(c.key)),
+  };
+});
+
 import crypto from "node:crypto";
 import type { Client } from "pg";
 
+import { fullGrants, NO_GRANTS, type OperatorGrants } from "@/lib/auth/grants";
 import { closePool, withTransaction } from "@/lib/db";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 
@@ -43,6 +56,12 @@ import {
 vi.setConfig({ testTimeout: 30_000 });
 
 const MARKER = "LAN514Messages";
+
+/** What a fixed committee seat holds. */
+const GRANTS = fullGrants([]);
+
+/** A seat that reads nothing on the roster: no contact, no membership. */
+const NO_ROSTER: OperatorGrants = { ...GRANTS, roster: NO_GRANTS.roster };
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
@@ -176,6 +195,7 @@ async function recruit(familyName: string): Promise<{ personId: string; key: str
 function send(patch: Partial<Parameters<typeof createClubMessage>[0]> = {}) {
   return createClubMessage({
     actorPersonId,
+    grants: GRANTS,
     subject: `${MARKER} playbook`,
     body: "Here is this week's playbook.\n\nKirsty",
     audienceKeys: [],
@@ -236,7 +256,7 @@ describe("who a message reaches", () => {
     const reached = await player("Reached", "lan514.reached@example.test");
     const noEmail = await player("NoEmail", null);
 
-    const audience = await readClubMessageAudience();
+    const audience = await readClubMessageAudience(GRANTS);
     expect(audience.unreachable[noEmail.personId]).toBe("no_email");
     expect(audience.unreachable[reached.personId]).toBeUndefined();
 
@@ -254,7 +274,7 @@ describe("who a message reaches", () => {
 
   it("does not email a recruit with no granted consent, as their invitation would not", async () => {
     const prospect = await recruit("Prospect");
-    const audience = await readClubMessageAudience();
+    const audience = await readClubMessageAudience(GRANTS);
     expect(audience.unreachable[prospect.personId]).toBe("no_consent");
     await expect(send({ audienceKeys: [prospect.key] })).rejects.toMatchObject({
       rule: "club_message_nobody_reachable",
@@ -268,6 +288,54 @@ describe("who a message reaches", () => {
     await expect(send({ audienceKeys: [`player:${crypto.randomUUID()}`] })).rejects.toMatchObject({
       rule: "event_audience_selection_unknown",
     });
+  });
+});
+
+describe("what the sender's grants let them see", () => {
+  afterEach(() => {
+    hidden.keys.clear();
+  });
+
+  it("resolves the audience against the catalogue the compose page shows, so a key it hid is refused", async () => {
+    const shown = await player("Shown", "lan514.shown@example.test");
+    const notShown = await player("NotShown", "lan514.notshown@example.test");
+    hidden.keys.add(notShown.key);
+
+    const keys = (await readClubMessageAudience(GRANTS)).catalogue.candidates.map((c) => c.key);
+    expect(keys).toContain(shown.key);
+    expect(keys).not.toContain(notShown.key);
+
+    await expect(send({ audienceKeys: [shown.key, notShown.key] })).rejects.toMatchObject({
+      rule: "event_audience_selection_unknown",
+    });
+    expect(await send({ audienceKeys: [shown.key] })).toMatchObject({ queued: 1 });
+  });
+
+  it("withholds roster detail and who has no email from a seat that does not read them", async () => {
+    const noEmail = await player("Hidden", null);
+
+    const full = await readClubMessageAudience(GRANTS);
+    const narrowed = await readClubMessageAudience(NO_ROSTER);
+    const standing = (audience: typeof full) =>
+      audience.catalogue.candidates.find((c) => c.personId === noEmail.personId)?.standing;
+    expect(standing(full)).not.toBe("");
+    expect(standing(narrowed)).toBe("");
+    expect(full.unreachable[noEmail.personId]).toBe("no_email");
+    expect(narrowed.unreachable).toEqual({});
+  });
+
+  it("names who a message reached only for a seat that reads Contact & emergency", async () => {
+    const reached = await player("Named", "lan514.named@example.test");
+    const created = await send({ audienceKeys: [reached.key] });
+
+    const named = await readClubMessage(created.id, GRANTS);
+    expect(named.recipientsNamed).toBe(true);
+    expect(named.recipients.map((r) => r.personId)).toEqual([reached.personId]);
+
+    const unnamed = await readClubMessage(created.id, NO_ROSTER);
+    expect(unnamed.recipientsNamed).toBe(false);
+    expect(unnamed.recipients).toEqual([]);
+    expect(unnamed.recipientCount).toBe(1);
   });
 });
 
@@ -287,7 +355,7 @@ describe("when it goes", () => {
     );
     // 09:30 British Summer Time is 08:30 UTC.
     expect(scheduled.rows[0].at.toISOString()).toBe("2099-07-01T08:30:00.000Z");
-    expect((await readClubMessage(created.id)).progress).toBe("scheduled");
+    expect((await readClubMessage(created.id, GRANTS)).progress).toBe("scheduled");
   });
 
   it("refuses a time in the past or one that is not a time", async () => {
@@ -384,7 +452,7 @@ describe("attachments", () => {
     );
     expect(attempt.rows[0].provider_message_id).toMatch(new RegExp(`^msg\\.${MARKER}`));
 
-    const detail = await readClubMessage(created.id);
+    const detail = await readClubMessage(created.id, GRANTS);
     expect(detail.attachments.map((file) => file.byteSize)).toEqual([playbook.length]);
     expect(detail.recipients.map((recipient) => recipient.state)).toEqual(["attempted"]);
   });

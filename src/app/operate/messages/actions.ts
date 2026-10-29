@@ -37,6 +37,7 @@ export async function sendClubMessageAction(
     const scheduled = text(formData, "when") === "schedule";
     created = await createClubMessage({
       actorPersonId: operator.personId,
+      grants: operator.grants,
       subject: text(formData, "subject"),
       body: text(formData, "body"),
       audienceKeys: all(formData, "audienceKey"),
