@@ -1750,8 +1750,9 @@ and no sign-in. It shows no delivery state and no joining URL.
 
 **It expires seven days after the event** (Brian, 2026-09-16, LAN-354). The
 panel says so beside the link. Nothing is stored: the seven days are counted
-from the event's own end — or its start, where no end is recorded — as read at
-the moment the link is opened, so moving a fixture to a later date brings its
+from the event's own end — or its start, where no end is recorded — as seven
+London calendar days, so a week across a clock change still closes at the
+event's own time of day, and as read at the moment the link is opened, so moving a fixture to a later date brings its
 link back until seven days after the new date. On day eight the link shows the
 same "this link does not open anything" panel an unknown token gets, and says
 nothing about the squad. There is no revoke action, and no other token type

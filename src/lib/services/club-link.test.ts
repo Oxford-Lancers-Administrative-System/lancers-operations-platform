@@ -466,33 +466,85 @@ describe("a club link's seven days", () => {
     ).toBe("live");
   });
 
-  it("counts from the end where one is recorded, not from the start", async () => {
-    const eventId = await anEvent();
-    const issued = await withTransaction((tx) =>
-      issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
-    );
-    // Exactly seven days ago, starting at midnight and ending a minute before
-    // the next one: the start's seven days ran out at midnight this morning,
-    // the end's run out tonight. Live, so the end is what counts.
-    //
-    // Seven days ago *in the club's zone*, not in the session's. `current_date`
-    // is the UTC date, and between midnight in London and midnight in UTC the
-    // two differ — so a run after 23:00 BST placed the event a day earlier than
-    // this test means, and the window it is asserting inside had already
-    // closed. The expiry expression itself is zone-aware; the fixture was not.
-    await observer.query(
-      `update public.events
-          set scheduled_on = ((now() at time zone 'Europe/London')::date - 7),
-              starts_at = '00:00'::time,
-              ends_at = '23:59'::time
-        where id = $1`,
-      [eventId],
-    );
+  /**
+   * Both clocks are pinned here: the event's date is fixed and the resolve
+   * instant is passed in. Against the database's real `now()` this test had a
+   * window it could not pass in — an event on one date cannot both start
+   * before and end after midnight seven days ago — and it once failed at 23:16
+   * London on 29 October, after the clocks went back, when the expiry was
+   * still counted in UTC days and closed an hour early (LAN-506).
+   *
+   * Each week runs midnight to 23:59 London on its first day: the start's seven
+   * days run out at midnight on the seventh day after, the end's a minute
+   * before the next midnight. Live across that whole day — including the hour
+   * after midnight and the hour before the end — so the end is what counts;
+   * expired from 23:59. One week spans the autumn change, one the spring, one
+   * neither.
+   */
+  const londonWeeks = [
+    {
+      span: "BST to GMT, 25 October",
+      on: "2026-10-22",
+      live: [
+        "2026-10-29T00:00:30Z",
+        "2026-10-29T00:30:00Z",
+        "2026-10-29T22:30:00Z",
+        "2026-10-29T23:16:00Z",
+        "2026-10-29T23:58:59Z",
+      ],
+      expired: ["2026-10-29T23:59:00Z", "2026-10-30T00:30:00Z"],
+    },
+    {
+      span: "GMT to BST, 29 March",
+      on: "2026-03-23",
+      live: [
+        "2026-03-30T00:00:30+01:00",
+        "2026-03-30T00:30:00+01:00",
+        "2026-03-30T22:30:00+01:00",
+        "2026-03-30T23:58:59+01:00",
+      ],
+      expired: ["2026-03-30T23:59:00+01:00", "2026-03-31T00:30:00+01:00"],
+    },
+    {
+      span: "no change",
+      on: "2026-07-01",
+      live: [
+        "2026-07-08T00:00:30+01:00",
+        "2026-07-08T00:30:00+01:00",
+        "2026-07-08T22:30:00+01:00",
+        "2026-07-08T23:58:59+01:00",
+      ],
+      expired: ["2026-07-08T23:59:00+01:00", "2026-07-09T00:30:00+01:00"],
+    },
+  ] as const;
 
-    expect(
-      (await withTransaction((tx) => resolveClubLinkIn(tx, issued.token, { env: SECRET }))).state,
-    ).toBe("live");
-  });
+  it.each(londonWeeks)(
+    "counts from the end where one is recorded, not from the start ($span)",
+    async ({ on, live, expired }) => {
+      const eventId = await anEvent();
+      const issued = await withTransaction((tx) =>
+        issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
+      );
+      await observer.query(
+        `update public.events
+            set scheduled_on = $2::date, starts_at = '00:00'::time, ends_at = '23:59'::time
+          where id = $1`,
+        [eventId, on],
+      );
+
+      const stateAt = async (instant: string) =>
+        (
+          await withTransaction((tx) =>
+            resolveClubLinkIn(tx, issued.token, { env: SECRET, now: new Date(instant) }),
+          )
+        ).state;
+
+      for (const instant of live)
+        expect([instant, await stateAt(instant)]).toEqual([instant, "live"]);
+      for (const instant of expired)
+        expect([instant, await stateAt(instant)]).toEqual([instant, "expired"]);
+    },
+  );
 
   it("stays revoked rather than expired when both are true — a deliberate act outranks the clock", async () => {
     const eventId = await anEvent();

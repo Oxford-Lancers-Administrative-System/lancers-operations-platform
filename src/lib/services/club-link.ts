@@ -172,16 +172,21 @@ export const CLUB_LINK_LIFETIME_DAYS = 7;
  * could. In SQL rather than JavaScript for the reason `rsvp-tokens.ts` gives:
  * Britain changes offset twice inside a season and PostgreSQL carries the IANA
  * database.
+ *
+ * The seven days are added to the club's wall-clock time *before* it becomes
+ * an instant, so they are seven London calendar days. Added after, they are
+ * seven days in the session's zone (UTC), and a week spanning a clock change
+ * closed an hour early in autumn and an hour late in spring (LAN-506).
  */
 const CLUB_LINK_EXPIRY_EXPRESSION = `
-  (e.scheduled_on + coalesce(e.ends_at, e.starts_at, '00:00'::time))
-    at time zone 'Europe/London' + make_interval(days => ${CLUB_LINK_LIFETIME_DAYS})`;
+  ((e.scheduled_on + coalesce(e.ends_at, e.starts_at, '00:00'::time))
+    + make_interval(days => ${CLUB_LINK_LIFETIME_DAYS})) at time zone 'Europe/London'`;
 
 // What a presented token opens — a pure read; the use-count stamp happens after this commits, so readers never queue on a row lock (W157-R1; see relocations.md).
 export async function resolveClubLinkIn(
   tx: Tx,
   token: string,
-  options: { env?: EnvSource } = {},
+  options: { env?: EnvSource; now?: Date } = {},
 ): Promise<ClubLinkResolution> {
   if (!CLUB_LINK_TOKEN_PATTERN.test(token)) return { state: "unknown" }; // refused before any query runs
 
@@ -192,11 +197,13 @@ export async function resolveClubLinkIn(
     expired: boolean;
   }>(
     `select t.id, t.event_id, t.revoked_at is not null as revoked,
-            ${CLUB_LINK_EXPIRY_EXPRESSION} <= now() as expired
+            ${CLUB_LINK_EXPIRY_EXPRESSION} <= coalesce($2::timestamptz, now()) as expired
        from public.club_link_tokens t
        join public.events e on e.id = t.event_id
       where t.token_hash = $1`,
-    [hashClubLinkToken(token)],
+    // `now` is a test seam only: the database clock cannot be pinned, and a
+    // window edge near midnight is otherwise untestable. Callers omit it.
+    [hashClubLinkToken(token), options.now ?? null],
   );
   const row = found.rows[0];
   if (!row) return { state: "unknown" };
