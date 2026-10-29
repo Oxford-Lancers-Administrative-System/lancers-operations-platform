@@ -171,6 +171,33 @@ afterAll(async () => {
   await closePool();
 });
 
+/**
+ * As the claim leaves a job when the process stops before the provider
+ * answers: the job `processing`, its attempt with no answer, begun `ago`.
+ */
+async function cutOff(jobId: string, ago: string): Promise<void> {
+  await observer.query(
+    `update public.delivery_attempts
+        set accepted_at = null, provider_message_id = null,
+            requested_at = now() - $2::interval,
+            safety_admitted_at = now() - $2::interval
+      where notification_job_id = $1`,
+    [jobId, ago],
+  );
+}
+
+/** A job's status and how many results it has. */
+async function stateOf(jobId: string): Promise<{ status: string; results: number }> {
+  const row = await observer.query<{ status: string; results: number }>(
+    `select j.status::text as status,
+            (select count(*)::int from public.delivery_results r
+              where r.notification_job_id = j.id) as results
+       from public.notification_jobs j where j.id = $1`,
+    [jobId],
+  );
+  return row.rows[0];
+}
+
 /** A roster player this season, with an email or none; returns the audience key. */
 async function player(
   familyName: string,
@@ -557,16 +584,7 @@ describe("attachments", () => {
       await dispatchClubMessageJob(job.id, { source: CONFIGURED, transport: first.transport }),
     ).toBe("accepted");
 
-    // As the claim leaves it when the process stops before the answer: the
-    // job `processing`, the attempt with no answer, begun twenty minutes ago.
-    await observer.query(
-      `update public.delivery_attempts
-          set accepted_at = null, provider_message_id = null,
-              requested_at = now() - interval '20 minutes',
-              safety_admitted_at = now() - interval '20 minutes'
-        where notification_job_id = $1`,
-      [job.id],
-    );
+    await cutOff(job.id, "20 minutes");
     expect(await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx))).toBe(1);
     const recovered = await observer.query<{ status: string; due_now: boolean }>(
       `select status::text as status, next_attempt_at <= now() as due_now
@@ -589,6 +607,62 @@ describe("attachments", () => {
       await dispatchClubMessageJob(job.id, { source: CONFIGURED, transport: retry.transport }),
     ).toBe("accepted");
     expect(retry.sent[0].idempotencyKey).toBe(first.sent[0].idempotencyKey);
+  });
+
+  it("leaves a cut-off send alone while it could still be in flight, and after Resend's window", async () => {
+    const reached = await player("TooSoonTooLate", "lan514.window@example.test");
+    const created = await send({ audienceKeys: [reached.key] });
+    const [job] = await jobsOf(created.id);
+    expect(
+      await dispatchClubMessageJob(job.id, {
+        source: CONFIGURED,
+        transport: acceptingTransport().transport,
+      }),
+    ).toBe("accepted");
+
+    // Five minutes: inside the longest send deadline and the sweep's request,
+    // so the attempt may still be running.
+    await cutOff(job.id, "5 minutes");
+    expect(await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx))).toBe(0);
+    expect(await stateOf(job.id)).toEqual({ status: "processing", results: 0 });
+
+    // Twenty-four hours: past Resend's idempotency window, so a retry could
+    // deliver twice; it stays Attempted for an operator.
+    await cutOff(job.id, "24 hours");
+    expect(await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx))).toBe(0);
+    expect(await stateOf(job.id)).toEqual({ status: "processing", results: 0 });
+  });
+
+  it("leaves another kind of job cut off mid-send for an operator, as it carries no key", async () => {
+    const reached = await player("NotAClubMessage", "lan514.other@example.test");
+    const created = await send({ audienceKeys: [reached.key] });
+    const [job] = await jobsOf(created.id);
+    expect(
+      await dispatchClubMessageJob(job.id, {
+        source: CONFIGURED,
+        transport: acceptingTransport().transport,
+      }),
+    ).toBe("accepted");
+    await cutOff(job.id, "20 minutes");
+
+    // The same stuck job under another 'other' kind's key: an attendance sheet.
+    const original = await observer.query<{ idempotency_key: string }>(
+      "select idempotency_key from public.notification_jobs where id = $1",
+      [job.id],
+    );
+    await observer.query("update public.notification_jobs set idempotency_key = $2 where id = $1", [
+      job.id,
+      `attendance-sheet:${MARKER}:${job.id}`,
+    ]);
+    try {
+      expect(await withTransaction((tx) => recoverInterruptedClubMessageSendsIn(tx))).toBe(0);
+      expect(await stateOf(job.id)).toEqual({ status: "processing", results: 0 });
+    } finally {
+      await observer.query(
+        "update public.notification_jobs set idempotency_key = $2 where id = $1",
+        [job.id, original.rows[0].idempotency_key],
+      );
+    }
   });
 
   it("re-reads a recruit's consent when it sends, so a Stop in between is honoured", async () => {

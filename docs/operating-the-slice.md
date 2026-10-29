@@ -972,7 +972,26 @@ concurrent_idempotent_requests` (the earlier attempt still in progress) is
   was cut off before the email provider answered…") and makes the copy due at
   once, still inside Resend's 24 hours, so the retry carries the same key and
   cannot deliver twice. One older than 23 hours is left reading **Attempted**
-  for an operator to judge.
+  for an operator to judge. Only club messages are recovered this way; any
+  other job left `processing` still waits for an operator.
+- **A file that cannot be read mid-send** (the database drops, or the file
+  changed, while the body streams) fails that attempt as the application's own
+  fault ("This message's files could not be read while it was being sent…"),
+  retried on the ordinary backoff; it does not count against Resend in
+  messaging safety's provider circuit.
+- **Known case to watch on the first real Resend sends.** If Resend refused an
+  earlier attempt (a 422 or a 5xx) and the retry, carrying the same key, is
+  answered `409 invalid_idempotent_request`, the copy reads **Unknown** though
+  that earlier attempt may have sent nothing. Resend's documentation does not
+  say whether a refused request holds its key; Brian's real Resend test is to
+  settle it.
+
+**Uploads.** A file over 20 MB is refused when its upload starts (as well as
+when the message is sent), though the database would hold one up to 30 MiB.
+Each 4 MB piece must declare its `Content-Length`: a piece with none is
+refused (411) and one declaring or carrying more than 4 MB is refused (413),
+and the body is read only up to that limit. A request whose `Origin` is
+`null` or not a URL is refused (403), as one from another site is.
 
 **Locally**, the delivery sink writes each email to
 `.lancers-runtime/delivery-sink/` as the JSON record, the rendered `.html`, and

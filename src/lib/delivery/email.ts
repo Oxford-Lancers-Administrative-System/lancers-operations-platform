@@ -6,7 +6,11 @@ import {
 } from "@/lib/services/club-message-input";
 
 import type { EmailConfig } from "./config";
-import { attachmentContentSlot, streamEmailBody } from "./email-body-stream";
+import {
+  attachmentContentSlot,
+  streamEmailBody,
+  type StreamedEmailBody,
+} from "./email-body-stream";
 import { renderEmailHtml } from "./email-shell";
 import type {
   DeliveryProvider,
@@ -254,6 +258,10 @@ export const EARLIER_ATTEMPT_IN_PROGRESS_REASON =
   "An earlier attempt of this message is still with the email provider. This will be " +
   "attempted again.";
 
+export const ATTACHMENT_READ_FAILED_REASON =
+  "This message's files could not be read while it was being sent, so it was not sent. " +
+  "This will be attempted again.";
+
 export const EMAIL_TOO_LARGE_REASON =
   "The attachments are larger than the email provider accepts, so nothing was sent.";
 
@@ -362,6 +370,7 @@ export function createEmailProvider(
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), emailTimeoutFor(message));
+      let streamed: StreamedEmailBody | null = null;
 
       try {
         const headers: Record<string, string> = {
@@ -378,7 +387,7 @@ export function createEmailProvider(
         let init: RequestInit;
         if (attachments.length > 0) {
           // Streamed, at an exact length, so the file is never held whole.
-          const streamed = streamEmailBody(json, attachments);
+          streamed = streamEmailBody(json, attachments);
           headers["content-length"] = String(streamed.length);
           init = {
             method: "POST",
@@ -408,6 +417,18 @@ export function createEmailProvider(
 
         return interpretEmailResponse(response.status, body);
       } catch (error) {
+        // LAN-514. The body's own stream failed — a file could not be read
+        // from the database, or changed, mid-send. This application's fault,
+        // not the provider's, so it does not count towards the provider's
+        // circuit; retried, as the next read may well succeed.
+        if (streamed?.failed()) {
+          return {
+            status: "refused",
+            reason: ATTACHMENT_READ_FAILED_REASON,
+            retryable: true,
+            faultScope: "message",
+          };
+        }
         // A timeout or a network fault. Retryable, and the reason names neither
         // the address nor the exception's message — a fetch error routinely
         // quotes the host and the recipient.

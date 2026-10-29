@@ -18,6 +18,7 @@ vi.mock("server-only", () => ({}));
 
 import type { EmailConfig } from "./config";
 import {
+  ATTACHMENT_READ_FAILED_REASON,
   NO_USABLE_EMAIL_REASON,
   buildEmailBody,
   createEmailProvider,
@@ -317,6 +318,41 @@ describe("LAN-514 — attachments, idempotency and Resend's 409s", () => {
     });
     expect(calls).toHaveLength(0);
     expect(outcome).toMatchObject({ status: "refused", retryable: false, faultScope: "message" });
+  });
+
+  it("reports a file that cannot be read mid-send as this application's failure, not the provider's", async () => {
+    const [file] = WITH_FILE.attachments ?? [];
+    const failingRead: OutboundMessage = {
+      ...WITH_FILE,
+      attachments: [
+        {
+          ...file,
+          readSlice: async () => {
+            throw new Error("Connection terminated unexpectedly");
+          },
+        },
+      ],
+    };
+    // A transport that reads the body as fetch does, so the stream's failure
+    // fails the request.
+    const transport = async (_url: string, init: RequestInit) => {
+      await new Response(init.body).arrayBuffer();
+      return new Response(JSON.stringify({ id: "re_never" }), { status: 200 });
+    };
+    const outcome = await createEmailProvider(CONFIG, transport).send(failingRead);
+    expect(outcome).toEqual({
+      status: "refused",
+      reason: ATTACHMENT_READ_FAILED_REASON,
+      retryable: true,
+      faultScope: "message",
+    });
+  });
+
+  it("still reports a network fault during a streamed send as the provider's", async () => {
+    const outcome = await createEmailProvider(CONFIG, async () => {
+      throw new TypeError("fetch failed");
+    }).send(WITH_FILE);
+    expect(outcome).toMatchObject({ status: "refused", retryable: true, faultScope: "provider" });
   });
 
   it("retries later when the earlier attempt with the same key is still in progress", () => {

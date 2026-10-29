@@ -23,6 +23,7 @@ import type { Client } from "pg";
 
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool } from "@/lib/db";
+import { MAX_ATTACHMENT_BYTES, UPLOAD_CHUNK_BYTES } from "@/lib/services/club-message-input";
 import { openObserver } from "../../../../../tests/helpers/service-layer";
 import { DELETE, PUT } from "./[id]/route";
 import { POST } from "./route";
@@ -76,14 +77,49 @@ function start(origin: string | null = ORIGIN, byteSize = 10) {
 }
 
 function append(id: string, offset: number, bytes: Uint8Array, origin: string | null = ORIGIN) {
+  const requestHeaders = headers(origin);
+  // As a browser's fetch sends it for an ArrayBuffer body.
+  requestHeaders.set("content-length", String(bytes.byteLength));
   return PUT(
     new Request(`${ORIGIN}/api/messages/attachments/${id}?offset=${offset}`, {
       method: "PUT",
-      headers: headers(origin),
+      headers: requestHeaders,
       body: Buffer.from(bytes),
     }),
     { params: Promise.resolve({ id }) },
   );
+}
+
+/**
+ * A chunk sent as a stream of `total` bytes, declaring `declared` as its
+ * length or nothing; `pulled` counts the bytes the route read.
+ */
+function appendStreamed(id: string, total: number, declared: string | null) {
+  const requestHeaders = headers(ORIGIN);
+  if (declared !== null) requestHeaders.set("content-length", declared);
+  const piece = 64 * 1024;
+  const read = { pulled: 0 };
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (read.pulled >= total) {
+        controller.close();
+        return;
+      }
+      const size = Math.min(piece, total - read.pulled);
+      read.pulled += size;
+      controller.enqueue(new Uint8Array(size));
+    },
+  });
+  const response = PUT(
+    new Request(`${ORIGIN}/api/messages/attachments/${id}?offset=0`, {
+      method: "PUT",
+      headers: requestHeaders,
+      body,
+      duplex: "half",
+    } as RequestInit),
+    { params: Promise.resolve({ id }) },
+  );
+  return { response, read };
 }
 
 function remove(id: string, origin: string | null = ORIGIN) {
@@ -162,6 +198,17 @@ describe("a request from anywhere but this application's own pages", () => {
     expect(await uploads()).toEqual([]);
   });
 
+  it("is refused, not failed, with an Origin of null or one that is not a URL", async () => {
+    signedInAs(ownerPersonId);
+    for (const origin of ["null", "not a url"]) {
+      const response = await start(origin);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ status: "forbidden" });
+    }
+    expect(resolveOperatorAccess).not.toHaveBeenCalled();
+    expect(await uploads()).toEqual([]);
+  });
+
   it("is refused for a chunk and a removal too", async () => {
     const id = await ownersUpload();
     resolveOperatorAccess.mockClear();
@@ -204,6 +251,48 @@ describe("who may upload", () => {
 
     expect((await remove(id)).status).toBe(200);
     expect(await uploads()).toEqual([]);
+  });
+});
+
+describe("a file's size", () => {
+  it("is refused over the 20 MB one message may send when the upload starts, though the database would hold it", async () => {
+    signedInAs(ownerPersonId);
+    const refused = await start(ORIGIN, MAX_ATTACHMENT_BYTES + 1);
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toMatchObject({ status: "refused" });
+    expect(await uploads()).toEqual([]);
+
+    const atTheLimit = await start(ORIGIN, MAX_ATTACHMENT_BYTES);
+    expect(atTheLimit.status).toBe(200);
+  });
+});
+
+describe("a chunk's size", () => {
+  it("is refused when the request declares no length, before the body is read", async () => {
+    const id = await ownersUpload();
+    const sent = appendStreamed(id, 5, null);
+    const response = await sent.response;
+    expect(response.status).toBe(411);
+    expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
+  });
+
+  it("is refused when the declared length is over one chunk, before the body is read", async () => {
+    const id = await ownersUpload();
+    const sent = appendStreamed(id, 5, String(UPLOAD_CHUNK_BYTES + 1));
+    const response = await sent.response;
+    expect(response.status).toBe(413);
+    expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
+  });
+
+  it("stops reading a body that runs past one chunk, whatever it declared", async () => {
+    const id = await ownersUpload();
+    const total = UPLOAD_CHUNK_BYTES * 4;
+    const sent = appendStreamed(id, total, "5");
+    const response = await sent.response;
+    expect(response.status).toBe(413);
+    expect(sent.read.pulled).toBeLessThan(total);
+    expect(sent.read.pulled).toBeLessThanOrEqual(UPLOAD_CHUNK_BYTES + 2 * 64 * 1024);
+    expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
   });
 });
 

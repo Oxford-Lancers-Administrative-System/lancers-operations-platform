@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import type { EmailConfig } from "./config";
-import { buildEmailBody, createEmailProvider } from "./email";
+import { ATTACHMENT_READ_FAILED_REASON, buildEmailBody, createEmailProvider } from "./email";
 import { ATTACHMENT_SLICE_BYTES } from "./email-body-stream";
 import type { OutboundMessage } from "./provider";
 
@@ -147,6 +147,52 @@ async function sendOnce(size: number) {
     elapsedMs,
   };
 }
+
+describe("LAN-514 — a file that fails to read mid-send", () => {
+  it("fails the real request and is reported as this application's fault, not the provider's", async () => {
+    const config: EmailConfig = {
+      apiBaseUrl: baseUrl,
+      apiKey: "test-key-not-a-real-one",
+      appBaseUrl: "https://app.oxfordlancers.example",
+      fromAddress: "events@lancers.example",
+      replyToAddress: null,
+      recipientOverride: null,
+    };
+    const file = crypto.randomBytes(ATTACHMENT_SLICE_BYTES * 2);
+    let reads = 0;
+    const outcome = await createEmailProvider(config, fetch).send({
+      kind: "club_message",
+      recipient: "jamie@example.com",
+      inviteeName: "Jamie",
+      eventName: "",
+      whenLabel: "",
+      rsvpUrl: "",
+      subject: "Playbook",
+      bodyText: "Attached.",
+      idempotencyKey: `club-message:${crypto.randomUUID()}:${crypto.randomUUID()}`,
+      attachments: [
+        {
+          filename: "playbook.pdf",
+          contentType: "application/pdf",
+          byteSize: file.length,
+          // The first slice goes out; the database drops on the second.
+          readSlice: async (offset, length) => {
+            reads += 1;
+            if (reads > 1) throw new Error("Connection terminated unexpectedly");
+            return Buffer.from(file.subarray(offset, offset + length));
+          },
+        },
+      ],
+    });
+    expect(reads).toBe(2);
+    expect(outcome).toEqual({
+      status: "refused",
+      reason: ATTACHMENT_READ_FAILED_REASON,
+      retryable: true,
+      faultScope: "message",
+    });
+  });
+});
 
 describe("LAN-514 — attachments streamed to the provider", () => {
   for (const megabytes of [10, 20]) {

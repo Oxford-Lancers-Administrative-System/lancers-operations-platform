@@ -40,6 +40,12 @@ export interface StreamedEmailBody {
   /** The exact byte length of what `stream` produces. */
   readonly length: number;
   readonly stream: ReadableStream<Uint8Array>;
+  /**
+   * Whether the stream itself failed: a slice could not be read, came back
+   * the wrong length, or the body was not the length declared. The send is
+   * then this application's failure, not the provider's.
+   */
+  readonly failed: () => boolean;
 }
 
 /**
@@ -98,6 +104,7 @@ export function streamEmailBody(
 
   const iterator = produce();
   let produced = 0;
+  let failed = false;
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
@@ -110,6 +117,7 @@ export function streamEmailBody(
         produced += next.value.byteLength;
         controller.enqueue(next.value);
       } catch (error) {
+        failed = true;
         controller.error(error);
       }
     },
@@ -118,5 +126,5 @@ export function streamEmailBody(
     },
   });
 
-  return { length, stream };
+  return { length, stream, failed: () => failed };
 }
