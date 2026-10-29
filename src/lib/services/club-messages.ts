@@ -220,18 +220,23 @@ export async function appendAttachmentChunk(input: {
   });
 }
 
-/** Removes one of this operator's uploads that no message has claimed. */
+/**
+ * Removes one of this operator's uploads that no message has claimed. Another
+ * operator's upload, a claimed one or one already gone is refused as not
+ * found, so the answer never says whose an upload is.
+ */
 export async function removeAttachmentUpload(input: {
   readonly actorPersonId: string;
   readonly uploadId: string;
 }): Promise<void> {
-  await withTransaction((tx) =>
+  const removed = await withTransaction((tx) =>
     tx.query(
       `delete from public.club_message_attachments
         where id = $1 and uploaded_by_person_id = $2 and club_message_id is null`,
       [input.uploadId, input.actorPersonId],
     ),
   );
+  if (removed.rowCount === 0) throw new NotFound("That file is no longer there.");
 }
 
 // ---------------------------------------------------------------------------
