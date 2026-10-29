@@ -144,3 +144,28 @@ operator. Each page returned 200 and rendered.
 | `lan-510-recruitment-phone375.png`    | Recruitment at 375           |
 | `lan-510-event-desktop1440.png`       | One seeded event page        |
 | `lan-510-event-phone375.png`          | One seeded event page at 375 |
+
+## 29 October round — LAN-511, LAN-514, LAN-512 (production build)
+
+Event: Practice — hilary week 8. Messages: a synthetic 1.6 MB PDF attached and
+sent to All roster players; one sweep delivered it to the local sink, which
+wrote each email's HTML and its attachment beside the record.
+
+| File                                              | Shows                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `oct29-event-filters-off-desktop1440.png`         | LAN-511: Filter Everyone asked, no filter on, and the table                   |
+| `oct29-event-filters-off-phone375.png`            | The same at 375: each row of buttons scrolls in one line                      |
+| `oct29-event-filters-two-on-desktop1440.png`      | As Player and Answer Yes on; Clear filters shown                              |
+| `oct29-event-filters-two-on-phone375.png`         | The same at 375                                                               |
+| `oct29-messages-compose-desktop1440.png`          | LAN-514: New message, whole page — audience, email with the file attached     |
+| `oct29-messages-compose-phone375.png`             | The same at 375                                                               |
+| `oct29-messages-audience-preview-desktop1440.png` | Send step: Send now or Schedule, Recipients and Not reachable named           |
+| `oct29-messages-audience-preview-phone375.png`    | The same at 375                                                               |
+| `oct29-messages-list-desktop1440.png`             | Messages list after the send                                                  |
+| `oct29-messages-list-phone375.png`                | The same at 375                                                               |
+| `oct29-onboarding-details-desktop1440.png`        | LAN-512: onboarding details step, College filtering as typed, Degree, Subject |
+| `oct29-onboarding-details-phone375.png`           | The same at 375                                                               |
+| `oct29-person-edit-desktop1440.png`               | Correct this record: a legacy college shown as on file, Degree and Subject    |
+| `oct29-person-edit-phone375.png`                  | The same at 375                                                               |
+| `oct29-recruitment-new-desktop1440.png`           | Recruitment hand-add: college chosen, BA, Subject filtered to BA subjects     |
+| `oct29-recruitment-new-phone375.png`              | The same at 375                                                               |
