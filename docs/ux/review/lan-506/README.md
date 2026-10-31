@@ -198,3 +198,21 @@ local synthetic seed, at 1440 and 375.
 | `oct31-recruitment-new-subject-no-degree-phone375.png`    | The same at 375                                                                           |
 | `oct31-onboarding-subject-no-degree-desktop1440.png`      | Onboarding details step, no Degree: Subject lists every subject                           |
 | `oct31-onboarding-subject-no-degree-phone375.png`         | The same at 375                                                                           |
+
+## Second 31 October walk fixes (LAN-514, LAN-512)
+
+Taken with Playwright against a production build of the batch branch on the
+local synthetic seed, at 1440 and 375.
+
+| File                                                          | Shows                                                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `oct31b-messages-compose-closed-desktop1440.png`              | LAN-514: New message on arrival: every group band closed, People closed with 0 of N chosen       |
+| `oct31b-messages-compose-closed-phone375.png`                 | The same at 375                                                                                  |
+| `oct31b-messages-compose-people-open-desktop1440.png`         | All roster players ticked, its band closed again with 1 chosen; People opened, ticked rows first |
+| `oct31b-messages-compose-people-open-phone375.png`            | The same at 375                                                                                  |
+| `oct31b-person-edit-subject-fills-degree-desktop1440.png`     | LAN-512: Correct this record, Subject Business Administration chosen first fills in MBA          |
+| `oct31b-person-edit-subject-fills-degree-phone375.png`        | The same at 375                                                                                  |
+| `oct31b-recruitment-new-degree-fills-subject-desktop1440.png` | Recruitment hand-add: Degree MChem fills in Subject Chemistry                                    |
+| `oct31b-recruitment-new-degree-fills-subject-phone375.png`    | The same at 375                                                                                  |
+| `oct31b-onboarding-subject-filters-degree-desktop1440.png`    | Onboarding details: Subject Geography; the Degree list offers only BA and PGCE                   |
+| `oct31b-onboarding-subject-filters-degree-phone375.png`       | The same at 375                                                                                  |
