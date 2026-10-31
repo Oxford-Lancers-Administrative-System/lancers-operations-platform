@@ -985,10 +985,13 @@ describe("the recruit ladder — LAN-203", () => {
   it("anchors the recruit invitation to the Recruits group's own lead, not the player one", async () => {
     // The Recruitment row's shipped defaults differ — 5 days for recruits,
     // 5 days for players too here, so widen the gap so a defect that
-    // anchored both to the same instant cannot pass by coincidence.
+    // anchored both to the same instant cannot pass by coincidence. Far
+    // enough ahead that the 20-day lead is still in the future (on 31 October
+    // 2026 a 20 November event's lead had passed and was clamped to now), and
+    // with no clock change between the two leads.
     const event = await newDraft({
       templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
-      scheduledOn: "2026-11-20",
+      scheduledOn: "2027-03-19",
     });
     await withTransaction((tx) =>
       updateMessagingScheduleIn(tx, actorPersonId, SEEDED_TEMPLATE_IDS.recruitment, {
