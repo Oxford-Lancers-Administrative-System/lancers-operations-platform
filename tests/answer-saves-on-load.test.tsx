@@ -61,6 +61,7 @@ import { withTransaction } from "@/lib/db";
 import AnswerLinkPage from "@/app/a/[answer]/[token]/page";
 
 import {
+  agePastSafetyPacing,
   clearRecipientSafetyState,
   openObserver,
   seededIdentityCreatedAt,
@@ -240,6 +241,9 @@ async function dispatched(jobId: string): Promise<{ yes: string; no: string }> {
     });
   });
   expect(await dispatchJob(jobId, { source: CONFIGURED, transport })).toBe("accepted");
+  // The shared five-minute allowance counts every suite's sends on this one
+  // database; age this one out so a parallel suite is not paced by it.
+  await agePastSafetyPacing(observer);
   const tokens = [...new Set([...bodies.join("\n").matchAll(ANSWER_TOKEN)].map((m) => m[1]))];
   const yes = tokens.find((token) => token.startsWith("y."));
   const no = tokens.find((token) => token.startsWith("n."));
