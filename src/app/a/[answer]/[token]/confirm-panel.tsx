@@ -240,6 +240,7 @@ export function Confirm({
         {answer === "no" && followUp ? (
           <Stack direction="row" spacing={1.5}>
             <PendingSubmitButton
+              savingLabel={SAVING}
               name="intent"
               value="answer"
               variant="outlined"
@@ -255,14 +256,19 @@ export function Confirm({
               variant="contained"
               color="primary"
               fullWidth
-              showsSaving={false}
               sx={{ minHeight: 48 }}
             >
               {CHANGE_TO_YES}
             </PendingSubmitButton>
           </Stack>
         ) : (
-          <PendingSubmitButton variant="contained" color="primary" fullWidth sx={{ minHeight: 48 }}>
+          <PendingSubmitButton
+            savingLabel={SAVING}
+            variant="contained"
+            color="primary"
+            fullWidth
+            sx={{ minHeight: 48 }}
+          >
             {failed(mode) ? RETRY : confirmLabel(answer, followUp && landing.questions.length > 0)}
           </PendingSubmitButton>
         )}
@@ -347,7 +353,13 @@ function RecruitConfirm({
 
       <Box id={ANSWER_FORM_ID} component="form" action={submitAnswer}>
         <input type="hidden" name="token" value={token} />
-        <PendingSubmitButton variant="contained" color="primary" fullWidth sx={{ minHeight: 48 }}>
+        <PendingSubmitButton
+          savingLabel={SAVING}
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ minHeight: 48 }}
+        >
           {failed(mode) ? RETRY : RECRUIT_CONFIRM_LABEL}
         </PendingSubmitButton>
       </Box>
