@@ -57,3 +57,30 @@ export function AutoSubmitOnInteraction({ formId }: { formId: string }): null {
 
   return null;
 }
+
+/**
+ * LAN-498 (Brian, 31 October 2026): a link delivered by WhatsApp saves its
+ * answer the moment the page has hydrated — no interaction needed. Clint's
+ * players tapped Yes, read the page, and left; nothing was recorded, because
+ * the save waited for a touch.
+ *
+ * Safe only where the delivery channel is WhatsApp, and `page.tsx` renders
+ * this only there: WhatsApp's preview fetcher reads HTML and runs no script,
+ * so this never fires for it. Email keeps `AutoSubmitOnInteraction` above —
+ * Safe Links and other mail scanners open links in a browser that does run
+ * script. The GET still writes nothing; this submits the ordinary form
+ * through the same action, cookie gate and throttle. Once per mount, Strict
+ * Mode's double effect included.
+ */
+export function SubmitOnLoad({ formId }: { formId: string }): null {
+  const fired = useRef(false);
+
+  useEffect(() => {
+    if (fired.current) return;
+    fired.current = true;
+    const form = document.getElementById(formId);
+    if (form instanceof HTMLFormElement) form.requestSubmit();
+  }, [formId]);
+
+  return null;
+}

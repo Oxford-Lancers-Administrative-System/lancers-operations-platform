@@ -329,6 +329,49 @@ export async function resolveAnswerTokenIn(tx: Tx, token: string): Promise<Answe
   };
 }
 
+/** The channel an answer token was delivered on, as far as the record proves it. */
+export type AnswerTokenChannel = "whatsapp" | "email";
+
+/**
+ * Which channel carried the message this answer token was minted for — LAN-498.
+ * **Writes nothing**, like `resolveAnswerTokenIn`.
+ *
+ * `claimJobIn` (`delivery.ts`) mints a message's RSVP token, its two answer
+ * tokens and its `delivery_attempts` row in one transaction, and every one of
+ * those rows takes its timestamp from `now()` — the transaction's start time,
+ * identical for every statement in it. So the attempt this token went out on is
+ * the one whose RSVP token was issued for the same invitation at the same
+ * instant as this token, and that attempt names its channel. No column carries
+ * the link; the shared instant does.
+ *
+ * `null` when the record does not prove one channel: a token minted outside a
+ * dispatch (a fixture, a script), or more than one channel matching. The caller
+ * treats `null` exactly like email — the cautious behaviour — so a token this
+ * cannot place never saves itself.
+ */
+export async function readAnswerTokenChannelIn(
+  tx: Tx,
+  token: string,
+): Promise<AnswerTokenChannel | null> {
+  const parsed = parseAnswerToken(token);
+  if (!parsed) return null;
+
+  const result = await tx.query<{ channel: string }>(
+    `select distinct a.channel::text as channel
+       from public.person_access_tokens t
+       join public.rsvp_access_tokens r
+         on r.invitation_id = $2 and r.issued_at = t.issued_at
+       join public.delivery_attempts a on a.rsvp_access_token_id = r.id
+      where t.token_hash = $1
+        and t.single_use`,
+    [hashToken(token), parsed.invitationId],
+  );
+
+  if (result.rows.length !== 1) return null;
+  const channel = result.rows[0].channel;
+  return channel === "whatsapp" || channel === "email" ? channel : null;
+}
+
 export const ANSWER_TOKEN_CLOSED_RULE = "player_answer_token_closed";
 
 export interface RecordedPlayerAnswer {

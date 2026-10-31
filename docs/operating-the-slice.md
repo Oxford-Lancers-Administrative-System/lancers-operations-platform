@@ -1298,38 +1298,62 @@ Open the Yes link § 7a built from the delivery sink file. It is the link a play
 would have received; it is not recoverable from any screen, and nobody reads it
 out of the application.
 
-**Expected, and it is designed for a phone.** The page does not ask the question
-again — the player already answered it by pressing a button in WhatsApp, so this
-is a confirmation. A card headed with the event type, then **You're attending**,
-the event name with its date and time, then Player, Venue, Response deadline —
-"Monday, 12 October at 18:00 · Late responses accepted until start" — and Your
-answer — "You're attending". Under "This secure page records only your response.
-Other players' responses are never visible." come the event's own questions, if
-it asks any, under **A couple of questions for this event**; then one full-width
+**When the page saves depends on the channel that delivered the link** (LAN-498,
+Brian, 31 October 2026). The server reads the channel off the token's own
+delivery record — never off the URL:
+
+- **WhatsApp** — the page saves the answer by itself as soon as it has loaded in
+  the browser. WhatsApp's link-preview fetcher reads the HTML and runs no
+  script, so it cannot trigger the save. The exception: if the player already
+  has a _different_ answer standing (they changed it since), the page waits for
+  a touch instead, so reopening an old tab never silently flips it.
+- **Email**, or a token the record cannot place — the page waits for the
+  player's first touch, scroll or key outside the form, or the button. Mail
+  scanners such as Microsoft 365 Safe Links open links in a browser that does
+  run script, so saving on load there would record answers nobody gave.
+- **A known preview fetcher or crawler** (`src/lib/rsvp/preview-agents.ts`;
+  WhatsApp's own fetcher is a User-Agent starting `WhatsApp/`) — nothing saves
+  by itself on either channel, and the POST refuses to record.
+
+The GET itself still writes nothing at all, which is what makes the link safe to
+paste into WhatsApp. There is no login; the link is the credential.
+
+**Expected, and it is designed for a phone.** The § 7a sink link is a WhatsApp
+message, so the page opens headed **Saving…**: the event type, the event name
+with its date and time, then Player, Venue, Response deadline — "Monday, 12
+October at 18:00 · Late responses accepted until start" — and Answer —
+**Attending** — with the button beneath reading **Saving…** while the save is in
+flight. Nothing on this page says "You're attending" before the save has
+committed. Within a moment the player is handed their own events page for the
+season — `/events/<durable token>`, minted by that save — with this event's
+panel open and its standing answer reading **Attending**. The event's own
+questions, if it asks any, are on that panel under **Save answers**.
+
+1. Close the page as soon as it has loaded, then refresh the operator's event.
+
+**Expected.** The Yes is recorded. Nothing had to be pressed.
+
+An email link opens headed **Confirm your answer** instead, with the event's
+questions inline under **A couple of questions for this event**, one full-width
 button — **Save options** when there are questions, **Go see other events** when
 there are none — and beneath it, quietly, **Plans changed? You can change your
-answer.**
+answer.** The first touch outside the form, or that button, saves.
 
-There is no login. The link is the credential. Opening it writes nothing at all,
-which is what makes it safe to paste into WhatsApp: the button below is the write.
-
-1. Press that button.
-
-**Expected.** The answer and any options are recorded in one go, and the player
-is handed their own events page for the season — `/events/<durable token>`,
-minted by that press — with this event's panel already open and its standing
-answer reading **Attending**.
+If a save fails, the page comes back headed **Not saved** with "Your response has
+not been saved." and a **Retry** button; nothing saves again by itself. A
+throttled save shows the same heading and button with the busy message.
 
 2. Now open the **No** link from the same sink file: the `n.` suffix, under
    `/a/no/`. It is a second, separate credential, so the Yes above did not
    consume it.
 
-**Expected.** **You're not attending — no reason given** — the press already
-recorded the No, and the page never suggests otherwise. Then "The club plans
-numbers, transport and coaching from these responses. Tell the club why if you
-can.", a **Reason** field, and two controls: **Give a reason and continue**, and
-**Change to Yes** carrying the emphasis. A blank reason is accepted, not refused;
-the recorded reason stays "No reason given" until the player types one.
+**Expected.** Saved on load, the No records "No reason given", and the events
+page's panel offers the **Reason** field and **Save**, with **Change to Yes**. A
+blank reason is accepted, not refused; the recorded reason stays "No reason
+given" until the player types one. An email No link instead shows **Confirm your
+answer**, "The club plans numbers, transport and coaching from these responses.
+Tell the club why if you can.", a **Reason** field, and two controls: **Give a
+reason and continue**, and **Change to Yes** carrying the emphasis.
 
 At 375px every field stacks, the buttons run the full width, and nothing is
 clipped or needs sideways scrolling.

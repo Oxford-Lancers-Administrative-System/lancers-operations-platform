@@ -661,6 +661,10 @@ async function claimJobIn(
   // same reason: a recruit's one follow-up is still answered by tapping Yes
   // or No, and lands on the same shipped `/rsvp/[token]` saved page a
   // player's answer does.
+  //
+  // LAN-498. These two tokens, `token` above and the attempt row below must
+  // stay in this one transaction: `readAnswerTokenChannelIn` finds the channel
+  // a token went out on by their shared `now()`.
   let yesUrl: string | null = null;
   let noUrl: string | null = null;
   if (kind === "invitation" || kind === "reminder" || kind === "recruit_event_followup") {

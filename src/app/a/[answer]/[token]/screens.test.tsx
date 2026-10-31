@@ -16,8 +16,10 @@ vi.mock("next/navigation", () => ({
     throw new Error("NEXT_NOT_FOUND");
   },
 }));
+/** LAN-498: the request's User-Agent, `null` for none. */
+let userAgent: string | null = null;
 vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
+  headers: async () => new Headers(userAgent === null ? {} : { "user-agent": userAgent }),
 }));
 vi.mock("@/lib/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db")>();
@@ -25,7 +27,7 @@ vi.mock("@/lib/db", async (importOriginal) => {
 });
 vi.mock("@/lib/services/player-answer-tokens", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/player-answer-tokens")>();
-  return { ...actual, resolveAnswerTokenIn: vi.fn() };
+  return { ...actual, resolveAnswerTokenIn: vi.fn(), readAnswerTokenChannelIn: vi.fn() };
 });
 vi.mock("@/lib/services/player-home", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/player-home")>();
@@ -49,11 +51,15 @@ vi.mock("./auto-submit", () => ({
   AutoSubmitOnInteraction: ({ formId }: { formId: string }) => (
     <div data-testid="auto-submit-stub" data-form-id={formId} />
   ),
+  SubmitOnLoad: ({ formId }: { formId: string }) => (
+    <div data-testid="submit-on-load-stub" data-form-id={formId} />
+  ),
 }));
 
 import { withTransaction } from "@/lib/db";
 import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
 import {
+  readAnswerTokenChannelIn,
   resolveAnswerTokenIn,
   type AnswerTokenResolution,
 } from "@/lib/services/player-answer-tokens";
@@ -67,11 +73,17 @@ import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
 import AnswerLinkPage from "./page";
 import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
 import {
+  ATTENDING,
   BUSY_ERROR,
-  NO_HEADING,
+  BUSY_MESSAGE,
+  CONFIRM_HEADING,
+  NOT_SAVED_HEADING,
+  RETRY,
+  SAVING,
+  UNSAVED_ERROR,
+  UNSAVED_MESSAGE,
   YES_CONFIRM_NO_QUESTIONS,
   YES_CONFIRM_WITH_QUESTIONS,
-  YES_HEADING,
 } from "./presentation";
 
 const QUESTION: EventQuestionForAnswer = {
@@ -166,6 +178,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetRsvpRateLimit();
   segment = "yes";
+  userAgent = null;
+  // Email unless a test says WhatsApp: the cautious default, and every
+  // pre-LAN-498 test below is about the page that waits for a touch.
+  vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("email");
   vi.mocked(withTransaction).mockImplementation(async (work: (tx: never) => unknown) =>
     work({ query: vi.fn() } as never),
   );
@@ -179,7 +195,7 @@ describe("OWNER-LAN172-01 — the restored fact block", () => {
     expect(text).toContain("Avery Fielding");
     expect(text).toContain("Iffley Road Astro");
     expect(text).toContain("Tuesday, 13 October at 18:00");
-    expect(text).toContain(YES_HEADING);
+    expect(text).toContain(ATTENDING);
   });
 
   it("carries live social proof and the other-invitations notice", async () => {
@@ -191,20 +207,51 @@ describe("OWNER-LAN172-01 — the restored fact block", () => {
   });
 });
 
-describe("OWNER-LAN172-13 — the No heading, restored to W2's own words", () => {
-  it("leads with 'You're not attending — no reason given', per W2's No-path section verbatim", async () => {
-    // Owner correction round 5 supersedes round 2's LAN-172-c2: the Mission
-    // Lead read W2-answer-an-invitation.md lines 160-190 in full and quoted
-    // it directly — "Lead with You're not attending — no reason given... The
-    // wording must never suggest the No is unrecorded until a reason
-    // arrives. The click already recorded it." Q-11 is unaffected: this GET
-    // still writes nothing; the heading describes the player's own WhatsApp
-    // choice and the reason field's honest current value, not a database row.
+/**
+ * LAN-498 supersedes OWNER-LAN172-13's heading. "You're not attending — no
+ * reason given" and "You're attending" were shown before any save, and a
+ * player who read them and left had nothing recorded. Before the commit the
+ * page names only the state of the save.
+ */
+describe("LAN-498 — no confirmation before the save has committed", () => {
+  it("heads an email No with 'Confirm your answer', never a claim that it is recorded", async () => {
     givenAnswer("no");
     const text = (await renderPage()).container.textContent ?? "";
 
-    expect(text).toContain(NO_HEADING);
-    expect(NO_HEADING).toBe("You're not attending — no reason given");
+    expect(text).toContain(CONFIRM_HEADING);
+    expect(text).not.toMatch(/you're (not )?attending/i);
+    expect(text).not.toContain("Your answer");
+  });
+
+  it("heads an email Yes with 'Confirm your answer', never 'You're attending'", async () => {
+    givenAnswer("yes", [QUESTION]);
+    const text = (await renderPage()).container.textContent ?? "";
+
+    expect(text).toContain(CONFIRM_HEADING);
+    expect(text).not.toMatch(/you're attending/i);
+  });
+
+  it("heads a WhatsApp Yes with 'Saving…' — the save is already on its way", async () => {
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const text = (await renderPage()).container.textContent ?? "";
+
+    expect(text).toContain(SAVING);
+    expect(text).not.toMatch(/you're attending/i);
+    expect(text).not.toContain("Your answer");
+  });
+
+  it("heads a recruit's page the same way, on both channels", async () => {
+    givenRecruitAnswer("yes");
+    const email = await renderPage();
+    expect(email.container.textContent).toContain(CONFIRM_HEADING);
+    expect(email.container.textContent).not.toMatch(/you're attending/i);
+    email.unmount();
+
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const whatsapp = await renderPage();
+    expect(whatsapp.container.textContent).toContain(SAVING);
+    expect(whatsapp.container.textContent).not.toMatch(/you're attending/i);
   });
 });
 
@@ -307,6 +354,128 @@ describe("OWNER-LAN172-13 — the No landing takes the reason itself", () => {
     // Exactly two forward controls on the No page: the reason form's own
     // pair. No third "confirm"/"continue" button competes with either.
     expect(buttons.filter((label) => /continue/i.test(label ?? ""))).toHaveLength(1);
+  });
+});
+
+describe("LAN-498 — which loads save by themselves", () => {
+  it("arms the on-load save, and only it, for a WhatsApp token with no standing answer", async () => {
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const { getByTestId, queryByTestId } = await renderPage();
+
+    expect(getByTestId("submit-on-load-stub")).toHaveAttribute("data-form-id", ANSWER_FORM_ID);
+    expect(queryByTestId("auto-submit-stub")).toBeNull();
+  });
+
+  it("arms it for a WhatsApp No too", async () => {
+    givenAnswer("no");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const { getByTestId } = await renderPage();
+
+    expect(getByTestId("submit-on-load-stub")).toHaveAttribute("data-form-id", ANSWER_FORM_ID);
+  });
+
+  it("keeps the touch rule for an email token, and a channel the record cannot prove", async () => {
+    givenAnswer("yes");
+    const email = await renderPage();
+    expect(email.queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(email.getByTestId("auto-submit-stub")).toBeInTheDocument();
+    email.unmount();
+
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue(null);
+    const unknown = await renderPage();
+    expect(unknown.queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(unknown.getByTestId("auto-submit-stub")).toBeInTheDocument();
+  });
+
+  it("never silently replaces a different standing answer: a reopened WhatsApp Yes over a later No waits for a touch", async () => {
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    vi.mocked(readSignedRsvpPageIn).mockResolvedValue({
+      ...BASE,
+      currentResponse: { response: "no", reason: "Injured", respondedAt: new Date() },
+    });
+    const { queryByTestId, getByTestId } = await renderPage();
+
+    expect(queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(getByTestId("auto-submit-stub")).toBeInTheDocument();
+  });
+
+  it("still saves on load when the standing answer is the same one", async () => {
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    vi.mocked(readSignedRsvpPageIn).mockResolvedValue({
+      ...BASE,
+      currentResponse: { response: "yes", reason: null, respondedAt: new Date() },
+    });
+    const { getByTestId } = await renderPage();
+
+    expect(getByTestId("submit-on-load-stub")).toBeInTheDocument();
+  });
+
+  it("leaves the questions to the events page on a WhatsApp Yes, so nothing typed is pulled away", async () => {
+    givenAnswer("yes", [QUESTION]);
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const { container } = await renderPage();
+
+    expect(container.textContent).not.toContain(QUESTION.prompt);
+    expect(container.textContent).toContain(YES_CONFIRM_NO_QUESTIONS);
+  });
+
+  it("arms nothing for a known preview fetcher, on either channel", async () => {
+    userAgent = "WhatsApp/2.23.20.0 A";
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const whatsapp = await renderPage();
+    expect(whatsapp.queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(whatsapp.queryByTestId("auto-submit-stub")).toBeNull();
+    // Still the page, with a button a tap can use.
+    expect(
+      whatsapp.container.querySelector(`form#${ANSWER_FORM_ID} button[type="submit"]`),
+    ).not.toBeNull();
+    whatsapp.unmount();
+
+    userAgent = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("email");
+    const email = await renderPage();
+    expect(email.queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(email.queryByTestId("auto-submit-stub")).toBeNull();
+  });
+
+  it("saves on load for an ordinary phone browser that opened the WhatsApp link", async () => {
+    userAgent =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const { getByTestId } = await renderPage();
+
+    expect(getByTestId("submit-on-load-stub")).toBeInTheDocument();
+  });
+});
+
+describe("LAN-498 — a failed save says so and offers a retry", () => {
+  it("shows 'Not saved', the failure, and a Retry button, and arms nothing", async () => {
+    givenAnswer("yes");
+    vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
+    const { container, queryByTestId, getByRole } = await renderPage({
+      [ERROR_PARAM]: UNSAVED_ERROR,
+    });
+
+    expect(container.textContent).toContain(NOT_SAVED_HEADING);
+    expect(container.textContent).toContain(UNSAVED_MESSAGE);
+    expect(getByRole("button", { name: RETRY })).toHaveAttribute("type", "submit");
+    expect(queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(queryByTestId("auto-submit-stub")).toBeNull();
+    expect(container.textContent).not.toMatch(/you're attending/i);
+  });
+
+  it("does the same for a throttled save, with its own busy message", async () => {
+    givenAnswer("no");
+    const { container, getByRole } = await renderPage({ [ERROR_PARAM]: BUSY_ERROR });
+
+    expect(container.textContent).toContain(NOT_SAVED_HEADING);
+    expect(container.textContent).toContain(BUSY_MESSAGE);
+    expect(getByRole("button", { name: RETRY })).toBeInTheDocument();
   });
 });
 

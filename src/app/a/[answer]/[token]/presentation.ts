@@ -26,9 +26,25 @@ export function confirmLabel(answer: "yes" | "no", hasQuestions: boolean): strin
 export const YES_CONFIRM_WITH_QUESTIONS = "Save options";
 export const YES_CONFIRM_NO_QUESTIONS = "Go see other events";
 
-export const YES_HEADING = "You're attending";
-/** Owner correction round 5 (OWNER-LAN172-13): "the wording must never suggest the No is unrecorded until a reason arrives — the click already recorded it." */
-export const NO_HEADING = "You're not attending — no reason given";
+/**
+ * LAN-498. This page used to open with "You're attending" (and "You're not
+ * attending — no reason given") before anything was saved, and a player who
+ * read it and left had no answer recorded. The page now says only what is
+ * true before the save commits: the save in flight, the answer awaiting its
+ * save, or a failed save. The confirmation itself is the page the committed
+ * POST lands on.
+ */
+export const SAVING = "Saving…";
+export const CONFIRM_HEADING = "Confirm your answer";
+export const NOT_SAVED_HEADING = "Not saved";
+export const RETRY = "Retry";
+export const ANSWER_LABEL = "Answer";
+export const ATTENDING = "Attending";
+export const NOT_ATTENDING = "Not attending";
+
+export function answerValue(answer: "yes" | "no"): string {
+  return answer === "yes" ? ATTENDING : NOT_ATTENDING;
+}
 export const NO_EXPLANATION =
   "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
 export const CHANGE_TO_YES = "Change to Yes";
@@ -95,5 +111,8 @@ export const TERMINAL_PRIVACY_NOTE =
 export const CLOSE = "Close";
 
 export const BUSY_ERROR = "busy";
+/** LAN-498: the save failed — closed gate, rolled-back write, or a link that no longer resolves (which the GET then shows as terminal). One value for all, so none is distinguishable. */
+export const UNSAVED_ERROR = "unsaved";
+export const UNSAVED_MESSAGE = "Your response has not been saved.";
 export const BUSY_MESSAGE =
   "Your response could not be saved just now because the club received a lot of requests at once. Please try again in a minute.";
