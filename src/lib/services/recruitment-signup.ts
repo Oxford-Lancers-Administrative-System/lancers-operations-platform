@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
+import { academicProblems } from "./oxford-academic";
 import { recordAudit } from "./audit";
 import { applyAudienceGroupRuleIn } from "./event-audience-rule";
 import { grantSeasonMessagingConsentIn } from "./messaging-consent";
@@ -37,6 +38,9 @@ export interface SignupSubmission {
   /** Raw text, as typed. Optional; validated when supplied (finding 3). */
   readonly matriculationYear?: string | null;
   readonly expectedGraduationYear?: string | null;
+  /** LAN-512. The degree letters, from the University's list. */
+  readonly degreeType?: string | null;
+  /** LAN-512. The subject offered with those letters. */
   readonly degreeField?: string | null;
   readonly consent: boolean;
 }
@@ -155,6 +159,17 @@ function validateSignupSubmission(submission: SignupSubmission): {
     });
   }
 
+  // LAN-512: college and degree from the University's lists only.
+  const academic = academicProblems({
+    college: submission.college,
+    letters: submission.degreeType,
+    subject: submission.degreeField,
+  });
+  const academicProblem = academic.college ?? academic.letters ?? academic.subject;
+  if (academicProblem) {
+    throw new ConstraintViolated(academicProblem, { rule: "recruitment_signup_academic_listed" });
+  }
+
   if (submission.consent !== true) {
     throw new ConstraintViolated(
       "Tick the consent box to save this form — it cannot be saved without it.",
@@ -197,6 +212,7 @@ export async function probeExistingRecruitForQrSignup(
 
 const TEXT_FIELD_COLUMNS = {
   college: "college",
+  degreeType: "degree_type",
   degreeField: "degree_field",
 } as const;
 
@@ -298,6 +314,12 @@ async function applyQuestionnaireAAnswersIn(
 ): Promise<void> {
   await recordKnownAsIn(tx, personId, givenName, submission.knownAs);
   await fillPersonTextFieldIfBlankIn(tx, personId, TEXT_FIELD_COLUMNS.college, submission.college);
+  await fillPersonTextFieldIfBlankIn(
+    tx,
+    personId,
+    TEXT_FIELD_COLUMNS.degreeType,
+    submission.degreeType,
+  );
   await fillPersonTextFieldIfBlankIn(
     tx,
     personId,
@@ -480,6 +502,7 @@ export interface SignupPrefill {
   readonly college: string | null;
   readonly matriculationYear: number | null;
   readonly expectedGraduationYear: number | null;
+  readonly degreeType: string | null;
   readonly degreeField: string | null;
 }
 
@@ -491,9 +514,11 @@ export async function readSignupPrefillIn(tx: Tx, personId: string): Promise<Sig
     college: string | null;
     matriculation_year: number | null;
     expected_graduation_year: number | null;
+    degree_type: string | null;
     degree_field: string | null;
   }>(
-    `select given_name, family_name, college, matriculation_year, expected_graduation_year, degree_field
+    `select given_name, family_name, college, matriculation_year, expected_graduation_year,
+            degree_type, degree_field
        from public.people where id = $1::uuid`,
     [personId],
   );
@@ -526,6 +551,7 @@ export async function readSignupPrefillIn(tx: Tx, personId: string): Promise<Sig
     college: row?.college ?? null,
     matriculationYear: row?.matriculation_year ?? null,
     expectedGraduationYear: row?.expected_graduation_year ?? null,
+    degreeType: row?.degree_type ?? null,
     degreeField: row?.degree_field ?? null,
   };
 }
@@ -695,18 +721,29 @@ async function applyPartialFieldsIn(
       graduation: onFile.rows[0]?.expected_graduation_year ?? null,
     },
   );
+  // LAN-512: only a listed college and a listed degree pair are kept; the
+  // real Save refuses anything else, so a half-typed value waits for it.
+  const academic = academicProblems({
+    college: submission.college,
+    letters: submission.degreeType,
+    subject: submission.degreeField,
+  });
+  const college = academic.college ? null : trimmedOrNull(submission.college);
+  const pairListed = !academic.letters && !academic.subject;
   await tx.query(
     `update public.people
         set college = coalesce($2, college),
-            degree_field = coalesce($3, degree_field),
-            matriculation_year = $4,
-            expected_graduation_year = $5,
+            degree_type = coalesce($3, degree_type),
+            degree_field = coalesce($4, degree_field),
+            matriculation_year = $5,
+            expected_graduation_year = $6,
             updated_at = now()
       where id = $1::uuid`,
     [
       personId,
-      trimmedOrNull(submission.college),
-      trimmedOrNull(submission.degreeField),
+      college,
+      pairListed ? trimmedOrNull(submission.degreeType) : null,
+      pairListed ? trimmedOrNull(submission.degreeField) : null,
       years.matriculation,
       years.graduation,
     ],

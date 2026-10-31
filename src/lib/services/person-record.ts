@@ -85,6 +85,9 @@ export interface PersonRecord {
   expectedGraduationYearSource: string | null;
   degreeField: string | null;
   degreeFieldSource: string | null;
+  /** LAN-512. The degree letters (`oxford-academic.ts`); `degreeField` is the subject. */
+  degreeType: string | null;
+  degreeTypeSource: string | null;
   /** LAN-267. Operator-editable as well as questionnaire-collected. */
   studentNumber: string | null;
   studentNumberSource: string | null;
@@ -93,6 +96,9 @@ export interface PersonRecord {
   /** `REQ-restricted-fields`: four-role only, and never on a list, board or queue. */
   dateOfBirth: string | null;
   dateOfBirthSource: string | null;
+  /** LAN-502. A `DIETARY_PREFERENCE_VALUES` code; `null` for no answer, which is everyone who onboarded before it was asked. */
+  dietaryPreference: string | null;
+  dietaryPreferenceSource: string | null;
   /** `REQ-restricted-fields`: structurally isolated; four-role only. `null` when none is recorded. */
   emergencyContact: EmergencyContact | null;
   contacts: PersonContactValue[];
@@ -135,9 +141,11 @@ interface PersonRow {
   matriculation_year: number | null;
   expected_graduation_year: number | null;
   degree_field: string | null;
+  degree_type: string | null;
   student_number: string | null;
   bafa_registration_number: string | null;
   date_of_birth: string | null;
+  dietary_preference: string | null;
   merged_into_person_id: string | null;
   display_alias: string | null;
   status: AssembledStatus;
@@ -152,8 +160,10 @@ async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
   const result = await tx.query<PersonRow>(
     `select p.id as person_id, p.given_name, p.middle_name, p.family_name,
             p.college, p.matriculation_year, p.expected_graduation_year, p.degree_field,
+            p.degree_type,
             p.student_number, p.bafa_registration_number,
             to_char(p.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
+            p.dietary_preference,
             p.merged_into_person_id,
             ${personDisplayAliasSql("p")} as display_alias,
             ${personAssembledStatusSql("p")} as status,
@@ -265,9 +275,11 @@ const DERIVED_PROVENANCE_FIELDS = [
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
+  "degree_type",
   "student_number",
   "bafa_registration_number",
   "date_of_birth",
+  "dietary_preference",
 ] as const;
 
 type DerivedProvenanceField = (typeof DERIVED_PROVENANCE_FIELDS)[number];
@@ -368,12 +380,16 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     expectedGraduationYearSource: fieldProvenance.expected_graduation_year,
     degreeField: row.degree_field,
     degreeFieldSource: fieldProvenance.degree_field,
+    degreeType: row.degree_type,
+    degreeTypeSource: fieldProvenance.degree_type,
     studentNumber: row.student_number,
     studentNumberSource: fieldProvenance.student_number,
     bafaRegistrationNumber: row.bafa_registration_number,
     bafaRegistrationNumberSource: fieldProvenance.bafa_registration_number,
     dateOfBirth: row.date_of_birth,
     dateOfBirthSource: fieldProvenance.date_of_birth,
+    dietaryPreference: row.dietary_preference,
+    dietaryPreferenceSource: fieldProvenance.dietary_preference,
     emergencyContact,
     contacts,
     isPastMember: row.is_past_member ?? false,

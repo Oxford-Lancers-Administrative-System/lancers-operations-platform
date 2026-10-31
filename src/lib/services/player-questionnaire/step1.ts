@@ -1,6 +1,8 @@
 import { isServiceError, withTransaction } from "@/lib/db";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
+import { isDietaryPreference } from "../person-dietary";
+import { academicProblems } from "../oxford-academic";
 import { recordOnboardingActivityIn } from "../onboarding-activity-log";
 import {
   grantSeasonMessagingConsentIn,
@@ -102,6 +104,23 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     const validation = validateDateOfBirth(input.fields.date_of_birth);
     if (!validation.valid) errors.date_of_birth = validation.message;
   }
+
+  // LAN-502: one of three answers. A blank one is required-ness, the form's to refuse.
+  const dietary = input.fields.dietary_preference?.trim() ?? "";
+  if (dietary !== "" && !isDietaryPreference(dietary)) {
+    errors.dietary_preference = "Choose one of the three answers.";
+  }
+
+  // LAN-512: college and degree from the University's lists only. A refused
+  // value is not written, and is told against its own field.
+  const academic = academicProblems({
+    college: input.fields.college,
+    letters: input.fields.degree_type,
+    subject: input.fields.degree_field,
+  });
+  if (academic.college) errors.college = academic.college;
+  if (academic.letters) errors.degree_type = academic.letters;
+  if (academic.subject) errors.degree_field = academic.subject;
 
   if (input.grantConsent) {
     await withTransaction(async (tx) => {

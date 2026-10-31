@@ -9,6 +9,7 @@ export type StudentFactsOf = Pick<
   | "matriculationYear"
   | "expectedGraduationYear"
   | "degreeField"
+  | "degreeType"
   | "studentNumber"
   | "bafaRegistrationNumber"
 >;
@@ -23,7 +24,7 @@ export type StudentFactsOf = Pick<
  * `personAssembledStatusSql` (`sql-text.ts`) gives a status at all — a
  * departed or archived player still was one. The student facts are the
  * section's own: a current college email, college, matriculation year,
- * expected graduation, degree field, student number and the BAFA registration
+ * expected graduation, degree field, degree type (LAN-494), student number and the BAFA registration
  * number. A coach who does not play has none of them until somebody records
  * one, and from then on the section shows.
  *
@@ -39,6 +40,7 @@ export function showsStudentInformation(record: StudentFactsOf): boolean {
     record.matriculationYear !== null ||
     record.expectedGraduationYear !== null ||
     record.degreeField !== null ||
+    record.degreeType !== null ||
     record.studentNumber !== null ||
     record.bafaRegistrationNumber !== null ||
     record.contacts.some(

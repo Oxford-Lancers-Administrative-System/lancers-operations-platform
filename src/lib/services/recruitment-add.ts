@@ -6,6 +6,7 @@ import { applyAudienceGroupRuleIn } from "./event-audience-rule";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import { addRecruitmentProspectNoteIn } from "./recruitment-prospect";
 import { RECRUITMENT_ADD_OPT_IN_OPTIONS } from "./recruitment-vocabulary";
+import { academicProblems } from "./oxford-academic";
 
 /**
  * `W6` — add a recruit by hand. LAN-206. The four shipped fields and the
@@ -58,6 +59,9 @@ export interface RecruitmentAddAcademic {
   /** V-2: six more of the shipped intake fields, all optional, filled only while blank. */
   readonly knownAs?: string | null;
   readonly expectedGraduationYear?: string | null;
+  /** LAN-512. The degree letters, from the University's list. */
+  readonly degreeType?: string | null;
+  /** LAN-512. The subject offered with those letters. */
   readonly degreeField?: string | null;
   readonly dateOfBirth?: string | null;
   /** One subject (`person_emergency_contacts`' "one per person"); written once, only when a name is given. */
@@ -74,7 +78,7 @@ export interface RecruitmentAddAcademic {
 async function fillPersonTextFieldIfBlankIn(
   tx: Tx,
   personId: string,
-  column: "degree_field",
+  column: "degree_type" | "degree_field",
   value: string | null | undefined,
 ): Promise<void> {
   const trimmed = value?.trim() || null;
@@ -229,6 +233,15 @@ export async function finishRecruitmentAddIn(
   const { actorPersonId, personId, givenName, seasonId, academic } = params;
   const door = params.door ?? OPERATOR_ADD_DOOR;
 
+  // LAN-512: college and degree from the University's lists only.
+  const listed = academicProblems({
+    college: academic.college,
+    letters: academic.degreeType,
+    subject: academic.degreeField,
+  });
+  const problem = listed.college ?? listed.letters ?? listed.subject;
+  if (problem) throw new ConstraintViolated(problem, { rule: "recruitment_add_academic_listed" });
+
   const college = academic.college?.trim() || null;
   const matriculationYear = academic.matriculationYear?.trim() || null;
   if (college) {
@@ -248,6 +261,7 @@ export async function finishRecruitmentAddIn(
     }
   }
   await fillKnownAsIfDifferentIn(tx, personId, givenName, academic.knownAs);
+  await fillPersonTextFieldIfBlankIn(tx, personId, "degree_type", academic.degreeType);
   await fillPersonTextFieldIfBlankIn(tx, personId, "degree_field", academic.degreeField);
   await fillPersonYearFieldIfBlankIn(
     tx,

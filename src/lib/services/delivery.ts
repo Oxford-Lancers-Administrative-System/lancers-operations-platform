@@ -191,7 +191,16 @@ export const JOB_HELD_MESSAGE = "This message is on hold after a change to the e
  * question, and was being answered with the state the job had before the hold.
  */
 export type DeliveryState =
-  "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled";
+  | "queued"
+  | "attempted"
+  | "delivered"
+  | "failed"
+  | "retryable"
+  | "held"
+  | "cancelled"
+  | "unknown"
+  // LAN-483. Refused on purpose at claim time; final.
+  | "withheld";
 
 /**
  * What one dispatch did — LAN-394 added the fourth.
@@ -652,6 +661,10 @@ async function claimJobIn(
   // same reason: a recruit's one follow-up is still answered by tapping Yes
   // or No, and lands on the same shipped `/rsvp/[token]` saved page a
   // player's answer does.
+  //
+  // LAN-498. These two tokens, `token` above and the attempt row below must
+  // stay in this one transaction: `readAnswerTokenChannelIn` finds the channel
+  // a token went out on by their shared `now()`.
   let yesUrl: string | null = null;
   let noUrl: string | null = null;
   if (kind === "invitation" || kind === "reminder" || kind === "recruit_event_followup") {
@@ -882,6 +895,15 @@ function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContex
 export const EVENT_HAS_NO_START_TIME_REASON =
   "This event has no start time recorded, so no message can state one as fact. Add a start " +
   "time, then retry.";
+
+/**
+ * LAN-508. Why a WhatsApp copy of an event message failed without a send: its
+ * brief could not be drawn as the header image. Defined here, beside the other
+ * refusals a person has to act on, so {@link NEEDS_A_PERSON_REASONS} can keep it
+ * Failed rather than Withheld (LAN-483): it is not a skip by design.
+ */
+export const EVENT_MESSAGE_RENDER_FAILED_REASON =
+  "The brief could not be drawn as an image, so this WhatsApp message was not sent.";
 
 /**
  * LAN-203. What an operator is told when a recruit invitation's dispatch was
@@ -2006,6 +2028,14 @@ export const DELIVERY_EXPIRED_REASON =
  *
  * Meta notes that a `failed` webhook "could be a minor delay", so the cut-off
  * is deliberately the full TTL rather than the TTL minus a margin.
+ *
+ * ## WhatsApp only — LAN-480
+ *
+ * The TTL and the "assume it was dropped" rule are Meta's, so only a WhatsApp
+ * attempt is swept. Without the channel filter every accepted email was marked
+ * failed thirty days on, with this WhatsApp wording, and read **Retryable**.
+ * An email's outcome comes from the email provider's own receipts or nowhere;
+ * an accepted email nothing has reported on stays **Attempted**.
  */
 export async function concludeExpiredDeliveries(
   options: { source?: EnvironmentSource } = {},
@@ -2022,7 +2052,8 @@ export async function concludeExpiredDeliveries(
     }>(
       `select a.id, a.notification_job_id, a.attempt_number, a.channel::text as channel, a.provider
          from public.delivery_attempts a
-        where a.accepted_at is not null
+        where a.channel = 'whatsapp'
+          and a.accepted_at is not null
           and a.concluded_at is null
           and a.accepted_at < now() - ($1 || ' hours')::interval
           and not exists (
@@ -2178,14 +2209,61 @@ export interface EventDelivery {
  *
  * The mapping from the six job states to LAN-90's five operator states is the
  * whole of the provider neutrality on this screen: `processing` is
- * **Attempted** because we asked and do not yet know, and `failed` splits on
- * the attempt ceiling into **Retryable** and **Failed**.
+ * **Attempted** because we asked and do not yet know — or **Unknown** once the
+ * attempt was concluded with no outcome and none will come (LAN-501) — and
+ * `failed` splits on the attempt ceiling into **Retryable** and **Failed**.
  *
  * Exported for LAN-157, whose participation table carries the same **Delivery**
  * column at the operator tier. UX standard 7: two surfaces answering "did it
  * reach them?" answer it identically, and the surest way is one definition
  * rather than two readings pinned together after the fact.
  */
+/** A SQL string literal. Only ever given this module's own reason constants. */
+function sqlLiteral(text: string): string {
+  return `'${text.replaceAll("'", "''")}'`;
+}
+
+/**
+ * The claim-time refusals a person has to act on — a missing route, a missing
+ * start time, an event brief that cannot be drawn (LAN-508). Fix the record,
+ * the event or the brief, then Retry. Every other refusal made at claim time is
+ * a skip by design.
+ */
+const NEEDS_A_PERSON_REASONS = [
+  NO_USABLE_NUMBER_REASON,
+  NO_USABLE_EMAIL_REASON,
+  EVENT_HAS_NO_START_TIME_REASON,
+  EVENT_MESSAGE_RENDER_FAILED_REASON,
+]
+  .map(sqlLiteral)
+  .join(", ");
+
+/**
+ * LAN-483. The job's latest result is a send refused on purpose at claim time.
+ *
+ * Recognised by the attempt's shape, never by its wording (reasons get
+ * reworded): no provider accepted it, it has no provider message id, it was
+ * requested and concluded in the same instant, and the result repeats the
+ * attempt's own reason. A provider failure is requested before the provider
+ * call and concluded after it, in another transaction, so it never has that
+ * shape. The same test LAN-483's one-off correction uses on the rows written
+ * before the change, so corrected rows read the same.
+ *
+ * A missing route or start time has the same shape and is not a skip, so
+ * {@link NEEDS_A_PERSON_REASONS} leaves those Failed. Needs
+ * {@link DELIVERY_LATEST_RESULT_JOIN}.
+ */
+const CLAIM_TIME_REFUSAL_PREDICATE = `exists (
+      select 1 from public.delivery_attempts a
+       where a.notification_job_id = j.id
+         and a.attempt_number = latest.attempt_number
+         and a.accepted_at is null
+         and a.provider_message_id is null
+         and a.concluded_at is not null
+         and a.requested_at = a.concluded_at
+         and latest.detail is not distinct from a.failure_reason
+         and a.failure_reason not in (${NEEDS_A_PERSON_REASONS}))`;
+
 export const DELIVERY_STATE_EXPRESSION = `
   case
     -- LAN-156, and FIRST, because a hold outranks whatever the job was doing
@@ -2202,6 +2280,22 @@ export const DELIVERY_STATE_EXPRESSION = `
     -- actually happened either.
     when j.status = 'cancelled' then 'cancelled'
     when j.status = 'completed' then 'delivered'
+    -- LAN-501. Sent, and the outcome will never arrive: the latest attempt was
+    -- concluded and no result was ever recorded for it (LAN-472's closeout of
+    -- the sends made before WhatsApp receipts were subscribed is the first
+    -- case). Derived from that state, never from the wording of the reason, so
+    -- any later conclusion without an outcome lands here too. Not Attempted,
+    -- because nothing is still on its way; not Failed, because nothing says it
+    -- failed; and nothing to retry.
+    when j.status = 'processing' and coalesce((
+      select a.concluded_at is not null and not exists (
+               select 1 from public.delivery_results r
+                where r.notification_job_id = a.notification_job_id
+                  and r.attempt_number = a.attempt_number)
+        from public.delivery_attempts a
+       where a.notification_job_id = j.id
+       order by a.attempt_number desc
+       limit 1), false) then 'unknown'
     when j.status = 'processing' then 'attempted'
     when j.status in ('pending', 'ready') then 'queued'
     -- A refusal the provider will never accept — a dead credential, a number
@@ -2210,6 +2304,12 @@ export const DELIVERY_STATE_EXPRESSION = `
     -- remain. Reading the ceiling alone reported those as **Retryable**, which
     -- tells an operator to press the button again on something that cannot
     -- succeed until a human fixes the cause.
+    -- LAN-483. A send refused on purpose at claim time — the recruit already
+    -- completed the track, is no longer a prospect, has no consent — is
+    -- **Withheld**: final, nothing to retry, and not among the messages that
+    -- need attention. See CLAIM_TIME_REFUSAL_PREDICATE.
+    when j.status = 'failed' and latest.outcome = 'rejected'
+     and ${CLAIM_TIME_REFUSAL_PREDICATE} then 'withheld'
     when j.status = 'failed' and latest.outcome = 'rejected' then 'failed'
     when j.status = 'failed' and j.attempt_count < ${MAX_ATTEMPTS} then 'retryable'
     else 'failed'
@@ -2284,7 +2384,7 @@ export const NOT_DELIVERED_EXPRESSION = `
  */
 export const DELIVERY_LATEST_RESULT_JOIN = `
   left join lateral (
-    select r.outcome::text as outcome
+    select r.outcome::text as outcome, r.attempt_number, r.detail
       from public.delivery_results r
      where r.notification_job_id = j.id
      order by r.attempt_number desc
@@ -2493,7 +2593,11 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
           row.state !== "delivered" &&
           row.state !== "attempted" &&
           row.state !== "held" &&
-          row.state !== "cancelled",
+          row.state !== "cancelled" &&
+          // LAN-501. Sent; there is nothing to repair and nothing is resent.
+          row.state !== "unknown" &&
+          // LAN-483. Refused on purpose; a Retry would only refuse it again.
+          row.state !== "withheld",
       };
     });
 
@@ -2529,7 +2633,7 @@ export interface DiagnosticsAttempt {
   readonly channel: string;
   readonly attemptNumber: number;
   readonly requestedAt: Date;
-  /** `'delivered' | 'failed' | 'rejected' | 'attempted' | 'sent'` — never a guess. */
+  /** `'delivered' | 'failed' | 'rejected' | 'attempted' | 'unknown' | 'sent'` — never a guess. */
   readonly outcome: string;
   /** LAN-411 — this attempt is one of the silent ones. Derived, exactly as the row's own label is. */
   readonly notDelivered: boolean;
@@ -2613,9 +2717,17 @@ export async function readEventDeliveryDiagnostics(
     return rows.rows.map((row): DiagnosticsAttempt => {
       const known = row.display_alias?.trim();
       const first = known && known !== "" ? known : row.given_name;
+      // LAN-501: accepted, then concluded with no result — the outcome will
+      // never arrive, exactly as the row's own state says.
       const outcome =
         row.recorded_outcome ??
-        (row.accepted_at ? "attempted" : row.concluded_at ? "failed" : "sent");
+        (row.accepted_at
+          ? row.concluded_at
+            ? "unknown"
+            : "attempted"
+          : row.concluded_at
+            ? "failed"
+            : "sent");
       return {
         attemptId: row.attempt_id,
         inviteeName: row.family_name ? `${first} ${row.family_name}` : first,

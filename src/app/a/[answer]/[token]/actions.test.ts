@@ -12,8 +12,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+/** LAN-498: the request's User-Agent, `null` for none. */
+let userAgent: string | null = null;
 vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
+  headers: async () => new Headers(userAgent === null ? {} : { "user-agent": userAgent }),
   cookies: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
@@ -53,7 +55,7 @@ import {
 import { answerEventQuestionsIn, readInvitationOwnerIn } from "@/lib/services/player-home";
 import { openEventsPage, submitAnswer } from "./actions";
 import { ERROR_PARAM } from "./params";
-import { BUSY_ERROR } from "./presentation";
+import { BUSY_ERROR, UNSAVED_ERROR } from "./presentation";
 
 // A real answer token's exact shape — `y`/`n`, the invitation's uuid, then a
 // 43-character nonce. LAN-343 made the shape load-bearing here as well as in
@@ -88,6 +90,7 @@ function givenGateCookie(present: boolean): void {
 beforeEach(() => {
   vi.clearAllMocks();
   resetRsvpRateLimit();
+  userAgent = null;
   givenGateCookie(true);
   vi.mocked(consumeAnswerTokenIn).mockResolvedValue({
     invitationId: "00000000-0000-4000-8000-000000000002",
@@ -109,7 +112,9 @@ describe("the cookie gate", () => {
 
     const target = await redirectFrom(() => submitAnswer(formFor()));
 
-    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}`);
+    // LAN-498: every refusal lands on the one "Not saved" page, so it is still
+    // indistinguishable from a closed link.
+    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}?${ERROR_PARAM}=${UNSAVED_ERROR}`);
     expect(consumeAnswerTokenIn).not.toHaveBeenCalled();
   });
 
@@ -188,7 +193,7 @@ describe("a closed answer link", () => {
 
     const target = await redirectFrom(() => submitAnswer(formFor()));
 
-    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}`);
+    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}?${ERROR_PARAM}=${UNSAVED_ERROR}`);
     expect(target).not.toContain("closed");
   });
 
@@ -213,8 +218,38 @@ describe("a closed answer link", () => {
       injected,
       expect.anything(),
     );
-    expect(target).toBe(`/a/no/${encodeURIComponent(injected)}`);
+    expect(target).toBe(`/a/no/${encodeURIComponent(injected)}?${ERROR_PARAM}=${UNSAVED_ERROR}`);
     expect(target).not.toContain("unknown");
+  });
+});
+
+describe("LAN-498 — a known preview fetcher never records", () => {
+  it("refuses WhatsApp's own fetcher before any transaction, with the uniform unsaved outcome", async () => {
+    userAgent = "WhatsApp/2.23.20.0 A";
+
+    const target = await redirectFrom(() => submitAnswer(formFor()));
+
+    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}?${ERROR_PARAM}=${UNSAVED_ERROR}`);
+    expect(consumeAnswerTokenIn).not.toHaveBeenCalled();
+    expect(issuePersonTokenIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a generic crawler too", async () => {
+    userAgent = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+    await redirectFrom(() => submitAnswer(formFor()));
+
+    expect(consumeAnswerTokenIn).not.toHaveBeenCalled();
+  });
+
+  it("records for a real player in WhatsApp's in-app browser", async () => {
+    userAgent =
+      "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240805.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.6613.127 Mobile Safari/537.36";
+
+    const target = await redirectFrom(() => submitAnswer(formFor()));
+
+    expect(target).toMatch(/^\/events\//);
+    expect(consumeAnswerTokenIn).toHaveBeenCalledTimes(1);
   });
 });
 

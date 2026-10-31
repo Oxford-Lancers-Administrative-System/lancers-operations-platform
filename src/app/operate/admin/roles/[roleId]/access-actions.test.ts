@@ -248,7 +248,7 @@ describe("whole-seat edits", () => {
   it("copies the Vice-President onto the Treasurer as one History entry listing every changed line", async () => {
     signedInAs(["president"]);
     const plan = await planCopyAccessAction(roleIds.treasurer, roleIds.vice_president);
-    const expected = 12 + 3 + templates.length + 2;
+    const expected = 12 + 3 + templates.length + 3;
     expect(plan).toMatchObject({ ok: true });
     if (plan.ok) expect(plan.lines).toHaveLength(expected);
 

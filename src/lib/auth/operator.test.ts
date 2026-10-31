@@ -622,7 +622,11 @@ describe("resolveOperator — resolved operator", () => {
       "template-social": "view",
       "template-game": "manage",
     });
-    expect(resolved?.grants.switches).toEqual({ add_to_roster: "yes", add_recruits: "none" });
+    expect(resolved?.grants.switches).toEqual({
+      add_to_roster: "yes",
+      add_recruits: "none",
+      move_recruits_to_joined: "none",
+    });
   });
 
   it("ignores the grants of a seat whose assignment has ended — LAN-429", async () => {

@@ -52,6 +52,10 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "availability_statuses", column: "reported_by_person_id" },
   { table: "blues_awards", column: "recorded_by_person_id" },
   { table: "club_link_tokens", column: "issued_by_person_id" },
+  // LAN-514. Who sent a club message and who uploaded its files — actor
+  // columns with nothing unique to collide on.
+  { table: "club_message_attachments", column: "uploaded_by_person_id" },
+  { table: "club_messages", column: "sent_by_person_id" },
   { table: "coach_group_assignments", column: "recorded_by_person_id" },
   { table: "coach_group_assignments", column: "responsible_coach_person_id" },
   { table: "delivery_results", column: "actor_person_id" },
@@ -482,13 +486,22 @@ async function applyFieldChoices(
         reason: reasonNote,
       });
     } else if (field === "degree_field") {
-      await updatePersonField({
-        actorPersonId,
-        personId: survivorId,
-        field: "degree_field",
-        value: incoming,
-        reason: reasonNote,
-      });
+      // LAN-512: the letters and the subject move together, each column only
+      // where it differs (a correction to the same value is refused).
+      const pair = [
+        ["degree_type", loserRecord.degreeType, survivorRecord.degreeType],
+        ["degree_field", loserRecord.degreeField, survivorRecord.degreeField],
+      ] as const;
+      for (const [column, value, held] of pair) {
+        if ((value ?? null) === (held ?? null)) continue;
+        await updatePersonField({
+          actorPersonId,
+          personId: survivorId,
+          field: column,
+          value: value ?? null,
+          reason: reasonNote,
+        });
+      }
     } else if (field === "date_of_birth") {
       await updatePersonField({
         actorPersonId,

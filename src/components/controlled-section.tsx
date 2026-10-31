@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import ButtonBase from "@mui/material/ButtonBase";
 import Collapse from "@mui/material/Collapse";
 import Paper from "@mui/material/Paper";
+import type { SxProps, Theme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 
 /**
@@ -22,6 +23,7 @@ export function ControlledSection({
   panelId,
   toggleTestId,
   countTestId,
+  panelSx,
   children,
 }: {
   title: string;
@@ -32,6 +34,8 @@ export function ControlledSection({
   panelId: string;
   toggleTestId?: string;
   countTestId?: string;
+  /** Overrides for the open panel's padding, where its content needs the section's full width. */
+  panelSx?: SxProps<Theme>;
   children: ReactNode;
 }) {
   return (
@@ -73,7 +77,13 @@ export function ControlledSection({
         ) : null}
       </ButtonBase>
       <Collapse in={open} unmountOnExit>
-        <Box id={panelId} sx={{ px: { xs: 2.5, md: 4 }, pb: { xs: 2.5, md: 4 } }}>
+        <Box
+          id={panelId}
+          sx={[
+            { px: { xs: 2.5, md: 4 }, pb: { xs: 2.5, md: 4 } },
+            ...(Array.isArray(panelSx) ? panelSx : panelSx ? [panelSx] : []),
+          ]}
+        >
           {children}
         </Box>
       </Collapse>

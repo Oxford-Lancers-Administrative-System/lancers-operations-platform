@@ -1,24 +1,19 @@
 // @vitest-environment node
 /**
- * The recruit board's own server actions — LAN-204, correction round 1
- * (F-LAN204-001).
+ * The recruit board's own server actions — LAN-204, and LAN-505.
  *
- * This file exists for one acceptance criterion, on the exact model
- * `../roster/actions.test.ts` already proves for the membership status
- * boundary: `flipRecruitmentProspectAction` is refused for anyone who is not
- * the President, Vice President, Secretary or General Manager, **in the
- * server action and not only in the UI** — `W14` (locked): "Four roles
- * only... its authority is the narrowest." Every call here goes straight to
- * the action; no page renders, so nothing decided what the caller was
- * allowed to click, exactly the position a POST from an attacker (or a
- * fifth-role operator who found the button) is in.
+ * `flipRecruitmentProspectAction` is gated on May move recruits to Joined
+ * (LAN-505, Brian, 16 October 2026), which replaced the fixed four-office rule
+ * (`W14`). The switch works on its own — whatever the seat's Recruit details
+ * level — and the server refuses anybody without it, **in the server action
+ * and not only in the UI**. Every call here goes straight to the action; no
+ * page renders, so nothing decided what the caller was allowed to click,
+ * exactly the position a POST from a seat without the switch is in.
  *
- * the old person-record capability is deliberately the wrong gate for the flip: it
- * admits `it_officer` (LAN-124's standing administrative exception), which
- * is correct for `setRecruitmentStatusAction` and every other surface in
- * this package but not for the mission's one irreversible action —
- * `REQ-core-four` mints no capability for it, so this is a literal
- * `requireRole()` check, proved here independently of the capability map.
+ * The seeded switch (the migrations' defaults) is on for the four offices,
+ * so they can still move a recruit to Joined with no setting changed, and for
+ * the IT Officer, who holds everything the General Manager holds (Brian,
+ * 19 October 2026).
  *
  * The service layer is mocked. What is under test is the guard, the actor it
  * passes on, and how a refusal is presented; the flip's own transaction
@@ -55,19 +50,14 @@ import { seededGrantsFor } from "@/lib/auth/capabilities";
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const PROSPECT_ID = "44444444-4444-4444-8444-444444444444";
 
-/** `W14` (locked): exactly these four, and nobody else, ever. */
-const FLIP_ROLES = ["president", "vice_president", "secretary", "general_manager"];
-
 /**
- * Every other seat in the catalogue, `it_officer` included — deliberately,
- * unlike `../roster/actions.test.ts`'s own `OTHER_ROLES`. There the
- * administrative seat is the *correct* holder (LAN-124); here it is
- * F-LAN204-001's own regression: an `it_officer`-only operator could reach
- * `flipRecruitmentProspectAction` before this correction, because it opened
- * with the old person-record capability rather than a core-four-only check.
+ * The seats the migrations switch May move recruits to Joined on for: the four
+ * offices (LAN-505) and the IT Officer (Brian, 19 October 2026).
  */
+const FLIP_ROLES = ["president", "vice_president", "secretary", "general_manager", "it_officer"];
+
+/** Every other seat: seeded off. */
 const OTHER_ROLES = [
-  "it_officer",
   "treasurer",
   "social_secretary",
   "gameday_secretary",
@@ -108,9 +98,60 @@ function expectFlipRefused(state: RecruitmentActionState): void {
   );
 }
 
-describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
+/** A seat's seeded grants with May move recruits to Joined set, and Recruit details at `details`. */
+function withSwitch(
+  roleCodes: string[],
+  level: "yes" | "none",
+  details: "none" | "view" | "edit",
+): ResolvedOperator {
+  const base = actor(roleCodes);
+  return {
+    ...base,
+    grants: {
+      ...base.grants,
+      recruiting: { ...base.grants.recruiting, recruit_details: details },
+      switches: { ...base.grants.switches, move_recruits_to_joined: level },
+    },
+  };
+}
+
+describe("flipRecruitmentProspectAction — May move recruits to Joined (LAN-505)", () => {
+  it("lets a Kit Manager given the switch move a recruit to Joined, with Recruit details at view", async () => {
+    givenAccess({ state: "active", operator: withSwitch(["kit_manager"], "yes", "view") });
+
+    const state = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
+
+    expect(state).toEqual({ error: null });
+    expect(flipRecruitmentProspectToJoined).toHaveBeenCalledWith(OPERATOR_PERSON_ID, PROSPECT_ID);
+  });
+
+  it("lets the switch alone move a recruit to Joined, Recruit details at none", async () => {
+    givenAccess({ state: "active", operator: withSwitch(["kit_manager"], "yes", "none") });
+
+    expect(await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID })).toEqual({
+      error: null,
+    });
+    expect(flipRecruitmentProspectToJoined).toHaveBeenCalled();
+  });
+
+  it("refuses a seat with Recruit details at edit but without the switch", async () => {
+    givenAccess({ state: "active", operator: withSwitch(["kit_manager"], "none", "edit") });
+
+    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
+
+    expectFlipRefused(failure);
+    expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
+  });
+
+  it("refuses one of the four offices whose switch has been turned off", async () => {
+    givenAccess({ state: "active", operator: withSwitch(["secretary"], "none", "edit") });
+
+    expectFlipRefused(await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }));
+    expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
+  });
+
   for (const role of FLIP_ROLES) {
-    it(`lets the ${role} flip a recruit to joined`, async () => {
+    it(`lets the ${role} flip a recruit to joined on the seeded switch`, async () => {
       givenAccess({ state: "active", operator: actor([role]) });
 
       const state = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
@@ -121,7 +162,7 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   }
 
   for (const role of OTHER_ROLES) {
-    it(`refuses the ${role}, and never reaches the service`, async () => {
+    it(`refuses the ${role} on the seeded switch, and never reaches the service`, async () => {
       givenAccess({ state: "active", operator: actor([role]) });
 
       const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
@@ -132,19 +173,16 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   }
 
   /**
-   * F-LAN204-001's own reproduction, kept as a named regression rather than
-   * relying on the loop above alone to read as intentional: an operator
-   * holding *only* the administrative seat, and no core-four office, is
-   * refused the flip specifically — the exact shape a live challenge against
-   * the previous code proved succeeded.
+   * Brian, 19 October 2026: the IT Officer holds everything the General
+   * Manager holds, this switch included, like every other line of that seat.
    */
-  it("refuses an IT Officer-only operator, who holds every other capability in the app but not this one", async () => {
+  it("lets an IT Officer-only operator flip a recruit to joined on the seeded switch", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
-    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
+    const state = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-    expectFlipRefused(failure);
-    expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
+    expect(state).toEqual({ error: null });
+    expect(flipRecruitmentProspectToJoined).toHaveBeenCalledWith(OPERATOR_PERSON_ID, PROSPECT_ID);
   });
 
   it("refuses an operator holding no seat at all", async () => {

@@ -143,6 +143,12 @@ export interface WebhookConfig {
   readonly webhookVerifyToken: string;
 }
 
+/** What verifying an email provider's delivery receipt needs. LAN-484. */
+export interface EmailWebhookConfig {
+  /** Secret. Resend's `whsec_…` endpoint signing secret, which verifies the Svix signature. */
+  readonly signingSecret: string;
+}
+
 /**
  * The two affordances that make a live non-production send possible, and the
  * single condition under which either exists.
@@ -213,6 +219,10 @@ export type WebhookResolution =
   | { readonly configured: true; readonly config: WebhookConfig }
   | { readonly configured: false; readonly missing: readonly string[] };
 
+export type EmailWebhookResolution =
+  | { readonly configured: true; readonly config: EmailWebhookConfig }
+  | { readonly configured: false; readonly missing: readonly string[] };
+
 /**
  * Variables the sending path refuses to run without.
  *
@@ -246,6 +256,15 @@ export const WEBHOOK_ENVIRONMENT_VARIABLES = Object.freeze([
   "WHATSAPP_APP_SECRET",
   "WHATSAPP_WEBHOOK_VERIFY_TOKEN",
 ] as const);
+
+/**
+ * Variables the email receipt route refuses to run without. LAN-484.
+ *
+ * Its own list, not part of `EMAIL_ENVIRONMENT_VARIABLES`: sending email does
+ * not need it, and a deployment whose webhook is not yet set up must still
+ * send.
+ */
+export const EMAIL_WEBHOOK_ENVIRONMENT_VARIABLES = Object.freeze(["EMAIL_WEBHOOK_SECRET"] as const);
 
 /**
  * Variables the email path refuses to run without. LAN-169.
@@ -510,6 +529,21 @@ export function resolveWebhookConfig(source: EnvironmentSource = process.env): W
       appSecret: trimmed("WHATSAPP_APP_SECRET", source),
       webhookVerifyToken: trimmed("WHATSAPP_WEBHOOK_VERIFY_TOKEN", source),
     },
+  };
+}
+
+/** Resolves the email receipt configuration, or names what is absent. LAN-484. */
+export function resolveEmailWebhookConfig(
+  source: EnvironmentSource = process.env,
+): EmailWebhookResolution {
+  const missing = EMAIL_WEBHOOK_ENVIRONMENT_VARIABLES.filter(
+    (name) => trimmed(name, source) === "",
+  );
+  if (missing.length > 0) return { configured: false, missing };
+
+  return {
+    configured: true,
+    config: { signingSecret: trimmed("EMAIL_WEBHOOK_SECRET", source) },
   };
 }
 

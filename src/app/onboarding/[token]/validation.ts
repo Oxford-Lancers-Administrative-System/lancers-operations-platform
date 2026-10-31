@@ -13,6 +13,8 @@ import {
   FIELD_COLLEGE_EMAIL,
   FIELD_DATE_OF_BIRTH,
   FIELD_DEGREE_FIELD,
+  FIELD_DEGREE_TYPE,
+  FIELD_DIETARY_PREFERENCE,
   FIELD_EC_EMAIL,
   FIELD_EC_FAMILY_NAME,
   FIELD_EC_GIVEN_NAME,
@@ -34,9 +36,14 @@ export interface DetailsFormValues {
   /** LAN-268. Required, and validated to the Oxford rule by the service. */
   college_email: string;
   personal_email: string;
+  /** LAN-502. Required: one of `DIETARY_PREFERENCE_VALUES`. */
+  dietary_preference: string;
   college: string;
   matriculation_year: string;
   expected_graduation_year: string;
+  /** LAN-512. The degree letters, from the University's list. */
+  degree_type: string;
+  /** LAN-512. The subject offered with those letters. */
   degree_field: string;
   /** LAN-267. Never required — a blank one prints blank on the roster form. */
   student_number: string;
@@ -70,9 +77,11 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   mobile: "",
   college_email: "",
   personal_email: "",
+  dietary_preference: "",
   college: "",
   matriculation_year: "",
   expected_graduation_year: "",
+  degree_type: "",
   degree_field: "",
   student_number: "",
   date_of_birth: "",
@@ -103,9 +112,11 @@ const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
   "mobile",
   "college_email",
   "personal_email",
+  "dietary_preference",
   "college",
   "matriculation_year",
   "expected_graduation_year",
+  "degree_type",
   "degree_field",
   "date_of_birth",
   "ec_given_name",
@@ -120,9 +131,11 @@ const REQUIRED_LABEL: Readonly<Record<ValidatedDetailsField, string>> = Object.f
   mobile: FIELD_MOBILE,
   college_email: FIELD_COLLEGE_EMAIL,
   personal_email: FIELD_PERSONAL_EMAIL,
+  dietary_preference: FIELD_DIETARY_PREFERENCE,
   college: FIELD_COLLEGE,
   matriculation_year: FIELD_MATRICULATION_YEAR,
   expected_graduation_year: FIELD_EXPECTED_GRADUATION,
+  degree_type: FIELD_DEGREE_TYPE,
   degree_field: FIELD_DEGREE_FIELD,
   date_of_birth: FIELD_DATE_OF_BIRTH,
   ec_given_name: FIELD_EC_GIVEN_NAME,
@@ -145,9 +158,11 @@ export function readDetailsValues(form: FormData): DetailsFormValues {
     mobile: read("mobile"),
     college_email: read("college_email"),
     personal_email: read("personal_email"),
+    dietary_preference: read("dietary_preference"),
     college: read("college"),
     matriculation_year: read("matriculation_year"),
     expected_graduation_year: read("expected_graduation_year"),
+    degree_type: read("degree_type"),
     degree_field: read("degree_field"),
     student_number: read("student_number"),
     date_of_birth: read("date_of_birth"),

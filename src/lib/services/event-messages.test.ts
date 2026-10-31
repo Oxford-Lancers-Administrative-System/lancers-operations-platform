@@ -39,7 +39,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { EVENT_MESSAGE_RENDER_FAILED_REASON, dispatchEventMessageJob } from "./messaging-scheduler";
 import { setLightsOutClockForTesting } from "./messaging-schedule/lights-out";
 import { DUE_JOB_PREDICATE } from "./messaging-queue";
-import { MAX_ATTEMPTS } from "./delivery";
+import { DELIVERY_LATEST_RESULT_JOIN, DELIVERY_STATE_EXPRESSION, MAX_ATTEMPTS } from "./delivery";
 import {
   EVENT_MESSAGE_RESEND_REQUIRED_RULE,
   declareDueEventMessagesIn,
@@ -557,9 +557,19 @@ describe("what each copy carries", () => {
         where notification_job_id = $1`,
       [whatsapp.id],
     );
+    // Recorded `rejected`, as every claim-time refusal is (LAN-483), but it is
+    // not a skip by design, so it reads Failed, never Withheld.
     expect(results.rows).toEqual([
-      { outcome: "failed", detail: EVENT_MESSAGE_RENDER_FAILED_REASON },
+      { outcome: "rejected", detail: EVENT_MESSAGE_RENDER_FAILED_REASON },
     ]);
+    const state = await observer.query<{ state: string }>(
+      `select ${DELIVERY_STATE_EXPRESSION} as state
+         from public.notification_jobs j
+         ${DELIVERY_LATEST_RESULT_JOIN}
+        where j.id = $1`,
+      [whatsapp.id],
+    );
+    expect(state.rows[0].state).toBe("failed");
     // The sweep's own definition of due no longer finds it, so no later tick draws it again.
     const due = await observer.query<{ count: string }>(
       `select count(*)::text as count from public.notification_jobs

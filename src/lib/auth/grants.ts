@@ -116,12 +116,21 @@ export const RECRUITING_CATEGORIES = Object.freeze([
 export type RecruitingCategory = (typeof RECRUITING_CATEGORIES)[number];
 
 /**
- * The two switches.
+ * The three switches.
  *
  * - `add_to_roster` — may add players to the roster (Add players).
  * - `add_recruits` — may add recruits (Add recruit, QR code).
+ * - `move_recruits_to_joined` — may move a recruit to Joined, which puts them
+ *   on the roster as Onboarding (LAN-505, Brian, 16 October 2026). It replaced
+ *   the fixed four-office rule, and works on its own: holding it offers Joined
+ *   whatever the seat's Recruit details level. The seat page shows it with the
+ *   Recruiting lines.
  */
-export const ACCESS_SWITCHES = Object.freeze(["add_to_roster", "add_recruits"] as const);
+export const ACCESS_SWITCHES = Object.freeze([
+  "add_to_roster",
+  "add_recruits",
+  "move_recruits_to_joined",
+] as const);
 
 export type AccessSwitch = (typeof ACCESS_SWITCHES)[number];
 

@@ -4,12 +4,16 @@ From nothing to a running app against a local Supabase stack.
 
 ## Prerequisites
 
-| Tool    | Version                 | Notes                                                     |
-| ------- | ----------------------- | --------------------------------------------------------- |
-| Node.js | ≥ 20.9 (22 recommended) | Next.js 16 minimum. CI and the container use 22.          |
-| npm     | 10+                     | Ships with Node.                                          |
-| Docker  | running                 | Required by the Supabase CLI. Docker Desktop or OrbStack. |
-| Git     | any                     |                                                           |
+| Tool    | Version         | Notes                                                          |
+| ------- | --------------- | -------------------------------------------------------------- |
+| Node.js | 22 (`^22.22.2`) | Pinned in `.nvmrc` and `engines`; CI and the container use 22. |
+| npm     | 10+             | Ships with Node.                                               |
+| Docker  | running         | Required by the Supabase CLI. Docker Desktop or OrbStack.      |
+| Git     | any             |                                                                |
+
+Run `nvm use` (or your version manager's equivalent) in the clone to pick up
+`.nvmrc`. Other Node majors, including 23, are unsupported: several test
+libraries reject them (`EBADENGINE`).
 
 The Supabase CLI is a dev dependency, so `npm install` provides it. You do not
 need a separate Homebrew install.

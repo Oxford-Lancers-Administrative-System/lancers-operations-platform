@@ -12,6 +12,7 @@ import {
   logThrottledPlayerAnswerRequest,
   startUniformClock,
 } from "@/lib/rsvp/public-surface";
+import { isPreviewAgent } from "@/lib/rsvp/preview-agents";
 import {
   answerEventQuestionsIn,
   parseQuestionSubmissions,
@@ -25,7 +26,7 @@ import {
   type PlayerAnswer,
 } from "@/lib/services/player-answer-tokens";
 import { ERROR_PARAM, SAVED_PARAM } from "./params";
-import { BUSY_ERROR } from "./presentation";
+import { BUSY_ERROR, UNSAVED_ERROR } from "./presentation";
 
 /**
  * The answer link's writes. LAN-172, Q-11. The cookie is checked before
@@ -76,11 +77,23 @@ export async function submitAnswer(form: FormData): Promise<void> {
     return refuse(`${here}?${ERROR_PARAM}=${BUSY_ERROR}`, startedAt);
   }
 
+  // LAN-498. Every refusal below lands on the same `?error=unsaved` page: the
+  // player sees "Not saved" and a Retry instead of an unsaved page that looks
+  // saved, and none of the reasons is distinguishable from another. A link
+  // that no longer resolves renders the uniform terminal page there anyway.
+  const unsaved = `${here}?${ERROR_PARAM}=${UNSAVED_ERROR}`;
+
+  // LAN-498 (Brian, 31 October 2026): a known preview fetcher or crawler never
+  // records an answer, whatever it submits. Narrow by design — see the module.
+  if (isPreviewAgent(requestHeaders.get("user-agent"))) {
+    return refuse(unsaved, startedAt);
+  }
+
   const jar = await cookies();
   const gateIsOpen = (jar.get(ANSWER_GATE_COOKIE)?.value ?? "") !== "";
   if (!gateIsOpen) {
     // Never a distinguishable error (would teach an automated caller to carry the cookie) — same uniform closed-link outcome as revoked/expired.
-    return refuse(here, startedAt);
+    return refuse(unsaved, startedAt);
   }
 
   let destination: string;
@@ -103,7 +116,7 @@ export async function submitAnswer(form: FormData): Promise<void> {
       return `/events/${encodeURIComponent(durable.token)}?open=${encodeURIComponent(recorded.invitationId)}`;
     });
   } catch {
-    return refuse(here, startedAt);
+    return refuse(unsaved, startedAt);
   }
 
   redirect(destination);

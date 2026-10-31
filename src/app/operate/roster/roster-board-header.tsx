@@ -20,6 +20,7 @@ import {
   type ColumnDef,
 } from "./board-columns";
 import { filterOptionLabel } from "./board-data";
+import type { SortKey } from "../board-sort";
 
 /** The board's own two-row sticky head: the band overline, then the sortable, filterable columns. */
 export default function BoardTableHead({
@@ -28,8 +29,7 @@ export default function BoardTableHead({
   onToggleBand,
   bandBoundaries,
   squadBoundaries,
-  sortKey,
-  sortDirection,
+  sort,
   setSort,
   filters,
   onOpenFilter,
@@ -41,13 +41,14 @@ export default function BoardTableHead({
   bandBoundaries: ReadonlySet<string>;
   /** The last column of each special-teams squad — Brian's visual pass, item 5. */
   squadBoundaries: ReadonlySet<string>;
-  sortKey: string;
-  sortDirection: "asc" | "desc";
+  /** The keys in force (LAN-495); every one of them shows its arrow. */
+  sort: readonly SortKey[];
   setSort: (key: string) => void;
   filters: Readonly<Record<string, string>>;
   onOpenFilter: (anchor: HTMLElement, column: ColumnDef) => void;
 }) {
   const colours = useBandColours();
+  const sortedAs = (key: string) => sort.find((entry) => entry.key === key)?.direction;
   return (
     <TableHead>
       <TableRow sx={{ height: BAND_ROW_HEIGHT }}>
@@ -143,8 +144,8 @@ export default function BoardTableHead({
           }}
         >
           <TableSortLabel
-            active={sortKey === "displayName"}
-            direction={sortKey === "displayName" ? sortDirection : "asc"}
+            active={sortedAs("displayName") !== undefined}
+            direction={sortedAs("displayName") ?? "asc"}
             onClick={() => setSort("displayName")}
           >
             Player
@@ -242,8 +243,8 @@ export default function BoardTableHead({
               >
                 {column.sortable ? (
                   <TableSortLabel
-                    active={sortKey === column.key}
-                    direction={sortKey === column.key ? sortDirection : "asc"}
+                    active={sortedAs(column.key) !== undefined}
+                    direction={sortedAs(column.key) ?? "asc"}
                     onClick={() => setSort(column.key)}
                     sx={column.groupHeading ? { fontStyle: "italic" } : undefined}
                   >

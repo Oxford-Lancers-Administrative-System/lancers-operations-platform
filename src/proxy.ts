@@ -294,7 +294,9 @@ export const config = {
     // an HMAC over the raw body. Running session refresh first would make every
     // forged POST cost a Supabase round trip before the signature is even read
     // — free amplification on the only public endpoint the application has.
+    // LAN-484's email receipt route is excluded on the identical reasoning: it
+    // verifies Resend's Svix signature over the raw body itself.
     //
-    "/((?!_next/static|_next/image|api/health|api/webhooks/whatsapp|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|api/health|api/webhooks/whatsapp|api/webhooks/email|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

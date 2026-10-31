@@ -9,7 +9,28 @@ import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { Field, DateField, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
+import {
+  Field,
+  DateField,
+  NO_AUTOFILL,
+  preventImplicitSubmit,
+  SelectField,
+} from "@/components/field";
+import {
+  COLLEGE_LABEL,
+  DEGREE_LETTERS_LABEL,
+  DEGREE_SUBJECT_LABEL,
+  letterOptions,
+  subjectOptions,
+} from "@/components/academic-fields";
+import { ListField, type ListOption } from "@/components/list-field";
+import {
+  COLLEGE_OPTIONS,
+  type DegreePair,
+  pairAfterLetters,
+  pairAfterSubject,
+} from "@/lib/services/oxford-academic";
+import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -38,6 +59,7 @@ const STUDENT_FIELDS = [
   "matriculationYear",
   "expectedGraduationYear",
   "degreeField",
+  "degreeType",
   "studentNumber",
   "bafaRegistrationNumber",
 ] as const satisfies readonly (keyof EditState["errors"])[];
@@ -56,10 +78,12 @@ export type EditablePersonRecord = Pick<
   | "middleName"
   | "familyName"
   | "aliases"
+  | "dietaryPreference"
   | "college"
   | "matriculationYear"
   | "expectedGraduationYear"
   | "degreeField"
+  | "degreeType"
   | "studentNumber"
   | "bafaRegistrationNumber"
   | "dateOfBirth"
@@ -109,6 +133,15 @@ export default function EditPersonForm({
   const ec = record.emergencyContact;
   // A refused student field opens the section, so the error is never behind a closed disclosure.
   const studentFieldRefused = STUDENT_FIELDS.some((field) => Boolean(state.errors[field]));
+  // LAN-512: the subject list follows the letters; letters that do not offer
+  // the subject chosen clear it.
+  const [degreeType, setDegreeType] = useState(record.degreeType ?? "");
+  const [degreeField, setDegreeField] = useState(record.degreeField ?? "");
+  const degreePair = { letters: degreeType, subject: degreeField };
+  const chooseDegree = (pair: DegreePair) => {
+    setDegreeType(pair.letters);
+    setDegreeField(pair.subject);
+  };
 
   return (
     <Box
@@ -194,6 +227,15 @@ export default function EditPersonForm({
                     error={state.errors.familyName}
                   />
                   <AliasesEditor personId={personId} record={record} />
+                  {/* LAN-502: the onboarding step's three answers. */}
+                  <CorrectableField
+                    name="dietaryPreference"
+                    reasonName="dietaryPreferenceReason"
+                    label="Dietary preference"
+                    options={DIETARY_PREFERENCE_OPTIONS}
+                    original={record.dietaryPreference ?? ""}
+                    error={state.errors.dietaryPreference}
+                  />
                 </>
               ) : null}
               {mayEditContact ? (
@@ -255,8 +297,10 @@ export default function EditPersonForm({
                 <CorrectableField
                   name="college"
                   reasonName="collegeReason"
-                  label="College"
+                  label={COLLEGE_LABEL}
+                  listOptions={COLLEGE_OPTIONS}
                   original={record.college ?? ""}
+                  error={state.errors.college}
                 />
                 <CorrectableField
                   name="matriculationYear"
@@ -276,11 +320,26 @@ export default function EditPersonForm({
                       : ""
                   }
                 />
+                {/* LAN-512: the letters, then the subject offered with them. */}
+                <CorrectableField
+                  name="degreeType"
+                  reasonName="degreeTypeReason"
+                  label={DEGREE_LETTERS_LABEL}
+                  listOptions={letterOptions(degreeField)}
+                  original={record.degreeType ?? ""}
+                  error={state.errors.degreeType}
+                  value={degreeType}
+                  onValueChange={(next) => chooseDegree(pairAfterLetters(degreePair, next))}
+                />
                 <CorrectableField
                   name="degreeField"
                   reasonName="degreeFieldReason"
-                  label="Degree field"
+                  label={DEGREE_SUBJECT_LABEL}
+                  listOptions={subjectOptions(degreeType)}
                   original={record.degreeField ?? ""}
+                  error={state.errors.degreeField}
+                  value={degreeField}
+                  onValueChange={(next) => chooseDegree(pairAfterSubject(degreePair, next))}
                 />
                 {/* LAN-365: BAFA is last because the club fills it in — a
                     student never knows their own registration number, so it is
@@ -385,6 +444,10 @@ function CorrectableField({
   unchangedHelperText,
   renderExtra,
   phone,
+  options,
+  listOptions,
+  value: controlled,
+  onValueChange,
 }: {
   name: string;
   reasonName: string;
@@ -397,8 +460,21 @@ function CorrectableField({
   renderExtra?: (value: string, changed: boolean) => React.ReactNode;
   /** LAN-211: the shared two-part control in place of one free-text box. */
   phone?: boolean;
+  /** A fixed vocabulary (LAN-502, LAN-494): the shared `SelectField` in place of free text. */
+  options?: ReadonlyArray<{ value: string; label: string; group?: string }>;
+  /** LAN-512: a fixed list with type-to-search (the shared `ListField`) in place of free text. */
+  listOptions?: readonly ListOption[];
+  /** The value, when the form around it owns it (LAN-512's degree pair). */
+  value?: string;
+  /** Told every change, for a field whose value decides what else is drawn (LAN-494). */
+  onValueChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(original);
+  const [own, setValueState] = useState(original);
+  const value = controlled ?? own;
+  const setValue = (next: string) => {
+    setValueState(next);
+    onValueChange?.(next);
+  };
   const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
   const changed = value.trim() !== original.trim();
   const needsReason = changed && original.trim() !== "";
@@ -415,6 +491,28 @@ function CorrectableField({
           error={Boolean(error)}
           helperText={error ?? (changed ? undefined : unchangedHelperText)}
           onValueChange={setValue}
+        />
+      ) : listOptions ? (
+        <ListField
+          name={name}
+          label={label}
+          options={listOptions}
+          value={value}
+          onChange={setValue}
+          required={required}
+          error={error}
+          helperText={changed ? undefined : unchangedHelperText}
+        />
+      ) : options ? (
+        <SelectField
+          name={name}
+          label={label}
+          required={required}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          options={options}
+          error={Boolean(error)}
+          helperText={error ?? (changed ? undefined : unchangedHelperText)}
         />
       ) : type === "date" ? (
         <DateField

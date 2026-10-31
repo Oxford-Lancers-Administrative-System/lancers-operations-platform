@@ -381,6 +381,31 @@ describe("applyParticipationView filters", () => {
     ]);
   });
 
+  it("reads Needs attention as Failed and Retryable only, never Withheld or the other terminal states (LAN-483)", () => {
+    const states = [
+      "failed",
+      "retryable",
+      "withheld",
+      "held",
+      "cancelled",
+      "unknown",
+      "attempted",
+      "delivered",
+      "queued",
+    ] as const;
+    const people = [
+      ...states.map((state) => operatorPerson({ displayName: state, delivery: state })),
+      operatorPerson({ displayName: "unqueued", delivery: null }),
+    ];
+    expect(
+      names(applyParticipationView(people, withFilters({ delivery: "attention" }), [])).sort(),
+    ).toEqual(["failed", "retryable"]);
+    // A send refused at claim time is found by its own filter instead.
+    expect(
+      names(applyParticipationView(people, withFilters({ delivery: "withheld" }), [])),
+    ).toEqual(["withheld"]);
+  });
+
   it("combines every filter", () => {
     // W7: "the filters combine and apply as you type".
     expect(
@@ -729,6 +754,19 @@ describe("readParticipationFilters", () => {
     }
   });
 
+  it("LAN-511: accepts the two named exceptions the Delivery filter offers", () => {
+    for (const value of ["attention", "not_delivered"]) {
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "operator").delivery,
+        value,
+      ).toBe(value);
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "club_link").delivery,
+        value,
+      ).toBe("");
+    }
+  });
+
   it("names the same delivery states the table renders", () => {
     // So that a state added to `DeliveryState` fails here as well as at
     // `tsc`, and a filter value that renders no label cannot be introduced.
@@ -743,6 +781,10 @@ describe("readParticipationFilters", () => {
       "retryable",
       "held",
       "cancelled",
+      // LAN-501.
+      "unknown",
+      // LAN-483.
+      "withheld",
       "none",
     ]);
   });

@@ -354,12 +354,12 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
       roleId: roleIds.treasurer,
       sourceRoleId: roleIds.vice_president,
     });
-    // Every line of the Treasurer moves: 12 + 3 + templates + 2.
+    // Every line of the Treasurer moves: 12 + 3 + templates + 3.
     const templateCount = Number(
       (await observer.query<{ n: string }>("select count(*) as n from public.event_templates"))
         .rows[0].n,
     );
-    expect(planned).toHaveLength(12 + 3 + templateCount + 2);
+    expect(planned).toHaveLength(12 + 3 + templateCount + 3);
 
     const result = await copyAccessFrom(administrator(), {
       roleId: roleIds.treasurer,

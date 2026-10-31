@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import TableSortLabel from "@mui/material/TableSortLabel";
 
@@ -18,6 +19,8 @@ export function SortableHeader({
   direction,
   align,
   testId,
+  trailing,
+  caption,
 }: {
   column: string;
   label: ReactNode;
@@ -26,20 +29,35 @@ export function SortableHeader({
   direction: "asc" | "desc";
   align?: "left" | "right" | "center";
   testId?: string;
+  /** LAN-511: beside the heading and outside its link — a column's filter funnel. */
+  trailing?: ReactNode;
+  /** LAN-511: under the heading — the filter in force, as the roster board shows it. */
+  caption?: ReactNode;
 }) {
+  const link = (
+    <Link
+      href={href}
+      data-sort={column}
+      data-testid={testId}
+      style={{ color: "inherit", textDecoration: "none" }}
+      scroll={false}
+    >
+      <TableSortLabel active={active} direction={direction} component="span">
+        {label}
+      </TableSortLabel>
+    </Link>
+  );
   return (
     <TableCell sortDirection={active ? direction : false} align={align}>
-      <Link
-        href={href}
-        data-sort={column}
-        data-testid={testId}
-        style={{ color: "inherit", textDecoration: "none" }}
-        scroll={false}
-      >
-        <TableSortLabel active={active} direction={direction} component="span">
-          {label}
-        </TableSortLabel>
-      </Link>
+      {trailing === undefined ? (
+        link
+      ) : (
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+          {link}
+          {trailing}
+        </Stack>
+      )}
+      {caption}
     </TableCell>
   );
 }

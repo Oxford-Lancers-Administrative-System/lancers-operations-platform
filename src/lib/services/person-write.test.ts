@@ -362,14 +362,14 @@ describe("updatePersonField — every other field overwrites, with history in th
       actorPersonId,
       personId,
       field: "college",
-      value: "Merton",
+      value: "Merton College",
     });
 
-    expect(record.college).toBe("Merton");
+    expect(record.college).toBe("Merton College");
     const audit = await latestAudit("people", personId);
     expect(audit?.action).toBe("person_college_updated");
     expect(audit?.from_state).toBeNull();
-    expect(audit?.to_state).toBe("Merton");
+    expect(audit?.to_state).toBe("Merton College");
   });
 
   /**
@@ -418,11 +418,80 @@ describe("updatePersonField — every other field overwrites, with history in th
     expect(record.middleName).toBe("Aloysius");
   });
 
-  it("refuses to change an existing value without a reason", async () => {
-    const personId = await insertPerson({ givenName: unique("HasCollege"), college: "Merton" });
+  /** LAN-502. Three answers; an operator sets it, and changes it with a reason. */
+  it("sets and changes a dietary preference, refusing any answer outside the three", async () => {
+    const personId = await insertPerson({ givenName: unique("Diet") });
 
     await expect(
-      updatePersonField({ actorPersonId, personId, field: "college", value: "Balliol" }),
+      updatePersonField({ actorPersonId, personId, field: "dietary_preference", value: "halal" }),
+    ).rejects.toMatchObject({ rule: "people_dietary_preference_known" });
+
+    const set = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "dietary_preference",
+      value: "vegan",
+    });
+    expect(set.dietaryPreference).toBe("vegan");
+    expect((await latestAudit("people", personId))?.action).toBe(
+      "person_dietary_preference_updated",
+    );
+
+    const changed = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "dietary_preference",
+      value: "none",
+      reason: "Told the social secretary",
+    });
+    expect(changed.dietaryPreference).toBe("none");
+  });
+
+  /** LAN-512. The lists are checked where values are entered; this write moves any value. */
+  it("still writes a value on file that is not in the lists, as a merge does", async () => {
+    const personId = await insertPerson({ givenName: unique("DegreeLists") });
+    const moved = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "college",
+      value: "St. Catz",
+    });
+    expect(moved.college).toBe("St. Catz");
+    await updatePersonField({ actorPersonId, personId, field: "degree_type", value: "BA" });
+    const subject = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "degree_field",
+      value: "Geography",
+    });
+    expect([subject.degreeType, subject.degreeField]).toEqual(["BA", "Geography"]);
+    expect((await latestAudit("people", personId))?.action).toBe("person_degree_field_updated");
+  });
+
+  it("holds no database list for college or degree, so legacy values stay readable — LAN-512", async () => {
+    const constraints = await observer.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where conrelid = 'public.people'::regclass
+          and (conname like '%degree%' or conname like 'people_college%')
+          and conname not like '%_not_blank'`,
+    );
+    expect(constraints.rows).toEqual([]);
+    const personId = await insertPerson({ givenName: unique("Legacy"), college: "St. Catz" });
+    const row = await observer.query<{ college: string }>(
+      "select college from public.people where id = $1",
+      [personId],
+    );
+    expect(row.rows[0].college).toBe("St. Catz");
+  });
+
+  it("refuses to change an existing value without a reason", async () => {
+    const personId = await insertPerson({
+      givenName: unique("HasCollege"),
+      college: "Merton College",
+    });
+
+    await expect(
+      updatePersonField({ actorPersonId, personId, field: "college", value: "Balliol College" }),
     ).rejects.toMatchObject({
       kind: "constraint_violated",
       rule: "person_field_change_requires_a_reason",
@@ -430,32 +499,38 @@ describe("updatePersonField — every other field overwrites, with history in th
   });
 
   it("changes an existing value with a reason, and records before and after", async () => {
-    const personId = await insertPerson({ givenName: unique("Transferred"), college: "Merton" });
+    const personId = await insertPerson({
+      givenName: unique("Transferred"),
+      college: "Merton College",
+    });
 
     const record = await updatePersonField({
       actorPersonId,
       personId,
       field: "college",
-      value: "Balliol",
+      value: "Balliol College",
       reason: "Player transferred colleges",
     });
 
-    expect(record.college).toBe("Balliol");
+    expect(record.college).toBe("Balliol College");
     const audit = await latestAudit("people", personId);
-    expect(audit?.from_state).toBe("Merton");
-    expect(audit?.to_state).toBe("Balliol");
+    expect(audit?.from_state).toBe("Merton College");
+    expect(audit?.to_state).toBe("Balliol College");
     expect(audit?.reason).toBe("Player transferred colleges");
   });
 
   it("refuses a no-op write", async () => {
-    const personId = await insertPerson({ givenName: unique("SameValue"), college: "Merton" });
+    const personId = await insertPerson({
+      givenName: unique("SameValue"),
+      college: "Merton College",
+    });
 
     await expect(
       updatePersonField({
         actorPersonId,
         personId,
         field: "college",
-        value: "Merton",
+        value: "Merton College",
         reason: "no-op",
       }),
     ).rejects.toMatchObject({ rule: "person_field_unchanged" });
@@ -698,7 +773,7 @@ describe("a concurrent edit refuses rather than wins — W2-09", () => {
         actorPersonId,
         personId,
         field: "college",
-        value: "Hallamshire",
+        value: "Keble College",
         expectedVersion: loadedVersion,
       }),
     ).rejects.toMatchObject({ rule: "person_concurrent_edit" });
@@ -709,10 +784,10 @@ describe("a concurrent edit refuses rather than wins — W2-09", () => {
       actorPersonId,
       personId,
       field: "college",
-      value: "Hallamshire",
+      value: "Keble College",
       expectedVersion: freshVersion,
     });
-    expect(record.college).toBe("Hallamshire");
+    expect(record.college).toBe("Keble College");
   });
 
   it("does not refuse when no version was ever loaded", async () => {

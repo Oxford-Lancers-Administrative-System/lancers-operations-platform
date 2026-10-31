@@ -5,11 +5,10 @@ import Typography from "@mui/material/Typography";
 import { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 
 /**
- * The crest and the club's name, together — LAN-225, brief §4.4. `tone` says
- * which ground it sits on: white on Oxford Blue, Oxford Blue on paper, never
- * Gold text. Not the browser-tab mark — that's a different file, cut from the
- * round award badge (LAN-269, LAN-385); `public/brand/README.md` says which is
- * which.
+ * The crest and the club's name, together — LAN-225, brief §4.4. The crest is
+ * the round one on every ground (LAN-509): it carries its own navy disc and gold
+ * ring, so one file reads on Oxford Blue and on paper alike. `tone` sets the
+ * name's colour only: white on Oxford Blue, Oxford Blue on paper, never Gold.
  */
 export { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 
@@ -42,7 +41,7 @@ export function BrandMark({
     >
       <Box
         component="img"
-        src={tone === "onDark" ? CREST_PATH : "/brand/crest-blue.svg"}
+        src={CREST_PATH}
         alt=""
         aria-hidden="true"
         sx={{ width: crestSize, height: crestSize, flexShrink: 0, display: "block" }}

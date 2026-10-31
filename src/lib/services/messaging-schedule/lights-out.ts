@@ -58,6 +58,8 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<LightsOutMessageKind, boolean>> 
   // LAN-508: a send time between 22:00 and 07:00 waits for 07:00, the existing rule.
   event_brief: false,
   attendance_sheet: true,
+  // LAN-514: a message an operator wrote can wait for the morning like any other.
+  club_message: false,
 });
 
 /**
@@ -86,6 +88,7 @@ export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly LightsOutM
       "attendance_sheet",
       "recruit_event_reminder",
       "event_brief",
+      "club_message",
     ],
   });
 
@@ -100,6 +103,7 @@ export const OTHER_JOB_KEY_PREFIX_KINDS: Readonly<Record<string, LightsOutMessag
     "attendance-sheet:": "attendance_sheet",
     "recruit-event-reminder:": "recruit_event_reminder",
     "event-message:": "event_brief",
+    "club-message:": "club_message",
   });
 
 /** Whether lights-out lets this job type through. An unknown type waits. */

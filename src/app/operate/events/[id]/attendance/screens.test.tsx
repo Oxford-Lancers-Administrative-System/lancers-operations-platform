@@ -35,12 +35,13 @@ vi.mock("@/lib/services/event-messages/store", async (importOriginal) => ({
   replaceTemplateEventMessages: vi.fn(async () => undefined),
 }));
 const routerPush = vi.fn();
+const routerReplace = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT:${url}`);
   }),
   usePathname: () => "/operate/events",
-  useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: routerPush, replace: routerReplace, refresh: vi.fn() }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
@@ -231,6 +232,7 @@ function board(overrides: Partial<AttendanceBoard> = {}): AttendanceBoard {
     recordedCount: summary.recorded,
     walkUpCount: summary.walkUps,
     mismatchCount: participants.filter((entry) => entry.mismatch !== null).length,
+    groupFamilies: [],
     ...overrides,
   };
 }
@@ -1816,5 +1818,232 @@ describe("UX-97 — the coach's walk-up", () => {
       "href",
       `/operate/events/${EVENT_ID}/attendance`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-497 — Group by coaching, position or warmup group
+// ---------------------------------------------------------------------------
+
+describe("LAN-497 — Group by", () => {
+  const STORAGE_KEY = "lancers:attendance-group-by:22222222-2222-4222-8222-222222222222";
+
+  /** Leo is in two offensive groups; Nora in none; Wren walked up. */
+  function groupedBoard(families: AttendanceBoard["groupFamilies"] = ["offensive", "warmup"]) {
+    return board({
+      groupFamilies: families,
+      participants: [
+        participant({
+          key: "player:leo",
+          displayName: "Leo Hartwell",
+          rsvp: "no",
+          presence: "present",
+          recordedAt: "2026-10-14T19:07:00.000Z",
+          recordedByName: "Casey North",
+          groups: { offensive: ["Quarterbacks", "Offensive Line"], warmup: ["Kings"] },
+        }),
+        participant({
+          key: "player:avery",
+          displayName: "Avery Fielding",
+          rsvp: "yes",
+          groups: { offensive: ["Offensive Line"], warmup: [] },
+        }),
+        participant({
+          key: "player:nora",
+          displayName: "Nora Vale",
+          rsvp: null,
+          groups: { offensive: [], warmup: [] },
+        }),
+        participant({
+          key: "guest:wren",
+          displayName: "Wren Walker",
+          rsvp: null,
+          isWalkUp: true,
+          presence: "present",
+          groups: { offensive: [], warmup: [] },
+        }),
+      ],
+    });
+  }
+
+  function sectionKeys(): string[] {
+    return [...screen.getByTestId("attendance-groups").children].map(
+      (child) => child.getAttribute("data-testid") ?? "",
+    );
+  }
+
+  function namesIn(key: string): string[] {
+    return [
+      ...screen
+        .getByTestId(`attendance-group-${key}`)
+        .querySelectorAll("[data-testid='attendance-row']"),
+    ].map((row) => row.querySelector("p")?.textContent ?? "");
+  }
+
+  beforeEach(() => {
+    routerReplace.mockClear();
+    window.localStorage.clear();
+  });
+
+  it("reads the board with the viewer's own grants", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(vi.mocked(readAttendanceBoard)).toHaveBeenLastCalledWith(
+      EVENT_ID,
+      expect.any(Date),
+      operator().grants,
+    );
+  });
+
+  it("offers no Group by to a viewer with no family", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard([]));
+
+    render(await AttendancePage(attendanceProps({ by: "offensive" })));
+
+    expect(screen.queryByTestId("attendance-group-by")).toBeNull();
+    // The link's family is ignored: today's register.
+    expect(screen.getByTestId("attendance-groups").dataset.groupBy).toBe("none");
+  });
+
+  it("offers None and only the families the board says the viewer may see", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard(["warmup"]));
+
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /Group by/ }));
+
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "None",
+      "Warmup group",
+    ]);
+  });
+
+  it("opens on None, today's register, with no family in the link", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(sectionKeys()).toEqual([
+      "attendance-group-attending",
+      "attendance-group-everyone_else",
+      "attendance-group-walk_ups",
+    ]);
+  });
+
+  it("draws one section per group in vocabulary order, a repeat in each, then No group and Walk-ups", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps({ by: "offensive" })));
+
+    expect(sectionKeys()).toEqual([
+      "attendance-group-group-offensive-line",
+      "attendance-group-group-quarterbacks",
+      "attendance-group-no-group",
+      "attendance-group-walk_ups",
+    ]);
+    expect(namesIn("group-offensive-line")).toEqual(["Avery Fielding", "Leo Hartwell"]);
+    expect(namesIn("group-quarterbacks")).toEqual(["Leo Hartwell"]);
+    expect(screen.getByTestId("attendance-group-count-group-offensive-line").textContent).toBe("2");
+    expect(screen.getByTestId("attendance-group-no-group").dataset.open).toBe("false");
+    expect(screen.getByTestId("attendance-group-group-quarterbacks").dataset.open).toBe("true");
+    expect(screen.getByTestId("attendance-group-walk_ups").dataset.open).toBe("true");
+    expect(screen.getByTestId("attendance-group-no-group").textContent).toContain(
+      "No offensive position group",
+    );
+  });
+
+  it("shows one record wherever a player repeats: same key, same committed value", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps({ by: "offensive" })));
+
+    const copies = screen
+      .getAllByTestId("attendance-row")
+      .filter((row) => row.dataset.participant === "player:leo");
+    expect(copies).toHaveLength(2);
+    expect(copies.map((row) => row.dataset.presence)).toEqual(["present", "present"]);
+    // RSVP rides on the row's own line, not as a section.
+    expect(copies[0].textContent).toContain("RSVP: Not attending");
+  });
+
+  it("saves once from either copy, for the one participant key", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+    vi.mocked(recordAttendance).mockClear();
+    vi.mocked(recordAttendance).mockResolvedValue({
+      key: "player:leo",
+      presence: "late",
+      recordedAt: "2026-10-14T19:09:00.000Z",
+    } as never);
+
+    render(await AttendancePage(attendanceProps({ by: "offensive" })));
+
+    const copies = screen
+      .getAllByTestId("attendance-row")
+      .filter((row) => row.dataset.participant === "player:leo");
+    const late = [...copies[1].querySelectorAll("button")].find(
+      (button) => button.textContent === "Late",
+    )!;
+    await act(async () => {
+      fireEvent.click(late);
+    });
+
+    await waitFor(() => expect(vi.mocked(recordAttendance)).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(vi.mocked(recordAttendance).mock.calls[0])).toContain("player:leo");
+  });
+
+  it("ignores a family in the link that the viewer may not see", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard(["warmup"]));
+
+    render(await AttendancePage(attendanceProps({ by: "offensive" })));
+
+    expect(screen.getByTestId("attendance-groups").dataset.groupBy).toBe("none");
+  });
+
+  it("combines with search, which opens every section", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps({ by: "offensive", q: "nora" })));
+
+    expect(sectionKeys()).toEqual(["attendance-group-no-group"]);
+    expect(screen.getByTestId("attendance-group-no-group").dataset.open).toBe("true");
+  });
+
+  it("puts the choice in the link and remembers it in this browser for this viewer", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /Group by/ }));
+    fireEvent.click(screen.getByRole("option", { name: "Warmup group" }));
+
+    expect(routerPush).toHaveBeenLastCalledWith(`/operate/events/${EVENT_ID}/attendance?by=warmup`);
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("warmup");
+  });
+
+  it("opens a later visit without a family in the link on the last choice", async () => {
+    window.localStorage.setItem(STORAGE_KEY, "warmup");
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    await waitFor(() =>
+      expect(routerReplace).toHaveBeenCalledWith(
+        `/operate/events/${EVENT_ID}/attendance?by=warmup`,
+      ),
+    );
+  });
+
+  it("stays on None for a first visit, a remembered None, or a remembered family no longer visible", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(groupedBoard(["offensive"]));
+
+    for (const stored of [null, "none", "warmup"]) {
+      if (stored === null) window.localStorage.removeItem(STORAGE_KEY);
+      else window.localStorage.setItem(STORAGE_KEY, stored);
+      const { unmount } = render(await AttendancePage(attendanceProps()));
+      await act(async () => {});
+      unmount();
+    }
+
+    expect(routerReplace).not.toHaveBeenCalled();
   });
 });

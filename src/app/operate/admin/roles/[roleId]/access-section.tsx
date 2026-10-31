@@ -30,6 +30,7 @@ import { templateColourFor } from "@/lib/services/event-template-input";
 import {
   ACCESS_GROUP_LABELS,
   ACCESS_RECRUITING_LINES,
+  ACCESS_RECRUITING_SWITCH_LINES,
   ACCESS_ROSTER_LINES,
   ACCESS_SWITCH_LINES,
   accessGroupSummary,
@@ -117,9 +118,30 @@ function groupsFor(templates: readonly AccessTemplateLine[]): readonly Group[] {
     },
     {
       key: "recruiting",
-      lines: ACCESS_RECRUITING_LINES.map((entry) =>
-        line({ kind: "recruiting", key: entry.key }, entry.label, entry.key),
-      ),
+      lines: [
+        ...ACCESS_RECRUITING_LINES.map((entry) =>
+          line({ kind: "recruiting", key: entry.key }, entry.label, entry.key),
+        ),
+        // LAN-505: May move recruits to Joined sits with Recruiting, not
+        // under Adding people, with its help line beneath the label.
+        ...ACCESS_RECRUITING_SWITCH_LINES.map((entry) =>
+          line(
+            { kind: "switch", key: entry.key },
+            <>
+              <span>{entry.label}</span>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block" }}
+                data-testid={`access-line-${entry.key}-help`}
+              >
+                {entry.help}
+              </Typography>
+            </>,
+            entry.key,
+          ),
+        ),
+      ],
     },
     {
       key: "template",

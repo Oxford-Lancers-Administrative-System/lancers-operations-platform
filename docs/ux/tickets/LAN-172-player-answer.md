@@ -590,6 +590,45 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
 `REQ-player-page`, `REQ-player-page-empty`, `REQ-approved-means-visible`,
 `REQ-cross-person-isolation`.
 
+## LAN-498 amendment (Brian, 31 October 2026)
+
+Clint's players tapped Yes in WhatsApp, read "You're attending", and left, and
+nothing was recorded: the interaction gate above waited for a touch that never
+came, and the heading claimed a save that had not happened. Brian approved:
+
+- **The channel decides when the page saves.** A link delivered by WhatsApp
+  submits the answer form once the page has hydrated (`SubmitOnLoad`), through
+  the same `submitAnswer`, cookie gate and throttle. WhatsApp's preview fetcher
+  runs no script, so the GET stays the only thing it can reach. A link
+  delivered by email keeps the interaction gate, because Safe Links and other
+  mail scanners open links in a browser that runs script. The channel is read
+  server-side from the token's own delivery record
+  (`readAnswerTokenChannelIn`); a token the record cannot place is treated as
+  email. A WhatsApp link saves on load only while the invitation has no
+  standing answer at all; with any standing answer, the same as the link's
+  included, it waits for a touch, so reopening an old tab never silently flips
+  an answer or overwrites a No's reason or a Yes's question answers.
+- **Known preview fetchers and crawlers never save** (`src/lib/rsvp/preview-agents.ts`):
+  for them the page arms nothing on either channel and `submitAnswer` refuses.
+  WhatsApp's fetcher is matched only as a User-Agent starting `WhatsApp/`, so a
+  player's in-app browser is never blocked.
+- **Truthful states.** Before the save commits the heading is **Saving…**
+  (WhatsApp) or **Confirm your answer** (email), and the fact reads **Answer** —
+  **Attending** / **Not attending**. "You're attending" and "You're not
+  attending — no reason given" are gone from this page; the confirmation is the
+  events page the committed POST lands on (**Attending**). The submit button
+  reads **Saving…** while the POST is in flight. A failed save lands on
+  `?error=unsaved`: **Not saved**, "Your response has not been saved.", and a
+  **Retry** button; nothing re-arms by itself. A throttled save shows the same
+  heading and button with the busy message.
+- **Questions and reasons.** A WhatsApp page that saves on load leaves the
+  questions and the reason to the events page's own panel (**Save answers**,
+  **Save**), which it lands on with the event open; the email page still asks
+  them inline. A No saved with no reason records "No reason given", as before.
+
+This supersedes OWNER-LAN172-13's heading and narrows Q-30's interaction gate
+to email.
+
 ## Acceptance
 
 - [x] Preview, scanner, reload and double-tap tests prove no false response is

@@ -95,6 +95,7 @@ export default async function JoinWithTokenPage({ params }: PageProps) {
             prefill.matriculationYear !== null ? String(prefill.matriculationYear) : "",
           expectedGraduationYear:
             prefill.expectedGraduationYear !== null ? String(prefill.expectedGraduationYear) : "",
+          degreeType: prefill.degreeType ?? "",
           degreeField: prefill.degreeField ?? "",
         }}
         personLabel={personLabel || null}

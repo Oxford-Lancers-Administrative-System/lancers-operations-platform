@@ -134,7 +134,13 @@ export type EmailOnlyMessageKind =
    * attendance sheet, to the General Manager, the President and every coach
    * who answered Yes. To an operator, about an event: no player data.
    */
-  "attendance_sheet";
+  | "attendance_sheet"
+  /**
+   * LAN-514. A message the club wrote on the Messages page, with any files
+   * attached, to an audience it chose. The subject and body are the
+   * operator's own words.
+   */
+  | "club_message";
 
 /**
  * One message, reduced to what any channel would need to send it.
@@ -257,6 +263,39 @@ export interface OutboundMessage {
    * image. The adapter uploads it as Meta media and sends the header by id.
    */
   readonly headerImage?: Uint8Array | null;
+  /** LAN-514. The operator's own subject line. `club_message` only. */
+  readonly subject?: string | null;
+  /** LAN-514. The operator's own body, as typed. `club_message` only. */
+  readonly bodyText?: string | null;
+  /**
+   * LAN-514. Files sent with the email, read in slices as the request body is
+   * streamed (`email.ts`), never held whole. `club_message` only; never logged.
+   */
+  readonly attachments?: readonly OutboundAttachment[] | null;
+  /**
+   * LAN-514. Sent as Resend's `Idempotency-Key`, so a retried attempt of the
+   * same job cannot deliver a second copy. The job's own key, the same on every
+   * attempt. Set only where the payload is identical on every attempt
+   * (`club_message`): Resend refuses a reused key with a changed body, and the
+   * other kinds mint a fresh link per attempt.
+   */
+  readonly idempotencyKey?: string | null;
+}
+
+/**
+ * One file attached to an email — Resend's `{ filename, content }`, with the
+ * content supplied a slice at a time rather than as one string.
+ */
+export interface OutboundAttachment {
+  readonly filename: string;
+  readonly contentType?: string | null;
+  /** The file's length in bytes, known before any of it is read. */
+  readonly byteSize: number;
+  /**
+   * `length` bytes from `offset` (fewer only at the end of the file). Called in
+   * order, one slice at a time, while the body streams.
+   */
+  readonly readSlice: (offset: number, length: number) => Promise<Uint8Array>;
 }
 
 /**
@@ -305,6 +344,12 @@ export type SendOutcome =
        * nobody supplied.
        */
       readonly faultScope?: SendFaultScope;
+      /**
+       * LAN-514. Resend's `409 invalid_idempotent_request`: this job's key was
+       * already used, so an earlier attempt reached the provider and nothing
+       * was sent now. Not a failure to send, and never retried.
+       */
+      readonly earlierAttemptReachedProvider?: boolean;
     };
 
 /**

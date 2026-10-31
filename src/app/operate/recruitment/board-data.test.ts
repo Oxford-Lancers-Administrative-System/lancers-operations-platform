@@ -2,7 +2,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
-import { applyBoard } from "./board-data";
+import { applyBoard, recruitmentSortFields } from "./board-data";
+import { eventColumns, RECRUITMENT_COLUMNS } from "./board-columns";
+
+const EVENT = { eventId: "e1", name: "Taster session", date: null, colourKey: null };
 
 function row(overrides: Partial<RecruitmentBoardRow>): RecruitmentBoardRow {
   return {
@@ -55,9 +58,7 @@ describe("applyBoard", () => {
       }),
       row({ prospectId: "joined", status: "joined" }),
     ];
-    const sorted = applyBoard(rows, { search: "", filters: {}, sort: null }).map(
-      (r) => r.prospectId,
-    );
+    const sorted = applyBoard(rows, { search: "", filters: {}, sort: [] }).map((r) => r.prospectId);
     expect(sorted).toEqual(["identified-newer", "identified-older", "joined", "declined"]);
   });
 
@@ -71,11 +72,11 @@ describe("applyBoard", () => {
     const ascending = applyBoard(rows, {
       search: "",
       filters: {},
-      sort: { key: "firstContact", direction: "asc" },
+      sort: [{ key: "firstContact", direction: "asc" }],
     }).map((r) => r.prospectId);
     expect(ascending).toEqual(["morning", "evening", "a-minute-later", "never"]);
 
-    const byDefault = applyBoard(rows, { search: "", filters: {}, sort: null }).map(
+    const byDefault = applyBoard(rows, { search: "", filters: {}, sort: [] }).map(
       (r) => r.prospectId,
     );
     expect(byDefault).toEqual(["a-minute-later", "evening", "morning", "never"]);
@@ -87,10 +88,10 @@ describe("applyBoard", () => {
       row({ prospectId: "b", displayName: "Tobias Wrenfield", aliases: ["Toby"] }),
     ];
     expect(
-      applyBoard(rows, { search: "toby", filters: {}, sort: null }).map((r) => r.prospectId),
+      applyBoard(rows, { search: "toby", filters: {}, sort: [] }).map((r) => r.prospectId),
     ).toEqual(["b"]);
     expect(
-      applyBoard(rows, { search: "rosalind", filters: {}, sort: null }).map((r) => r.prospectId),
+      applyBoard(rows, { search: "rosalind", filters: {}, sort: [] }).map((r) => r.prospectId),
     ).toEqual(["a"]);
   });
 
@@ -100,22 +101,22 @@ describe("applyBoard", () => {
       row({ prospectId: "b", status: "declined", consent: "never_asked", personalSent: false }),
     ];
     expect(
-      applyBoard(rows, { search: "", filters: { status: "declined" }, sort: null }).map(
+      applyBoard(rows, { search: "", filters: { status: "declined" }, sort: [] }).map(
         (r) => r.prospectId,
       ),
     ).toEqual(["b"]);
     expect(
-      applyBoard(rows, { search: "", filters: { consent: "granted" }, sort: null }).map(
+      applyBoard(rows, { search: "", filters: { consent: "granted" }, sort: [] }).map(
         (r) => r.prospectId,
       ),
     ).toEqual(["a"]);
     expect(
-      applyBoard(rows, { search: "", filters: { personalSent: "yes" }, sort: null }).map(
+      applyBoard(rows, { search: "", filters: { personalSent: "yes" }, sort: [] }).map(
         (r) => r.prospectId,
       ),
     ).toEqual(["a"]);
     expect(
-      applyBoard(rows, { search: "", filters: { personalSent: "no" }, sort: null }).map(
+      applyBoard(rows, { search: "", filters: { personalSent: "no" }, sort: [] }).map(
         (r) => r.prospectId,
       ),
     ).toEqual(["b"]);
@@ -127,7 +128,7 @@ describe("applyBoard", () => {
       row({ prospectId: "b", displayName: "Never Nora", attendedAnyEvent: false }),
     ];
     expect(
-      applyBoard(rows, { search: "", filters: { attendedAnyEvent: "yes" }, sort: null }).map(
+      applyBoard(rows, { search: "", filters: { attendedAnyEvent: "yes" }, sort: [] }).map(
         (r) => r.prospectId,
       ),
     ).toEqual(["a"]);
@@ -142,7 +143,7 @@ describe("applyBoard", () => {
       applyBoard(rows, {
         search: "",
         filters: { status: "engaged", consent: "granted" },
-        sort: null,
+        sort: [],
       }).map((r) => r.prospectId),
     ).toEqual(["a"]);
   });
@@ -153,15 +154,17 @@ describe("applyBoard", () => {
       row({ prospectId: "b", college: "Wadham" }),
     ];
     expect(
-      applyBoard(rows, { search: "", filters: {}, sort: { key: "college", direction: "asc" } }).map(
-        (r) => r.prospectId,
-      ),
+      applyBoard(rows, {
+        search: "",
+        filters: {},
+        sort: [{ key: "college", direction: "asc" }],
+      }).map((r) => r.prospectId),
     ).toEqual(["a", "b"]);
     expect(
       applyBoard(rows, {
         search: "",
         filters: {},
-        sort: { key: "college", direction: "desc" },
+        sort: [{ key: "college", direction: "desc" }],
       }).map((r) => r.prospectId),
     ).toEqual(["b", "a"]);
   });
@@ -172,16 +175,81 @@ describe("applyBoard", () => {
       row({ prospectId: "unknown", college: null }),
     ];
     expect(
-      applyBoard(rows, { search: "", filters: {}, sort: { key: "college", direction: "asc" } }).map(
-        (r) => r.prospectId,
-      ),
+      applyBoard(rows, {
+        search: "",
+        filters: {},
+        sort: [{ key: "college", direction: "asc" }],
+      }).map((r) => r.prospectId),
     ).toEqual(["known", "unknown"]);
     expect(
       applyBoard(rows, {
         search: "",
         filters: {},
-        sort: { key: "college", direction: "desc" },
+        sort: [{ key: "college", direction: "desc" }],
       }).map((r) => r.prospectId),
     ).toEqual(["known", "unknown"]);
+  });
+});
+
+describe("LAN-495 — three sort keys over the recruits", () => {
+  const ids = (rows: readonly RecruitmentBoardRow[]) => rows.map((r) => r.prospectId);
+
+  it("offers First name, Last name, Recruit and the columns, First contact as a date, an event's by its name", () => {
+    const columns = [...RECRUITMENT_COLUMNS, ...eventColumns([EVENT])];
+    const fields = recruitmentSortFields(columns, (band) =>
+      band === `events:${EVENT.eventId}` ? EVENT.name : String(band),
+    );
+    expect(fields.slice(0, 4).map((f) => f.label)).toEqual([
+      "First name",
+      "Last name",
+      "Recruit",
+      "College",
+    ]);
+    expect(fields.find((f) => f.key === "firstContact")?.kind).toBe("date");
+    expect(fields.find((f) => f.key === "graduation")?.kind).toBe("number");
+    expect(fields.at(-2)?.label).toBe("Taster session · RSVP");
+    expect(fields.at(-1)?.label).toBe("Taster session · Attendance");
+  });
+
+  it("sorts First contact by instant across zones, a blank last either way", () => {
+    const rows = [
+      row({ prospectId: "later", firstContactOn: "2026-10-07T18:32:00.000Z" }),
+      row({ prospectId: "never", firstContactOn: null }),
+      row({ prospectId: "earlier", firstContactOn: "2026-10-07T19:31:00.000+01:00" }),
+    ];
+    const sorted = (direction: "asc" | "desc") =>
+      ids(
+        applyBoard(rows, { search: "", filters: {}, sort: [{ key: "firstContact", direction }] }),
+      );
+    expect(sorted("asc")).toEqual(["earlier", "later", "never"]);
+    expect(sorted("desc")).toEqual(["later", "earlier", "never"]);
+  });
+
+  it("orders by status, then first contact, then name and id — the same from any input order", () => {
+    const rows = [
+      row({ prospectId: "c", displayName: "Sam", status: "engaged", firstContactOn: null }),
+      row({
+        prospectId: "b",
+        displayName: "Sam",
+        status: "engaged",
+        firstContactOn: "2026-10-01T10:00:00.000Z",
+      }),
+      row({
+        prospectId: "a",
+        displayName: "Sam",
+        status: "engaged",
+        firstContactOn: "2026-10-01T10:00:00.000Z",
+      }),
+      row({ prospectId: "d", displayName: "Ann", status: "committed", firstContactOn: null }),
+    ];
+    const sort = [
+      { key: "status", direction: "asc" as const },
+      { key: "firstContact", direction: "desc" as const },
+    ];
+    const once = ids(applyBoard(rows, { search: "", filters: {}, sort }));
+    // Committed before Engaged — alphabetical (LAN-426); then the two equal
+    // instants by name (both Sam), then by id; then the blank.
+    expect(once).toEqual(["d", "a", "b", "c"]);
+    expect(ids(applyBoard([...rows].reverse(), { search: "", filters: {}, sort }))).toEqual(once);
   });
 });

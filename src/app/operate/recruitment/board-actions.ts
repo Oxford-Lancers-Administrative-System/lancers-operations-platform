@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireGrant, requireRole } from "@/lib/auth/guards";
-import { FLIP_ROLE_CODES, FLIP_ROLE_RULE } from "@/lib/auth/recruitment-flip-authority";
+import { requireGrant } from "@/lib/auth/guards";
+import { MOVE_TO_JOINED } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import {
   flipRecruitmentProspectToJoined,
@@ -46,13 +46,19 @@ export async function setRecruitmentStatusAction(params: {
   return OK;
 }
 
-/** `W14`. The one interruption in the mission — gated on the four constitutional offices (`recruitment-flip-authority`), not a grant. */
+/**
+ * `W14`. The one interruption in the mission. LAN-505 (Brian, 16 October
+ * 2026): gated on the May move recruits to Joined switch, which replaced the
+ * fixed four-office rule. The switch alone is enough — whatever the seat's
+ * Recruit details level — so it can never be granted in a state where it does
+ * nothing.
+ */
 export async function flipRecruitmentProspectAction(params: {
   prospectId: string;
 }): Promise<RecruitmentActionState> {
   try {
     // Inside the try (LAN-423): a refusal is the card's answer, never a crashed board.
-    const operator = await requireRole([...FLIP_ROLE_CODES], { rule: FLIP_ROLE_RULE });
+    const operator = await requireGrant(MOVE_TO_JOINED);
     await flipRecruitmentProspectToJoined(operator.personId, params.prospectId);
   } catch (error) {
     return stateFor(error);

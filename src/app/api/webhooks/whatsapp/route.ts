@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { resolveWebhookConfig } from "@/lib/delivery/config";
+import { MAX_CALLBACK_BYTES, readBodyUpTo } from "@/lib/delivery/read-body";
 import { parseCallbackPayload, verifyWebhookSignature } from "@/lib/delivery/whatsapp-cloud";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import { applyProviderCallback } from "@/lib/services/delivery";
@@ -18,8 +19,7 @@ import { applyProviderCallback } from "@/lib/services/delivery";
  * receive a real callback.
  */
 
-/** The largest callback this route will read — Meta's payloads are a few KB; 64 KiB avoids an unauthenticated caller choosing the HMAC's cost. */
-export const MAX_CALLBACK_BYTES = 64 * 1024;
+export { MAX_CALLBACK_BYTES };
 
 /** Constant-time equality for a shared secret. `null` never matches. */
 function matchesSecret(given: string | null, expected: string): boolean {
@@ -49,30 +49,6 @@ export async function GET(request: Request): Promise<Response> {
     status: 200,
     headers: { "content-type": "text/plain" },
   });
-}
-
-/**
- * Reads the body and stops the moment it passes `limit` bytes, so an
- * unauthenticated caller who omits or understates `content-length` cannot make
- * this process buffer a body it was always going to refuse (LAN-352).
- * `request.text()` would read all of it first and measure afterwards.
- */
-async function readBodyUpTo(request: Request, limit: number): Promise<string | null> {
-  if (request.body === null) return "";
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString("utf8");
 }
 
 export async function POST(request: Request): Promise<Response> {

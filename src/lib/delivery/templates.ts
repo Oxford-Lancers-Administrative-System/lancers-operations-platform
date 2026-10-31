@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { EnvironmentSource, OutboundConfig } from "./config";
+import { clubMessageParagraphs } from "@/lib/services/club-message-input";
 import type { EmailOnlyMessageKind, MessageKind, OutboundMessage } from "./provider";
 import { briefEmailHtml } from "@/lib/event-brief/email";
 import { briefPlainText } from "@/lib/event-brief/markdown";
@@ -943,11 +944,26 @@ const ATTENDANCE_SHEET: MessageTemplate = {
   ],
 };
 
+/**
+ * LAN-514. A message the club wrote on the Messages page: the operator's own
+ * subject, and their body one paragraph per line, exactly as typed. Nothing is
+ * added — no greeting and no link — because the words are the club's.
+ * Attachments travel beside it (`buildEmailBody`).
+ */
+const CLUB_MESSAGE: MessageTemplate = {
+  kind: "club_message",
+  parameterNames: [],
+  parameters: () => [],
+  subject: (message) => required(message.subject, "subject"),
+  body: (message) => clubMessageParagraphs(required(message.bodyText, "message")),
+};
+
 export const EMAIL_ONLY_TEMPLATES: Readonly<Record<EmailOnlyMessageKind, MessageTemplate>> =
-  Object.freeze({ attendance_sheet: ATTENDANCE_SHEET });
+  Object.freeze({ attendance_sheet: ATTENDANCE_SHEET, club_message: CLUB_MESSAGE });
 
 export const EMAIL_ONLY_KINDS: readonly EmailOnlyMessageKind[] = Object.freeze([
   "attendance_sheet",
+  "club_message",
 ] as const);
 
 export function isEmailOnlyKind(

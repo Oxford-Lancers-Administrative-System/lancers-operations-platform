@@ -422,6 +422,7 @@ export async function applyRecruitImport(
           matriculationYear: cells.matriculation_year,
           knownAs: cells.known_as,
           expectedGraduationYear: cells.expected_graduation_year,
+          degreeType: cells.degree_type,
           degreeField: cells.degree_field,
           dateOfBirth: cells.date_of_birth,
           emergencyGivenName: cells.emergency_first_name,

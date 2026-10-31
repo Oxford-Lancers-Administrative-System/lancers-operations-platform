@@ -16,7 +16,8 @@ export const MERGE_PERSON_FIELD_LABELS: Readonly<Record<MergePersonField, string
   college: "College",
   matriculation_year: "Matriculation year",
   expected_graduation_year: "Expected graduation",
-  degree_field: "Degree field",
+  // LAN-512: the letters and the subject are one validated pair, so they merge as one row.
+  degree_field: "Degree and subject",
   date_of_birth: "Date of birth",
   emergency_contact: "Emergency contact",
 });

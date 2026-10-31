@@ -91,6 +91,9 @@ const MESSAGE: OutboundMessage = {
   attendanceUrl: attendanceSheetUrl(BASE, "11111111-1111-4111-8111-111111111111"),
   // LAN-508: the event brief's Markdown.
   brief: "## Itinerary\n- 8:30 AM Bus",
+  // LAN-514: a message written on the Messages page.
+  subject: "Special teams playbook",
+  bodyText: "Hello all,\n\nThe playbook is attached.",
 };
 
 /** The other three `formUrl` destinations, by the kinds that carry them. */
@@ -196,7 +199,10 @@ describe("every path a message mints", () => {
 
   it.each(EMAIL_ONLY_KINDS)("%s links only at routes the application serves", (kind) => {
     const urls = urlsIn(kind);
-    expect(urls.length, `${kind} carries no link`).toBeGreaterThan(0);
+    // LAN-514: a club message is the operator's own words, links or none.
+    if (kind !== "club_message") {
+      expect(urls.length, `${kind} carries no link`).toBeGreaterThan(0);
+    }
     for (const url of urls) {
       const { pathname } = new URL(url);
       expect(serves(pathname), `${kind} links at ${pathname}, which no route serves`).toBe(true);

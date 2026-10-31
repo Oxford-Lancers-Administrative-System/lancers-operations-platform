@@ -101,6 +101,7 @@ export interface PersonMergePreview {
 
 export function fieldValue(record: PersonRecord, field: MergePersonField): string | null {
   if (field === "emergency_contact") return emergencyContactLine(record.emergencyContact);
+  if (field === "degree_field") return degreeLine(record);
   const value =
     record[
       field === "given_name"
@@ -113,11 +114,22 @@ export function fieldValue(record: PersonRecord, field: MergePersonField): strin
               ? "matriculationYear"
               : field === "expected_graduation_year"
                 ? "expectedGraduationYear"
-                : field === "degree_field"
-                  ? "degreeField"
-                  : "dateOfBirth"
+                : "dateOfBirth"
     ];
   return value === null || value === undefined ? null : String(value);
+}
+
+/**
+ * LAN-512. The degree letters and the subject, as one value: they are a
+ * validated pair, so a merge compares, shows and moves them together and can
+ * never leave one side's letters with the other side's subject. A missing half
+ * shows as a dash so (BA, none) and (none, BA) still differ.
+ */
+function degreeLine(record: PersonRecord): string | null {
+  const letters = record.degreeType ?? null;
+  const subject = record.degreeField ?? null;
+  if (letters === null && subject === null) return null;
+  return `${letters ?? "—"} · ${subject ?? "—"}`;
 }
 
 function emergencyContactLine(ec: EmergencyContact | null): string | null {

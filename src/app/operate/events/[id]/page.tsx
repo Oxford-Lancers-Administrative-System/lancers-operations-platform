@@ -3,7 +3,13 @@ import Button from "@mui/material/Button";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { readEvent, readEventQuestions, type EventDetail } from "@/lib/services/events";
-import { readEventAttendanceSummary } from "@/lib/services/attendance";
+import { readEventAttendanceSummary, readEventGroupValues } from "@/lib/services/attendance";
+import {
+  attendanceGroupByStorageKey,
+  parseAttendanceGroupBy,
+  visibleAttendanceGroupFamilies,
+} from "@/lib/services/attendance-group-by";
+import { withGroupValues } from "@/lib/services/participation-sections";
 import {
   readApprovalPreview,
   readEventAudience,
@@ -168,13 +174,26 @@ export default async function EventDetailPage({
   const history = event.status === "draft" ? [] : await readEventChangeHistory(event.id);
 
   // REQ-participation-table, LAN-157: read from approval onward; service resolves the operator itself.
-  const participation =
+  const readParticipation =
     event.invitationCount > 0 ? await readOperatorParticipation(event.id) : null;
   const participationFilters = readParticipationFilters(
     query,
-    participation?.questions ?? [],
+    readParticipation?.questions ?? [],
     "operator",
   );
+
+  // LAN-497: the register's Group by, on Everyone asked. A family the viewer may not see is
+  // ignored, as if the link named none; only the chosen family's values are read.
+  const groupFamilies = visibleAttendanceGroupFamilies(gate.operator.grants);
+  const groupBy = parseAttendanceGroupBy(query.by, groupFamilies);
+  const groupValues =
+    readParticipation !== null && groupBy !== null
+      ? await readEventGroupValues(event.id, [groupBy])
+      : {};
+  const participation =
+    readParticipation !== null && groupBy !== null
+      ? { ...readParticipation, people: withGroupValues(readParticipation.people, groupValues) }
+      : readParticipation;
 
   // D3 (round 2): audience named by groups before people, read only when AudienceList will render.
   const audienceGroupSummary =
@@ -234,6 +253,9 @@ export default async function EventDetailPage({
       history={history}
       participation={participation}
       participationFilters={participationFilters}
+      groupFamilies={groupFamilies}
+      groupBy={groupBy}
+      groupByStorageKey={attendanceGroupByStorageKey(gate.operator.personId)}
       frozenPlan={frozenPlan}
       eventMessages={eventMessages}
       share={

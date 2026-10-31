@@ -283,6 +283,7 @@ jobs:
             WHATSAPP_WEBHOOK_VERIFY_TOKEN=${{ vars.WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET || 'whatsapp-webhook-verify-token' }}:latest
             SCHEDULER_TRIGGER_TOKEN=${{ vars.SCHEDULER_TRIGGER_TOKEN_SECRET || 'scheduler-trigger-token' }}:latest
             EMAIL_API_KEY=${{ vars.EMAIL_API_KEY_SECRET || 'resend-api-key' }}:latest
+            EMAIL_WEBHOOK_SECRET=${{ vars.EMAIL_WEBHOOK_SECRET_SECRET || 'resend-webhook-secret' }}:latest
 
       - name: Smoke test the deployed revision
         env:

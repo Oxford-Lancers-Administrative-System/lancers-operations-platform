@@ -16,6 +16,7 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
     college: values.college || null,
     matriculationYear: values.matriculationYear || null,
     expectedGraduationYear: values.expectedGraduationYear || null,
+    degreeType: values.degreeType || null,
     degreeField: values.degreeField || null,
     consent: values.consent,
   };

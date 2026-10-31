@@ -32,6 +32,28 @@ export function recruitingAccessFor(
   );
 }
 
+/**
+ * What the recruit's status control offers one seat — LAN-505 (Brian, 16
+ * October 2026). Two grants decide it independently: Recruit details at
+ * `edit` offers every status but Joined, and May move recruits to Joined
+ * offers Joined, whatever the Recruit details level.
+ *
+ * - `full` — both: every status.
+ * - `without_joined` — Recruit details at edit only: every status but
+ *   Joined, and the control says why Joined is not there.
+ * - `joined_only` — the switch only: the current status and Joined.
+ * - `read_only` — neither: the status reads, and says so.
+ */
+export type StatusControl = "full" | "without_joined" | "joined_only" | "read_only";
+
+export function statusControlFor(
+  recruitDetails: CategoryLevel,
+  mayMoveToJoined: boolean,
+): StatusControl {
+  if (recruitDetails === "edit") return mayMoveToJoined ? "full" : "without_joined";
+  return mayMoveToJoined ? "joined_only" : "read_only";
+}
+
 const PERSON_FIELDS = Object.freeze([
   "aliases",
   "college",
@@ -67,10 +89,15 @@ const EVENT_FIELDS = Object.freeze([
   "attendedAnyEvent",
 ] as const satisfies readonly (keyof RecruitmentBoardRow)[]);
 
-/** One row narrowed to the seat's recruiting grants. */
+/**
+ * One row narrowed to the seat's recruiting grants. LAN-505: a seat holding
+ * May move recruits to Joined receives the status, and only the status, even
+ * with Recruit details at `none` — the switch acts on it.
+ */
 export function redactRecruitmentRow(
   row: RecruitmentBoardRow,
   access: Readonly<Record<RecruitingCategory, CategoryLevel>>,
+  mayMoveToJoined = false,
 ): Partial<RecruitmentBoardRow> {
   const out: Record<string, unknown> = {
     prospectId: row.prospectId,
@@ -86,6 +113,7 @@ export function redactRecruitmentRow(
   if (access.recruit_person !== "none") copy(PERSON_FIELDS);
   else out.aliases = [];
   if (access.recruit_details !== "none") copy(DETAIL_FIELDS);
+  else if (mayMoveToJoined) out.status = row.status;
   if (access.recruit_events !== "none") copy(EVENT_FIELDS);
   return out as Partial<RecruitmentBoardRow>;
 }
@@ -119,6 +147,8 @@ export type VisibleProspectRecord = Pick<
   Partial<Pick<RecruitmentProspectRecord, ProspectDetailKeys | "personal" | "events">> & {
     /** The seat's level on each recruiting category. Absent means every category at its maximum. */
     readonly access?: Readonly<Record<RecruitingCategory, CategoryLevel>>;
+    /** LAN-505 — May move recruits to Joined. Absent means held. */
+    readonly mayMoveToJoined?: boolean;
   };
 
 const PROSPECT_DETAIL_KEYS: readonly ProspectDetailKeys[] = Object.freeze([
@@ -137,10 +167,15 @@ const PROSPECT_DETAIL_KEYS: readonly ProspectDetailKeys[] = Object.freeze([
   "statusHistory",
 ]);
 
-/** The prospect record narrowed to the seat's recruiting grants. */
+/**
+ * The prospect record narrowed to the seat's recruiting grants. LAN-505: with
+ * May move recruits to Joined and Recruit details at `none`, the status alone
+ * travels, as on the board.
+ */
 export function redactProspectRecord(
   record: RecruitmentProspectRecord,
   access: Readonly<Record<RecruitingCategory, CategoryLevel>>,
+  mayMoveToJoined = false,
 ): VisibleProspectRecord {
   const out: Record<string, unknown> = {
     prospectId: record.prospectId,
@@ -149,10 +184,13 @@ export function redactProspectRecord(
     seasonLabel: record.seasonLabel,
     displayName: record.displayName,
     access,
+    mayMoveToJoined,
   };
   if (access.recruit_person !== "none") out.personal = record.personal;
   if (access.recruit_details !== "none") {
     for (const key of PROSPECT_DETAIL_KEYS) out[key] = record[key];
+  } else if (mayMoveToJoined) {
+    out.status = record.status;
   }
   if (access.recruit_events !== "none") out.events = record.events;
   return out as VisibleProspectRecord;

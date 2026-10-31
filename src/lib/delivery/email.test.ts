@@ -18,6 +18,7 @@ vi.mock("server-only", () => ({}));
 
 import type { EmailConfig } from "./config";
 import {
+  ATTACHMENT_READ_FAILED_REASON,
   NO_USABLE_EMAIL_REASON,
   buildEmailBody,
   createEmailProvider,
@@ -255,5 +256,126 @@ describe("sending", () => {
       expect(outcome.reason).not.toContain("jamie@example.com");
       expect(outcome.reason).not.toContain("api.resend.example");
     }
+  });
+});
+
+describe("LAN-514 — attachments, idempotency and Resend's 409s", () => {
+  const FILE = Buffer.from("%PDF-1.4 special teams");
+  const WITH_FILE: OutboundMessage = {
+    kind: "club_message",
+    recipient: "jamie@example.com",
+    inviteeName: "Jamie",
+    eventName: "",
+    whenLabel: "",
+    rsvpUrl: "",
+    subject: "Playbook",
+    bodyText: "Attached.",
+    idempotencyKey:
+      "club-message:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222",
+    attachments: [
+      {
+        filename: "playbook.pdf",
+        contentType: "application/pdf",
+        byteSize: FILE.length,
+        readSlice: async (offset, length) => FILE.subarray(offset, offset + length),
+      },
+    ],
+  };
+
+  it("sends the job's key as Idempotency-Key and the file in a body of exact length", async () => {
+    const { calls, transport } = transportReturning(200, { id: "re_1" });
+    const outcome = await createEmailProvider(CONFIG, transport).send(WITH_FILE);
+    expect(outcome).toEqual({ status: "accepted", providerMessageId: "re_1" });
+    const headers = new Headers(calls[0].init.headers);
+    expect(headers.get("idempotency-key")).toBe(WITH_FILE.idempotencyKey);
+    const body = Buffer.from(await new Response(calls[0].init.body).arrayBuffer());
+    expect(headers.get("content-length")).toBe(String(body.length));
+    const parsed = JSON.parse(body.toString("utf8")) as {
+      attachments: { filename: string; content: string; content_type: string }[];
+    };
+    expect(parsed.attachments).toEqual([
+      {
+        filename: "playbook.pdf",
+        content: FILE.toString("base64"),
+        content_type: "application/pdf",
+      },
+    ]);
+  });
+
+  it("sends no Idempotency-Key where the message carries none", async () => {
+    const { calls, transport } = transportReturning(200, { id: "re_2" });
+    await createEmailProvider(CONFIG, transport).send(MESSAGE);
+    expect(new Headers(calls[0].init.headers).has("idempotency-key")).toBe(false);
+    expect(typeof calls[0].init.body).toBe("string");
+  });
+
+  it("refuses, without calling Resend, files over its 40 MB after encoding", async () => {
+    const { calls, transport } = transportReturning(200, { id: "re_3" });
+    const [file] = WITH_FILE.attachments ?? [];
+    const outcome = await createEmailProvider(CONFIG, transport).send({
+      ...WITH_FILE,
+      attachments: [{ ...file, byteSize: 31_000_000 }],
+    });
+    expect(calls).toHaveLength(0);
+    expect(outcome).toMatchObject({ status: "refused", retryable: false, faultScope: "message" });
+  });
+
+  it("reports a file that cannot be read mid-send as this application's failure, not the provider's", async () => {
+    const [file] = WITH_FILE.attachments ?? [];
+    const failingRead: OutboundMessage = {
+      ...WITH_FILE,
+      attachments: [
+        {
+          ...file,
+          readSlice: async () => {
+            throw new Error("Connection terminated unexpectedly");
+          },
+        },
+      ],
+    };
+    // A transport that reads the body as fetch does, so the stream's failure
+    // fails the request.
+    const transport = async (_url: string, init: RequestInit) => {
+      await new Response(init.body).arrayBuffer();
+      return new Response(JSON.stringify({ id: "re_never" }), { status: 200 });
+    };
+    const outcome = await createEmailProvider(CONFIG, transport).send(failingRead);
+    expect(outcome).toEqual({
+      status: "refused",
+      reason: ATTACHMENT_READ_FAILED_REASON,
+      retryable: true,
+      faultScope: "message",
+    });
+  });
+
+  it("still reports a network fault during a streamed send as the provider's", async () => {
+    const outcome = await createEmailProvider(CONFIG, async () => {
+      throw new TypeError("fetch failed");
+    }).send(WITH_FILE);
+    expect(outcome).toMatchObject({ status: "refused", retryable: true, faultScope: "provider" });
+  });
+
+  it("retries later when the earlier attempt with the same key is still in progress", () => {
+    expect(
+      interpretEmailResponse(409, { statusCode: 409, name: "concurrent_idempotent_requests" }),
+    ).toMatchObject({ status: "refused", retryable: true, faultScope: "message" });
+  });
+
+  it("reads a reused key with a changed body as the earlier attempt having reached Resend", () => {
+    const outcome = interpretEmailResponse(409, {
+      statusCode: 409,
+      name: "invalid_idempotent_request",
+    });
+    expect(outcome).toMatchObject({
+      status: "refused",
+      retryable: false,
+      earlierAttemptReachedProvider: true,
+    });
+  });
+
+  it("leaves any other 409 a plain terminal refusal", () => {
+    const outcome = interpretEmailResponse(409, { name: "resource_locked" });
+    expect(outcome).toMatchObject({ status: "refused", retryable: false });
+    expect(outcome).not.toHaveProperty("earlierAttemptReachedProvider");
   });
 });

@@ -5,7 +5,9 @@
  * real database; this proves the page-level refusal is total.
  */
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { subjectsForLetters } from "@/lib/services/oxford-academic";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -80,12 +82,16 @@ function populatedRecord() {
     expectedGraduationYearSource: null,
     degreeField: "Human Sciences",
     degreeFieldSource: null,
+    degreeType: null,
+    degreeTypeSource: null,
     studentNumber: null,
     studentNumberSource: null,
     bafaRegistrationNumber: null,
     bafaRegistrationNumberSource: null,
     dateOfBirth: "2003-08-08",
     dateOfBirthSource: null,
+    dietaryPreference: null,
+    dietaryPreferenceSource: null,
     emergencyContact: {
       givenName: "Barnaby",
       familyName: "Netherby",
@@ -155,12 +161,16 @@ describe("a four-role operator", () => {
       expectedGraduationYearSource: null,
       degreeField: null,
       degreeFieldSource: null,
+      degreeType: null,
+      degreeTypeSource: null,
       studentNumber: null,
       studentNumberSource: null,
       bafaRegistrationNumber: null,
       bafaRegistrationNumberSource: null,
       dateOfBirth: null,
       dateOfBirthSource: null,
+      dietaryPreference: null,
+      dietaryPreferenceSource: null,
       emergencyContact: null,
       contacts: [],
       isPastMember: false,
@@ -211,6 +221,7 @@ describe("a four-role operator", () => {
         "college",
         "matriculationYear",
         "expectedGraduationYear",
+        "degreeType",
         "degreeField",
         "studentNumber",
         "bafaRegistrationNumber",
@@ -221,6 +232,112 @@ describe("a four-role operator", () => {
         expect(input, name).not.toBeNull();
         expect(student.contains(input), name).toBe(false);
       }
+    });
+
+    // LAN-512: the lists only; a value on file that is not in them is shown
+    // beside the empty field and posted unchanged, so the save asks for a choice.
+    it("offers the college and degree as lists, and keeps a legacy value visible and unchanged", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        college: "St. Catz",
+        degreeType: "BA",
+        degreeField: "Geography",
+      } as never);
+
+      render(await EditPersonPage(pageProps()));
+      const student = screen.getByTestId("section-student-information");
+      const posted = (name: string) =>
+        (student.querySelector(`input[type="hidden"][name="${name}"]`) as HTMLInputElement).value;
+      expect(posted("college")).toBe("St. Catz");
+      expect(within(student).getByText("On file: St. Catz. Not in the list.")).toBeTruthy();
+      expect(posted("degreeType")).toBe("BA");
+      expect(posted("degreeField")).toBe("Geography");
+      expect(within(student).getByRole("combobox", { name: "Degree" })).toHaveValue(
+        "BA — Bachelor of Arts",
+      );
+      expect(within(student).getByRole("combobox", { name: "Subject" })).toHaveValue("Geography");
+    });
+
+    // LAN-512, Brian's walk on 31 October: Subject read "No options" with no Degree.
+    it("lists every subject with no degree, and narrows once a degree is chosen", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        degreeType: null,
+        degreeField: null,
+      } as never);
+
+      const user = userEvent.setup();
+      render(await EditPersonPage(pageProps()));
+      const student = screen.getByTestId("section-student-information");
+      const subject = within(student).getByRole("combobox", { name: "Subject" });
+      await user.click(subject);
+      expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(
+        subjectsForLetters("").length,
+      );
+      await user.type(subject, "Geography");
+      await user.click(screen.getByRole("option", { name: "Geography" }));
+
+      const letters = within(student).getByRole("combobox", { name: "Degree" });
+      // LAN-512, second walk: Geography narrows the Degree to the two that offer it.
+      await user.click(letters);
+      expect(
+        within(screen.getByRole("listbox"))
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual(["BA — Bachelor of Arts", "PGCE — Postgraduate Certificate in Education"]);
+      await user.click(screen.getByRole("option", { name: /^BA —/ }));
+      await user.click(within(student).getByRole("combobox", { name: "Subject" }));
+      expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(
+        subjectsForLetters("BA").length,
+      );
+    });
+
+    // LAN-512, second walk: a filled-in value is a change like a typed one.
+    it("asks for a reason when a filled-in Degree or Subject differs from the record", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        degreeType: "BA",
+        degreeField: "Geography",
+      } as never);
+
+      const user = userEvent.setup();
+      render(await EditPersonPage(pageProps()));
+      const student = screen.getByTestId("section-student-information");
+      const posted = (name: string) =>
+        (student.querySelector(`input[type="hidden"][name="${name}"]`) as HTMLInputElement).value;
+      const reason = (name: string) => student.querySelector(`input[name="${name}"]`);
+      const letters = within(student).getByRole("combobox", { name: "Degree" });
+      const subject = within(student).getByRole("combobox", { name: "Subject" });
+
+      // Subject filled in from the Degree: Chemistry differs from Geography.
+      await user.clear(subject);
+      await user.type(letters, "{Control>}a{/Control}MChem");
+      await user.click(screen.getByRole("option", { name: /^MChem —/ }));
+      expect(posted("degreeType")).toBe("MChem");
+      expect(posted("degreeField")).toBe("Chemistry");
+      expect(reason("degreeTypeReason")).not.toBeNull();
+      expect(reason("degreeFieldReason")).not.toBeNull();
+
+      // Degree filled in from the Subject: MBA differs from BA.
+      await user.clear(subject);
+      await user.clear(letters);
+      await user.type(subject, "Business Administration");
+      await user.click(screen.getByRole("option", { name: "Business Administration" }));
+      expect(posted("degreeType")).toBe("MBA");
+      expect(reason("degreeTypeReason")).not.toBeNull();
+      expect(reason("degreeFieldReason")).not.toBeNull();
     });
 
     it("is present but closed for a coach who has never played, so a BAFA number can still be entered", async () => {
@@ -267,11 +384,11 @@ describe("a four-role operator", () => {
     // A dozen filled fields, nothing touched yet — no reason box anywhere.
     expect(screen.queryAllByLabelText("Reason for the change")).toHaveLength(0);
 
-    const college = screen.getByLabelText("College");
-    fireEvent.change(college, { target: { value: "Balliol" } });
+    const year = screen.getByLabelText("Matriculation year");
+    fireEvent.change(year, { target: { value: "2021" } });
     expect(screen.queryAllByLabelText("Reason for the change")).toHaveLength(1);
 
-    fireEvent.change(college, { target: { value: "Pyrford" } });
+    fireEvent.change(year, { target: { value: "2022" } });
     expect(screen.queryAllByLabelText("Reason for the change")).toHaveLength(0);
   });
 

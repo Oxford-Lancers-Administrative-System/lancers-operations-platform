@@ -59,6 +59,9 @@ describe("PERSON_REFERENCE_COLUMNS accounts for every foreign key to people", ()
 const UPDATE_GRANT_GAPS_BEFORE_LAN_508: readonly string[] = [
   "audit_events.actor_person_id",
   "availability_statuses.confirmed_by_person_id",
+  // LAN-514 (main, merged into LAN-508): `club_messages` grants the server role
+  // only `select, insert`, yet the merge re-points `sent_by_person_id`.
+  "club_messages.sent_by_person_id",
   "availability_statuses.reported_by_person_id",
   "delivery_results.actor_person_id",
   "membership_position_groups.recorded_by_person_id",

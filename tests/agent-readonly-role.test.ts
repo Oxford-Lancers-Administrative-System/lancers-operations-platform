@@ -139,6 +139,8 @@ describe("what the role can read", () => {
     expect(visible).toContain("given_name");
     expect(visible).not.toContain("date_of_birth");
     expect(visible).not.toContain("student_number");
+    // LAN-502: a diet can disclose a belief.
+    expect(visible).not.toContain("dietary_preference");
   });
 });
 
@@ -152,6 +154,7 @@ describe("what PostgreSQL refuses", () => {
   it.each([
     ["date of birth", "select date_of_birth from public.people"],
     ["student number", "select student_number from public.people"],
+    ["dietary preference", "select dietary_preference from public.people"],
     ["select * on a table with a hidden column", "select * from public.people"],
     ["a contact value", "select normalised_value from public.contact_points"],
     ["an operator's login email", "select login_email from public.operator_accounts"],

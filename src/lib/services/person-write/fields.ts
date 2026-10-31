@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
 import { type PersonRecord, readPersonRecordIn } from "../person-record";
+import { isDietaryPreference } from "../person-dietary";
 import { validateDateOfBirth } from "../person-validation";
 import {
   assertNoConcurrentPersonChange,
@@ -19,15 +20,21 @@ export type PersonFieldUpdate =
   /** LAN-366. Optional everywhere, and cleared by saving it blank. */
   | { field: "middle_name"; value: string | null }
   | { field: "family_name"; value: string | null }
+  /** LAN-512. A college from the University's list (`oxford-academic.ts`). */
   | { field: "college"; value: string | null }
   | { field: "matriculation_year"; value: number | null }
   | { field: "expected_graduation_year"; value: number | null }
+  /** LAN-512. The subject, one the University offers with the person's `degree_type`. */
   | { field: "degree_field"; value: string | null }
+  /** LAN-512. The degree's award letters, from the University's list. */
+  | { field: "degree_type"; value: string | null }
   /** LAN-267: collected on the player questionnaire, printed on the BAFRA roster form. Free text. */
   | { field: "student_number"; value: string | null }
   /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
   | { field: "bafa_registration_number"; value: string | null }
-  | { field: "date_of_birth"; value: string | null };
+  | { field: "date_of_birth"; value: string | null }
+  /** LAN-502. One of `DIETARY_PREFERENCE_VALUES`; cleared by saving it blank. */
+  | { field: "dietary_preference"; value: string | null };
 
 const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
   given_name: "the first name",
@@ -36,10 +43,12 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   college: "college",
   matriculation_year: "the matriculation year",
   expected_graduation_year: "expected graduation",
-  degree_field: "the degree field",
+  degree_field: "the subject",
+  degree_type: "the degree",
   student_number: "the student number",
   bafa_registration_number: "the BAFA registration number",
   date_of_birth: "date of birth",
+  dietary_preference: "the dietary preference",
 });
 
 const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
@@ -50,9 +59,11 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   matriculation_year: "matriculation_year",
   expected_graduation_year: "expected_graduation_year",
   degree_field: "degree_field",
+  degree_type: "degree_type",
   student_number: "student_number",
   bafa_registration_number: "bafa_registration_number",
   date_of_birth: "date_of_birth",
+  dietary_preference: "dietary_preference",
 });
 
 function normalisedFieldValue(update: PersonFieldUpdate): string | number | null {
@@ -88,6 +99,18 @@ export async function updatePersonField(
       throw new ConstraintViolated(validation.message, { rule: validation.rule });
     }
   }
+
+  // LAN-502: three answers and no others (`people_dietary_preference_known`).
+  if (field === "dietary_preference" && typeof value === "string" && !isDietaryPreference(value)) {
+    throw new ConstraintViolated("Choose Vegan, Vegetarian or No dietary requirements.", {
+      rule: "people_dietary_preference_known",
+    });
+  }
+
+  // LAN-512: college and degree are held to the University's lists where they
+  // are entered (`academicProblems` in `oxford-academic.ts`, called by every
+  // form and import), not here: a merge or a settled dispute moves a value
+  // already on file, legacy free text included, through this same write.
 
   return withTransaction(async (tx) => {
     await lockPersonRow(tx, personId);

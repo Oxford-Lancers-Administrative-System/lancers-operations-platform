@@ -112,6 +112,7 @@ None of these are secrets.
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET` | `whatsapp-webhook-verify-token` (the default; override only)   |
 | `SCHEDULER_TRIGGER_TOKEN_SECRET`       | `scheduler-trigger-token` (the default; set only to override)  |
 | `EMAIL_API_KEY_SECRET`                 | `resend-api-key` (the default; set only to override)           |
+| `EMAIL_WEBHOOK_SECRET_SECRET`          | `resend-webhook-secret` (the default; set only to override)    |
 | `WHATSAPP_PHONE_NUMBER_ID`             | the club's WhatsApp Business phone-number id                   |
 | `WHATSAPP_TEMPLATE_NAME`               | `lancers_event_invitation_v3` (the default; override only)     |
 | `WHATSAPP_TEMPLATE_LANGUAGE`           | `en` (the default; override only)                              |
@@ -125,7 +126,7 @@ a notice and skips cleanly rather than failing red.
 
 ## Secrets
 
-Eight server-only values, and the first two are **different credentials with
+Nine server-only values, and the first two are **different credentials with
 different reach**. All live in **Secret Manager** and are injected into the
 Cloud Run revision at runtime (`--set-secrets`). None is baked into the image,
 present in the workflow environment, or in the repository.
@@ -140,6 +141,7 @@ present in the workflow environment, or in the repository.
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | `whatsapp-webhook-verify-token` | Echoed back during Meta's webhook subscription handshake (`GET /api/webhooks/whatsapp`). Without it the handshake cannot complete and Meta never subscribes the endpoint.                                                                                                                                                                                                                                             | **Provisioned**                   |
 | `SCHEDULER_TRIGGER_TOKEN`       | `scheduler-trigger-token`       | The shared secret `POST /api/scheduler/messaging` requires. Without it the sweep refuses every call with 503 rather than running unauthenticated. See § Messaging scheduler below.                                                                                                                                                                                                                                    | **Provisioned**                   |
 | `EMAIL_API_KEY`                 | `resend-api-key`                | Resend's API key for the email fallback (LAN-169). Without it email delivery records a failed, retryable attempt naming the missing setting.                                                                                                                                                                                                                                                                          | **Provisioned**                   |
+| `EMAIL_WEBHOOK_SECRET`          | `resend-webhook-secret`         | Resend's webhook signing secret (`whsec_…`, LAN-484). Verifies the Svix signature on every delivery receipt POSTed to `/api/webhooks/email`. Without it that route answers 503 and every accepted email reads Attempted; sending is unaffected. See § Email delivery receipts below.                                                                                                                                  | **Owner-provisioned. See below.** |
 
 ### `CLUB_LINK_SECRET`
 
@@ -531,6 +533,37 @@ answer `503` — see `resolveWebhookConfig` in
 webhook at a revision that predates this deploy, or attempting the
 subscription handshake before it, fails the handshake outright. See
 [`docs/whatsapp-cutover.md`](whatsapp-cutover.md) for the exact owner runbook.
+
+## Email delivery receipts — LAN-484
+
+Resend reports what happened to each email to `POST /api/webhooks/email`:
+**Delivered** when the recipient's mail server accepted it, **Failed** when it
+bounced or Resend could not send it. The route verifies Resend's Svix signature
+with `EMAIL_WEBHOOK_SECRET` and refuses anything unsigned, forged, or signed
+more than five minutes from now.
+
+**Order matters, because Cloud Run refuses to create a revision whose secret
+does not exist.** Once `deploy.yml` names `resend-webhook-secret`, every deploy
+fails at revision creation until the secret exists. So, before the first deploy
+that carries LAN-484:
+
+1. In the Resend dashboard, **Webhooks → Add endpoint**:
+   `https://app.oxfordlancers.com/api/webhooks/email`, subscribed to
+   `email.delivered`, `email.bounced`, `email.failed` and
+   `email.delivery_delayed`. Not opens or clicks. `email.complained` may be
+   left out; if subscribed it is acknowledged and changes nothing.
+2. Copy the endpoint's signing secret (`whsec_…`) and store it:
+
+```bash
+pbpaste | gcloud --project=oxford-lancers-operations secrets create resend-webhook-secret --data-file=- --replication-policy=automatic
+gcloud --project=oxford-lancers-operations secrets add-iam-policy-binding resend-webhook-secret --member="serviceAccount:$(gcloud --project=oxford-lancers-operations run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
+```
+
+3. Deploy. Resend retries a receipt it could not deliver, so receipts sent
+   before the deploy arrive afterwards.
+
+An email Resend never reports on stays **Attempted**; the thirty-day sweep is
+WhatsApp's alone (LAN-480).
 
 ## Password recovery — hosted Supabase Auth
 

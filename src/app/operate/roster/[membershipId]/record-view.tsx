@@ -16,6 +16,7 @@ import {
   SUBS_INVOICED_ITEM_CODE,
   SUBS_PAID_ITEM_CODE,
 } from "@/lib/services/onboarding-item-shapes";
+import { dietaryPreferenceLabel } from "@/lib/services/person-dietary";
 import type { PersonRecord } from "@/lib/services/person-record";
 // The queue's own wording for the chase, imported rather than reproduced —
 // LAN-266 requirement 2 asks for "the same words the queue already uses".
@@ -470,6 +471,11 @@ export default function PlayerRecordView({
           {/* LAN-306: the formal name above, the alias here, never one inside the other. */}
           <RecordField label="Known as" value={person.knownAs ?? null} />
           <RecordField label="Aliases" value={joinAliases(person.aliases)} />
+          {/* LAN-502: carried on the person, corrected from the person record. */}
+          <RecordField
+            label="Dietary preference"
+            value={dietaryPreferenceLabel(person.dietaryPreference)}
+          />
           <RecordField label="College" value={person.college ?? null} />
           <RecordField
             label="Matriculation year"
@@ -481,7 +487,9 @@ export default function PlayerRecordView({
               person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
             }
           />
-          <RecordField label="Degree field" value={person.degreeField ?? null} />
+          {/* LAN-512: the letters, then the subject, each as stored. */}
+          <RecordField label="Degree" value={person.degreeType ?? null} />
+          <RecordField label="Subject" value={person.degreeField ?? null} />
           <RecordField
             label="Date of birth"
             value={person.dateOfBirth ? formatDay(person.dateOfBirth) : null}
