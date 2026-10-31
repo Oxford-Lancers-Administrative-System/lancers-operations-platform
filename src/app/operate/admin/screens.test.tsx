@@ -1616,7 +1616,12 @@ describe("one role's record", () => {
     fireEvent.click(
       within(screen.getByTestId("end-panel")).getByRole("button", { name: /Choose date/ }),
     );
-    expect(screen.getByRole("gridcell", { name: String(Number(today.slice(-2))) })).toBeDisabled();
+    // On a month's last day the picker opens on tomorrow's month, where today has no cell.
+    if (today.slice(0, 7) === tomorrow.slice(0, 7)) {
+      expect(
+        screen.getByRole("gridcell", { name: String(Number(today.slice(-2))) }),
+      ).toBeDisabled();
+    }
     expect(field.value).toBe(tomorrow);
     expect(screen.getByTestId("end-panel")).toHaveTextContent(formatClubDay(tomorrow));
     expect(screen.getByTestId("end-panel")).not.toHaveTextContent("Leave blank to end it today");
