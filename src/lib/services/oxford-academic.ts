@@ -82,8 +82,20 @@ function isDegreeLetters(value: string): boolean {
   return LETTERS.has(value);
 }
 
-/** The subjects offered with these letters; none for letters not in the list. */
+/** LAN-512: every subject the University offers with any letters, once each, sorted. */
+const ALL_SUBJECTS: readonly string[] = Object.freeze(
+  [...new Set(Object.values(SUBJECTS_BY_LETTERS).flat())].sort((a, b) =>
+    a.localeCompare(b, "en-GB"),
+  ),
+);
+
+/**
+ * The subjects offered with these letters; none for letters not in the list.
+ * With no letters chosen, every subject (Brian's walk, 31 October: the
+ * Subject list read "No options" until a Degree was picked).
+ */
 export function subjectsForLetters(letters: string): readonly string[] {
+  if (letters === "") return ALL_SUBJECTS;
   return SUBJECTS_BY_LETTERS[letters] ?? [];
 }
 
@@ -100,13 +112,13 @@ export function degreeLettersDisplay(value: string | null | undefined): string |
 export const COLLEGE_NOT_LISTED = "Choose a college from the list.";
 export const LETTERS_NOT_LISTED = "Choose the degree from the list.";
 export const SUBJECT_NOT_LISTED = "Choose a subject from the list for this degree.";
-export const SUBJECT_WITHOUT_LETTERS = "Choose the degree before the subject.";
 
 /**
  * Every problem with a college and degree as entered, keyed by which of the
  * three it belongs to. Empty strings are no answer and are always allowed;
  * an answer must be in the lists, and a subject must be one offered with the
- * letters beside it.
+ * letters beside it — or, with no letters (LAN-512, 31 October), any listed
+ * subject.
  */
 export function academicProblems(input: {
   readonly college?: string | null;
@@ -119,11 +131,8 @@ export function academicProblems(input: {
   const subject = (input.subject ?? "").trim();
   if (college !== "" && !isOxfordCollege(college)) problems.college = COLLEGE_NOT_LISTED;
   if (letters !== "" && !isDegreeLetters(letters)) problems.letters = LETTERS_NOT_LISTED;
-  if (subject !== "") {
-    if (letters === "") problems.subject = SUBJECT_WITHOUT_LETTERS;
-    else if (!problems.letters && !isSubjectFor(letters, subject)) {
-      problems.subject = SUBJECT_NOT_LISTED;
-    }
+  if (subject !== "" && !problems.letters && !isSubjectFor(letters, subject)) {
+    problems.subject = SUBJECT_NOT_LISTED;
   }
   return problems;
 }

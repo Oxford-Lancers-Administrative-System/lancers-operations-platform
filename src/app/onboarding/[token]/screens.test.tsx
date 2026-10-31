@@ -5,7 +5,9 @@
  * acceptance criteria 1–4, 9, 10, 12.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { subjectsForLetters } from "@/lib/services/oxford-academic";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -1077,6 +1079,29 @@ describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
  * proved in `actions.test.ts`; here it is the screen: the refusal appears, the
  * step is still the step, and the strip still offers every other one.
  */
+describe("LAN-512 — the subject with no degree chosen (Brian's walk, 31 October)", () => {
+  it("lists every subject before a degree is chosen, then narrows to the degree's own", async () => {
+    givenValid();
+    await renderPage({ step: "details" });
+    const user = userEvent.setup();
+    const subject = screen.getByRole("combobox", { name: /^Subject/ });
+    await user.click(subject);
+    expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(
+      subjectsForLetters("").length,
+    );
+    await user.keyboard("{Escape}");
+
+    await user.type(screen.getByRole("combobox", { name: /^Degree/ }), "Business");
+    await user.click(screen.getByRole("option", { name: /^MBA —/ }));
+    await user.click(screen.getByRole("combobox", { name: /^Subject/ }));
+    expect(
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Business Administration"]);
+  });
+});
+
 describe("LAN-413 — a refused save is shown on the step", () => {
   it("shows the refusal above the BUCS Play step, with the step itself intact", async () => {
     givenValid();

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { subjectsForLetters } from "@/lib/services/oxford-academic";
 import { CollegeField, DegreeFields } from "./academic-fields";
 
 /** LAN-512 — the two controls every college and degree entry point uses. */
@@ -64,5 +65,39 @@ describe("the degree fields", () => {
     await user.click(screen.getByRole("option", { name: /^MChem —/ }));
     expect(posted(container, "degreeType")).toBe("MChem");
     expect(posted(container, "degreeField")).toBe("");
+  });
+});
+
+describe("LAN-512 — the subject with no degree chosen (Brian's walk, 31 October)", () => {
+  it("is open and lists every subject, not No options", async () => {
+    const user = userEvent.setup();
+    render(<DegreeFields />);
+    const subject = screen.getByRole("combobox", { name: "Subject" });
+    expect(subject).not.toBeDisabled();
+    await user.click(subject);
+    expect(optionTexts()).toHaveLength(subjectsForLetters("").length);
+    await user.type(subject, "Fusion");
+    expect(optionTexts()).toEqual(["Fusion Power (EPSRC CDT)"]);
+  });
+
+  it("keeps a subject chosen first when the degree offers it, and clears it when not", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<DegreeFields />);
+    const subject = screen.getByRole("combobox", { name: "Subject" });
+    await user.type(subject, "Geography");
+    await user.click(screen.getByRole("option", { name: "Geography" }));
+    expect(posted(container, "degreeField")).toBe("Geography");
+
+    const letters = screen.getByRole("combobox", { name: "Degree" });
+    await user.type(letters, "Bachelor of Arts");
+    await user.click(screen.getByRole("option", { name: /^BA —/ }));
+    expect(posted(container, "degreeField")).toBe("Geography");
+
+    await user.clear(letters);
+    await user.type(letters, "Business");
+    await user.click(screen.getByRole("option", { name: /^MBA —/ }));
+    expect(posted(container, "degreeField")).toBe("");
+    await user.click(screen.getByRole("combobox", { name: "Subject" }));
+    expect(optionTexts()).toEqual(["Business Administration"]);
   });
 });

@@ -473,6 +473,21 @@ describe("filling and correcting", () => {
     expect([after.degreeType, after.degreeField]).toEqual(["MSc", "Learning and Teaching"]);
   });
 
+  it("records a listed subject with no degree letters — LAN-512, 31 October", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Subject") });
+
+    await expect(
+      submitPersonEdit(
+        INITIAL_EDIT_STATE,
+        await formFrom(personId, { degreeType: "", degreeField: "Geography" }),
+      ),
+    ).rejects.toThrow(RedirectSignal);
+
+    const after = await readPersonRecord(personId);
+    expect([after.degreeType, after.degreeField]).toEqual([null, "Geography"]);
+  });
+
   it("refuses a college, letters or subject not in the lists, and writes none of them — LAN-512", async () => {
     signedInAs();
     const personId = await insertPerson({ givenName: unique("Unlisted") });

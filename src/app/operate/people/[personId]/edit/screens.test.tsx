@@ -6,6 +6,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { subjectsForLetters } from "@/lib/services/oxford-academic";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -258,6 +260,45 @@ describe("a four-role operator", () => {
         "BA — Bachelor of Arts",
       );
       expect(within(student).getByRole("combobox", { name: "Subject" })).toHaveValue("Geography");
+    });
+
+    // LAN-512, Brian's walk on 31 October: Subject read "No options" with no Degree.
+    it("lists every subject with no degree, and narrows once a degree is chosen", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        degreeType: null,
+        degreeField: null,
+      } as never);
+
+      const user = userEvent.setup();
+      render(await EditPersonPage(pageProps()));
+      const student = screen.getByTestId("section-student-information");
+      const subject = within(student).getByRole("combobox", { name: "Subject" });
+      await user.click(subject);
+      expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(
+        subjectsForLetters("").length,
+      );
+      await user.type(subject, "Geography");
+      await user.click(screen.getByRole("option", { name: "Geography" }));
+
+      const letters = within(student).getByRole("combobox", { name: "Degree" });
+      await user.type(letters, "Business");
+      await user.click(screen.getByRole("option", { name: /^MBA —/ }));
+      // MBA offers no Geography: the subject is cleared and the list narrows.
+      expect(
+        (student.querySelector('input[type="hidden"][name="degreeField"]') as HTMLInputElement)
+          .value,
+      ).toBe("");
+      await user.click(within(student).getByRole("combobox", { name: "Subject" }));
+      expect(
+        within(screen.getByRole("listbox"))
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual(["Business Administration"]);
     });
 
     it("is present but closed for a coach who has never played, so a BAFA number can still be entered", async () => {

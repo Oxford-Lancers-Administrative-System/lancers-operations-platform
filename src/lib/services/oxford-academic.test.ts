@@ -121,6 +121,36 @@ describe("LAN-512 — the subject follows the letters", () => {
   it("matches a subject exactly for the letters, whatever its case", () => {
     expect(listedSubjectFor("BA", "geography")).toBe("Geography");
     expect(listedSubjectFor("MBA", "geography")).toBeNull();
+    // LAN-512, 31 October: with no letters, any listed subject.
+    expect(listedSubjectFor("", "geography")).toBe("Geography");
+    expect(listedSubjectFor("", "geogrophy")).toBeNull();
+  });
+});
+
+describe("LAN-512 — the subject list with no degree chosen (Brian's walk, 31 October)", () => {
+  const every = [...new Set(Object.values(SUBJECTS_BY_LETTERS).flat())];
+
+  it("is every subject, once each, sorted", () => {
+    const all = subjectsForLetters("");
+    expect(new Set(all)).toEqual(new Set(every));
+    expect(all).toHaveLength(every.length);
+    expect([...all]).toEqual([...all].sort((a, b) => a.localeCompare(b, "en-GB")));
+    // "Medicine" is offered with BA, BM BCh and DM, and listed once.
+    expect(all.filter((subject) => subject === "Medicine")).toHaveLength(1);
+  });
+
+  it("narrows to the degree's own subjects once letters are chosen", () => {
+    expect(subjectsForLetters("MBA")).toEqual(["Business Administration"]);
+    expect(subjectsForLetters("BA").length).toBeLessThan(subjectsForLetters("").length);
+    expect(subjectsForLetters("Visiting")).toEqual([]);
+  });
+
+  it("lets a form save a listed subject with no letters, and nothing else", () => {
+    expect(academicProblems({ subject: "Geography" })).toEqual({});
+    expect(academicProblems({ letters: "", subject: "Fusion Power (EPSRC CDT)" })).toEqual({});
+    expect(academicProblems({ subject: "Biochem" })).toEqual({
+      subject: "Choose a subject from the list for this degree.",
+    });
   });
 });
 
@@ -132,15 +162,15 @@ describe("LAN-512 — what a form may save", () => {
     ).toEqual({});
   });
 
-  it("refuses anything not in the lists, and a subject without letters or with the wrong ones", () => {
+  it("refuses anything not in the lists, and a subject the letters do not offer", () => {
     expect(academicProblems({ college: "St Catz" })).toEqual({
       college: "Choose a college from the list.",
     });
     expect(academicProblems({ letters: "PhD", subject: "Geography" })).toEqual({
       letters: "Choose the degree from the list.",
     });
-    expect(academicProblems({ subject: "Geography" })).toEqual({
-      subject: "Choose the degree before the subject.",
+    expect(academicProblems({ subject: "Geogrophy" })).toEqual({
+      subject: "Choose a subject from the list for this degree.",
     });
     expect(academicProblems({ letters: "MBA", subject: "Geography" })).toEqual({
       subject: "Choose a subject from the list for this degree.",

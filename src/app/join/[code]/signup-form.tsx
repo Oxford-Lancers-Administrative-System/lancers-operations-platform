@@ -506,8 +506,7 @@ export default function SignupForm({
           onChange={(next) =>
             choose({
               degreeType: next,
-              ...(values.degreeField !== "" &&
-              !(next !== "" && isSubjectFor(next, values.degreeField))
+              ...(values.degreeField !== "" && !isSubjectFor(next, values.degreeField)
                 ? { degreeField: "" }
                 : {}),
             })

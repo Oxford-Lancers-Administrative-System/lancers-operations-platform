@@ -261,7 +261,7 @@ export function DetailsForm({
                 value: degreeType,
                 onChange: (next) => {
                   setDegreeType(next);
-                  if (degreeField !== "" && !(next !== "" && isSubjectFor(next, degreeField))) {
+                  if (degreeField !== "" && !isSubjectFor(next, degreeField)) {
                     setDegreeField("");
                   }
                 },

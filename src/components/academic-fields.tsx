@@ -14,7 +14,7 @@ export const COLLEGE_LABEL = "College";
 export const DEGREE_LETTERS_LABEL = "Degree";
 export const DEGREE_SUBJECT_LABEL = "Subject";
 
-/** The subjects offered with these letters, as options; with no letters, none. */
+/** The subjects offered with these letters, as options; with no letters, every subject (LAN-512). */
 export function subjectOptions(letters: string): ListOption[] {
   return subjectsForLetters(letters).map((subject) => ({ value: subject, label: subject }));
 }
@@ -58,9 +58,10 @@ export function CollegeField({
 }
 
 /**
- * LAN-512 — the degree as two choices, one after the other: the letters, then
- * the subject, filtered to what the University offers with those letters.
- * Changing the letters clears a subject they do not offer.
+ * LAN-512 — the degree as two choices: the letters and the subject. With no
+ * letters the subject lists every subject; once letters are chosen it narrows
+ * to what the University offers with them, and choosing letters clears a
+ * subject they do not offer (Brian's walk, 31 October).
  */
 export function DegreeFields({
   lettersName = "degreeType",
@@ -91,7 +92,7 @@ export function DegreeFields({
         options={DEGREE_LETTER_OPTIONS}
         value={letters}
         onChange={(next) => {
-          const keep = subject !== "" && next !== "" && isSubjectFor(next, subject);
+          const keep = subject !== "" && isSubjectFor(next, subject);
           setLetters(next);
           if (!keep) setSubject("");
           onChange?.(next, keep ? subject : "");
@@ -110,7 +111,6 @@ export function DegreeFields({
           onChange?.(letters, next);
         }}
         required={required}
-        disabled={letters === "" && subject === ""}
         error={subjectError}
         testId="degree-subject-field"
       />

@@ -163,14 +163,20 @@ describe("LAN-512 — college and degree from the University's lists", () => {
         "Synthia,Testcase,07700900001,St Catz,,",
         "Second,Testcase,07700900002,,PhD,",
         "Third,Testcase,07700900003,,MBA,Geography",
-        "Fourth,Testcase,07700900004,,,Geography",
+        "Fourth,Testcase,07700900004,,,Geogrophy",
       ),
     );
     expect(rows.map((row) => row.reasons)).toEqual([
       ['"college" reads "St Catz". Choose a college from the list.'],
       ['"degree_type" reads "PhD". Choose the degree from the list.'],
       ['"degree_field" reads "Geography". Choose a subject from the list for this degree.'],
-      ['"degree_field" reads "Geography". Choose the degree before the subject.'],
+      ['"degree_field" reads "Geogrophy". Choose a subject from the list for this degree.'],
     ]);
+  });
+
+  it("LAN-512, 31 October: takes a listed subject with no letters, in the list's own spelling", () => {
+    const rows = rowsOf(csv("Fifth,Testcase,07700900005,,,geography"));
+    expect(rows[0].reasons).toEqual([]);
+    expect(rows[0].cells.degree_field).toBe("Geography");
   });
 });

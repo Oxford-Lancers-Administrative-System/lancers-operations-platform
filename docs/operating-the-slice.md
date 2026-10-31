@@ -325,10 +325,13 @@ filters the list; only a listed entry can be chosen).
 - **Degree**: the award letters (37), "DPhil — Doctor of Philosophy" and so on,
   the six most common first (DPhil, BA, MSc, MPhil, MSt, MBA), then the rest
   alphabetically.
-- **Subject**: filtered to what the University offers with the letters chosen
-  (BA offers its undergraduate subjects, MSc its MSc courses, MBA only
-  "Business Administration"); changing the letters clears a subject they do not
-  offer. The pair is stored on `people.degree_type` and `people.degree_field`.
+- **Subject**: with no Degree chosen, every subject the University offers,
+  once each, alphabetically (Brian's walk, 2026-10-31; it had read "No
+  options"), and a listed subject with no letters saves. Once letters are
+  chosen it narrows to what the University offers with them (BA offers its
+  undergraduate subjects, MSc its MSc courses, MBA only "Business
+  Administration"), and choosing letters clears a subject they do not offer.
+  The same holds in an import. The pair is stored on `people.degree_type` and `people.degree_field`.
   Where the University names a course by the award alone the subject is the
   research's proposal (MPP Public Policy, EMBA Business Administration
   (Executive), BCL Civil Law, MJur Law, DM Medicine, DClinPsych Clinical

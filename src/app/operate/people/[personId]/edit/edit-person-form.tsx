@@ -324,7 +324,7 @@ export default function EditPersonForm({
                   value={degreeType}
                   onValueChange={(next) => {
                     setDegreeType(next);
-                    if (degreeField !== "" && !(next !== "" && isSubjectFor(next, degreeField))) {
+                    if (degreeField !== "" && !isSubjectFor(next, degreeField)) {
                       setDegreeField("");
                     }
                   }}

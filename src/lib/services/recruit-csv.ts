@@ -28,7 +28,6 @@ import {
   listedLettersFor,
   listedSubjectFor,
   SUBJECT_NOT_LISTED,
-  SUBJECT_WITHOUT_LETTERS,
 } from "./oxford-academic";
 
 import { formatCsvCell, isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
@@ -172,15 +171,12 @@ function parseRow(line: number, raw: Record<RecruitImportColumn, string>): Parse
       reasons.push(`"degree_type" reads "${cells.degree_type}". ${LETTERS_NOT_LISTED}`);
     } else cells.degree_type = letters;
   }
+  // LAN-512 (31 October): a listed subject with no letters is an answer too.
   if (cells.degree_field !== "") {
-    if (cells.degree_type === "") {
-      reasons.push(`"degree_field" reads "${cells.degree_field}". ${SUBJECT_WITHOUT_LETTERS}`);
-    } else {
-      const subject = listedSubjectFor(cells.degree_type, cells.degree_field);
-      if (subject === null) {
-        reasons.push(`"degree_field" reads "${cells.degree_field}". ${SUBJECT_NOT_LISTED}`);
-      } else cells.degree_field = subject;
-    }
+    const subject = listedSubjectFor(cells.degree_type, cells.degree_field);
+    if (subject === null) {
+      reasons.push(`"degree_field" reads "${cells.degree_field}". ${SUBJECT_NOT_LISTED}`);
+    } else cells.degree_field = subject;
   }
   checkOptional(cells, "emergency_phone", validatePhoneNumber, reasons);
   checkOptional(cells, "emergency_email", validateEmailAddress, reasons);
