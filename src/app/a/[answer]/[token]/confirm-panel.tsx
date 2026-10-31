@@ -52,7 +52,7 @@ import {
  * - `on-load`: delivered by WhatsApp, so the form submits itself once the page
  *   has hydrated (`SubmitOnLoad`). The page reads "Saving…" from the start.
  * - `on-interaction`: delivered by email, or a channel the record cannot prove,
- *   or an answer that would replace a different standing one. Today's
+ *   or an invitation that already has any standing answer. Today's
  *   behaviour: the first interaction outside the form saves, or the button.
  * - `manual`: a known preview fetcher or crawler asked (`preview-agents.ts`).
  *   Nothing submits by itself; the button still works, and `submitAnswer`

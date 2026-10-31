@@ -84,6 +84,11 @@ let observer: Client;
 let seasonId: string;
 let serial = 0;
 
+/** Ofcom's drama range, 07700 900000–900999: never dialable. One per call, so no two players share a number. */
+function dramaNumber(): string {
+  return `07700 900${String(400 + serial).padStart(3, "0")}`;
+}
+
 beforeAll(async () => {
   observer = await openObserver();
   const anchor = await observer.query<{ id: string }>(
@@ -121,6 +126,8 @@ afterEach(async () => {
     `delete from public.delivery_attempts where notification_job_id in ${jobs}`,
     `delete from public.audit_events where entity_id in ${jobs} or entity_id in ${invitations}`,
     `delete from public.notification_jobs where event_id in ${events}`,
+    `delete from public.question_responses where invitation_id in ${invitations}`,
+    `delete from public.event_questions where event_id in ${events}`,
     `delete from public.rsvp_responses where invitation_id in ${invitations}`,
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
   ]) {
@@ -144,6 +151,7 @@ afterEach(async () => {
   }
   for (const statement of [
     `delete from public.season_memberships where person_id in ${people}`,
+    `delete from public.season_messaging_consents where person_id in ${people}`,
     `delete from public.contact_points where person_id in ${people}`,
     "delete from public.people where given_name = $1",
   ]) {
@@ -157,8 +165,13 @@ afterAll(async () => {
   await closePool();
 });
 
-/** One approved event two days out, one player with a usable route, one pending invitation job on `channel`. */
-async function fixture(channel: "whatsapp" | "email") {
+/**
+ * One approved event two days out, one invitee with a usable route, one
+ * pending invitation job on `channel`. A `recruit` invitee anchors to the
+ * person instead of a season membership, so a reminder to them is LAN-203's
+ * `recruit_event_followup`.
+ */
+async function fixture(channel: "whatsapp" | "email", capacity: "player" | "recruit" = "player") {
   serial += 1;
   await observer.query("begin");
   try {
@@ -169,11 +182,10 @@ async function fixture(channel: "whatsapp" | "email") {
     );
     const personId = person.rows[0].id;
     if (channel === "whatsapp") {
-      // Ofcom's drama range: never dialable.
       await observer.query(
         `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
          values ($1, 'phone', $2, true)`,
-        [personId, `07700 9004${String(90 + serial).padStart(2, "0")}`],
+        [personId, dramaNumber()],
       );
     } else {
       await observer.query(
@@ -182,12 +194,25 @@ async function fixture(channel: "whatsapp" | "email") {
         [personId, `lan498.${serial}@example.test`],
       );
     }
-    const membership = await observer.query<{ id: string }>(
-      `insert into public.season_memberships
-         (person_id, season_id, status, entry, confirmed_on, activated_on)
-       values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
-      [personId, seasonId],
-    );
+    const membership =
+      capacity === "player"
+        ? await observer.query<{ id: string }>(
+            `insert into public.season_memberships
+               (person_id, season_id, status, entry, confirmed_on, activated_on)
+             values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
+            [personId, seasonId],
+          )
+        : null;
+    const membershipId = membership?.rows[0].id ?? null;
+    const anchorPersonId = membership === null ? personId : null;
+    if (capacity === "recruit") {
+      // LAN-202: a recruit is messaged only with this season's consent.
+      await observer.query(
+        `insert into public.season_messaging_consents (person_id, season_id, state, source)
+         values ($1, $2, 'granted', 'operator_recorded')`,
+        [personId, seasonId],
+      );
+    }
     const event = await observer.query<{ id: string }>(
       `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
        insert into public.events
@@ -203,15 +228,15 @@ async function fixture(channel: "whatsapp" | "email") {
     const eventId = event.rows[0].id;
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
-       values ($1, $2, 'player', $3, $4, $4) returning id`,
-      [eventId, seasonId, membership.rows[0].id, personId],
+         (event_id, season_id, capacity, season_membership_id, person_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, $3::public.invitation_capacity, $4, $5, $6, $6) returning id`,
+      [eventId, seasonId, capacity, membershipId, anchorPersonId, personId],
     );
     const invitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-         (event_id, event_status, season_id, capacity, season_membership_id, status, audience_member_id)
-       values ($1, 'approved', $2, 'player', $3, 'pending', $4) returning id`,
-      [eventId, seasonId, membership.rows[0].id, audience.rows[0].id],
+         (event_id, event_status, season_id, capacity, season_membership_id, person_id, status, audience_member_id)
+       values ($1, 'approved', $2, $3::public.invitation_capacity, $4, $5, 'pending', $6) returning id`,
+      [eventId, seasonId, capacity, membershipId, anchorPersonId, audience.rows[0].id],
     );
     const job = await observer.query<{ id: string }>(
       `insert into public.notification_jobs
@@ -220,7 +245,7 @@ async function fixture(channel: "whatsapp" | "email") {
       [`${MARKER}:${eventId}`, invitation.rows[0].id, eventId, personId, channel],
     );
     await observer.query("commit");
-    return { invitationId: invitation.rows[0].id, jobId: job.rows[0].id };
+    return { invitationId: invitation.rows[0].id, jobId: job.rows[0].id, eventId, personId };
   } catch (error) {
     await observer.query("rollback");
     throw error;
@@ -266,6 +291,62 @@ async function responseRows(invitationId: string): Promise<number> {
     [invitationId],
   );
   return result.rows[0].n;
+}
+
+/**
+ * Another pending job for the same invitation, on `channel` — the second
+ * message the same player is sent. An email job gets the player an address
+ * first if the fixture gave them only a phone.
+ */
+async function addJob(
+  invitation: { invitationId: string; eventId: string; personId: string },
+  channel: "whatsapp" | "email",
+  jobType: "invitation" | "reminder" = "invitation",
+): Promise<string> {
+  serial += 1;
+  if (channel === "email") {
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, normalised_value)
+       select $1, 'email', $2, $2
+        where not exists (select 1 from public.contact_points where person_id = $1 and kind = 'email')`,
+      [invitation.personId, `lan498.${serial}@example.test`],
+    );
+  } else {
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+       select $1, 'phone', $2, false
+        where not exists (select 1 from public.contact_points where person_id = $1 and kind = 'phone')`,
+      [invitation.personId, dramaNumber()],
+    );
+  }
+  const job = await observer.query<{ id: string }>(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
+     values ($1, $2::public.notification_job_type, 'pending', $3, $4, $5, $6::public.notification_channel)
+     returning id`,
+    [
+      `${MARKER}:${crypto.randomUUID()}`,
+      jobType,
+      invitation.invitationId,
+      invitation.eventId,
+      invitation.personId,
+      channel,
+    ],
+  );
+  return job.rows[0].id;
+}
+
+function channelOf(token: string) {
+  return withTransaction((tx) => readAnswerTokenChannelIn(tx, token));
+}
+
+/** A standing answer recorded after the link went out, as the events page would record it. */
+async function recordStanding(invitationId: string, response: "yes" | "no", reason: string | null) {
+  await observer.query(
+    `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
+     values ($1, $2::public.rsvp_value, $3, 'signed_link', now() + interval '1 second')`,
+    [invitationId, response, reason],
+  );
 }
 
 /** The GET, rendered with its real client components, as a browser hydrates it. */
@@ -396,5 +477,107 @@ describe("a No still records its reason exactly as today", () => {
       response: "no",
       reason: "Exam the next morning",
     });
+  });
+});
+
+describe("one invitation sent on both channels", () => {
+  it("every Yes and No token reads the channel its own message went out on", async () => {
+    resetRsvpRateLimit();
+    const invitation = await fixture("whatsapp");
+    const whatsappInvitation = await dispatched(invitation.jobId);
+    const emailInvitation = await dispatched(await addJob(invitation, "email"));
+    const whatsappReminder = await dispatched(await addJob(invitation, "whatsapp", "reminder"));
+    const emailReminder = await dispatched(await addJob(invitation, "email", "reminder"));
+
+    for (const [message, tokens, channel] of [
+      ["WhatsApp invitation", whatsappInvitation, "whatsapp"],
+      ["email invitation", emailInvitation, "email"],
+      ["WhatsApp reminder", whatsappReminder, "whatsapp"],
+      ["email reminder", emailReminder, "email"],
+    ] as const) {
+      expect(await channelOf(tokens.yes), `${message} Yes`).toBe(channel);
+      expect(await channelOf(tokens.no), `${message} No`).toBe(channel);
+    }
+  });
+
+  it("a recruit's follow-up reads its own channel too", async () => {
+    resetRsvpRateLimit();
+    const invitation = await fixture("email", "recruit");
+    const emailInvitation = await dispatched(invitation.jobId);
+    const whatsappFollowup = await dispatched(await addJob(invitation, "whatsapp", "reminder"));
+
+    expect(await channelOf(emailInvitation.yes)).toBe("email");
+    expect(await channelOf(emailInvitation.no)).toBe("email");
+    expect(await channelOf(whatsappFollowup.yes)).toBe("whatsapp");
+    expect(await channelOf(whatsappFollowup.no)).toBe("whatsapp");
+  });
+
+  it("a token whose issue instant two channels share is unknown, and keeps the email behaviour", async () => {
+    resetRsvpRateLimit();
+    const invitation = await fixture("whatsapp");
+    const { yes } = await dispatched(invitation.jobId);
+    // A second attempt, on email, carrying the very link the WhatsApp attempt
+    // carried: the record no longer says which channel delivered it.
+    await observer.query(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider, rsvp_access_token_id)
+       select notification_job_id, attempt_number + 1, 'email', 'resend', rsvp_access_token_id
+         from public.delivery_attempts where notification_job_id = $1`,
+      [invitation.jobId],
+    );
+
+    expect(await channelOf(yes)).toBeNull();
+
+    await openPage("yes", yes);
+    await settle(() => redirects.length > 0, 500);
+    expect(redirects).toHaveLength(0);
+    expect(await responseRows(invitation.invitationId)).toBe(0);
+  });
+});
+
+describe("re-opening a WhatsApp link over a standing answer", () => {
+  it("an old No link never replaces the player's reason", async () => {
+    resetRsvpRateLimit();
+    const { invitationId, jobId } = await fixture("whatsapp");
+    const { no } = await dispatched(jobId);
+    await recordStanding(invitationId, "no", "Injured");
+
+    const view = await openPage("no", no);
+    await settle(() => redirects.length > 0, 500);
+    view.unmount();
+
+    expect(redirects).toHaveLength(0);
+    expect(await responseRows(invitationId)).toBe(1);
+    expect(await standing(invitationId)).toEqual({ response: "no", reason: "Injured" });
+  });
+
+  it("an old Yes link never re-saves over a Yes and its question answers", async () => {
+    resetRsvpRateLimit();
+    const { invitationId, jobId, eventId } = await fixture("whatsapp");
+    const { yes } = await dispatched(jobId);
+    const question = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required, applies_to_capacities)
+       values ($1, 'Need a lift?', 'text', true, '{player}') returning id`,
+      [eventId],
+    );
+    await recordStanding(invitationId, "yes", null);
+    await observer.query(
+      `insert into public.question_responses (invitation_id, event_id, event_question_id, answer_text)
+       values ($1, $2, $3, 'From Iffley Road')`,
+      [invitationId, eventId, question.rows[0].id],
+    );
+
+    const view = await openPage("yes", yes);
+    await settle(() => redirects.length > 0, 500);
+    view.unmount();
+
+    expect(redirects).toHaveLength(0);
+    expect(await responseRows(invitationId)).toBe(1);
+    expect(await standing(invitationId)).toMatchObject({ response: "yes" });
+    const answers = await observer.query<{ answer_text: string }>(
+      "select answer_text from public.question_responses where invitation_id = $1",
+      [invitationId],
+    );
+    expect(answers.rows).toEqual([{ answer_text: "From Iffley Road" }]);
   });
 });

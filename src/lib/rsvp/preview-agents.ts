@@ -12,9 +12,11 @@
  * WhatsApp's fetcher is matched only as a User-Agent that *starts* with
  * `WhatsApp/`; an in-app browser that merely mentions WhatsApp, Facebook
  * (`FBAN`/`FBAV`) or Instagram is a person and is not matched. The generic
- * patterns match whole words (`bot`, `crawler`, `spider`, `preview`) or a
- * product token ending in them before its version (`Somebot/1.0`), so a
- * phone model such as "CUBOT" is not matched.
+ * patterns match whole words (`bot`, `crawler`, `spider`) or a product token
+ * ending in them before its version (`Somebot/1.0`), so a phone model such as
+ * "CUBOT" is not matched. "Preview" is matched only as a product token with a
+ * version (`Preview/0.5`, `SkypeUriPreview/1.0`): as a plain word it appears
+ * in real browsers' User-Agents (preview builds), and those are people.
  */
 export const PREVIEW_AGENT_PATTERNS: readonly {
   readonly name: string;
@@ -32,7 +34,8 @@ export const PREVIEW_AGENT_PATTERNS: readonly {
   { name: "Applebot", pattern: /\bApplebot\b/i },
   { name: "Googlebot", pattern: /\bGooglebot\b/i },
   { name: "bingbot", pattern: /\bbingbot\b/i },
-  { name: "generic word", pattern: /\b(?:bot|crawler|spider|preview)\b/i },
+  { name: "generic word", pattern: /\b(?:bot|crawler|spider)\b/i },
+  { name: "preview product token", pattern: /\w*Preview\/\d/ },
   { name: "generic product token", pattern: /[a-z](?:bot|crawler|spider)\/\d/i },
 ];
 

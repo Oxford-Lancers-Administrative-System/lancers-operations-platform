@@ -401,16 +401,17 @@ describe("LAN-498 — which loads save by themselves", () => {
     expect(getByTestId("auto-submit-stub")).toBeInTheDocument();
   });
 
-  it("still saves on load when the standing answer is the same one", async () => {
-    givenAnswer("yes");
+  it("waits for a touch over the same standing answer too, so a No's reason is never replaced", async () => {
+    givenAnswer("no");
     vi.mocked(readAnswerTokenChannelIn).mockResolvedValue("whatsapp");
     vi.mocked(readSignedRsvpPageIn).mockResolvedValue({
       ...BASE,
-      currentResponse: { response: "yes", reason: null, respondedAt: new Date() },
+      currentResponse: { response: "no", reason: "Injured", respondedAt: new Date() },
     });
-    const { getByTestId } = await renderPage();
+    const { queryByTestId, getByTestId } = await renderPage();
 
-    expect(getByTestId("submit-on-load-stub")).toBeInTheDocument();
+    expect(queryByTestId("submit-on-load-stub")).toBeNull();
+    expect(getByTestId("auto-submit-stub")).toBeInTheDocument();
   });
 
   it("leaves the questions to the events page on a WhatsApp Yes, so nothing typed is pulled away", async () => {

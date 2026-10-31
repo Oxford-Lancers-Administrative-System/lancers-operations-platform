@@ -175,10 +175,11 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
  * A known preview fetcher or crawler (`preview-agents.ts`) gets the page with
  * nothing armed at all, on either channel; `submitAnswer` refuses it too.
  *
- * One more case keeps the gate: a standing answer this link would replace
- * with a different one. Reopening an old WhatsApp tab must not silently turn a
- * later No back into Yes. LAN-376's rule still holds — the tap records, last
- * recorded wins — but it takes the player's own touch or button.
+ * Any standing answer keeps the gate, the same answer as the link's
+ * included. Reopening an old WhatsApp tab must not silently turn a later No
+ * back into Yes, nor replace a No's reason ("Injured") or a Yes's question
+ * answers with the link's bare answer. LAN-376's rule still holds — the tap
+ * records, last recorded wins — but it takes the player's own touch or button.
  */
 function saveModeFor({
   error,
@@ -197,6 +198,6 @@ function saveModeFor({
   if (error === UNSAVED_ERROR) return "unsaved";
   if (previewAgent) return "manual";
   const standing = base.currentResponse?.response ?? null;
-  if (channel === "whatsapp" && (standing === null || standing === answer)) return "on-load";
+  if (channel === "whatsapp" && standing === null) return "on-load";
   return "on-interaction";
 }

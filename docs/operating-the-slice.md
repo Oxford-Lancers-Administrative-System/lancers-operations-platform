@@ -1304,9 +1304,11 @@ delivery record — never off the URL:
 
 - **WhatsApp** — the page saves the answer by itself as soon as it has loaded in
   the browser. WhatsApp's link-preview fetcher reads the HTML and runs no
-  script, so it cannot trigger the save. The exception: if the player already
-  has a _different_ answer standing (they changed it since), the page waits for
-  a touch instead, so reopening an old tab never silently flips it.
+  script, so it cannot trigger the save. That holds only while the invitation
+  has no answer standing at all. Once any answer stands — a different one, or
+  the same one with a reason or question answers on it — the page waits for a
+  touch instead, so reopening an old tab never silently flips the answer or
+  replaces "Injured" with "No reason given".
 - **Email**, or a token the record cannot place — the page waits for the
   player's first touch, scroll or key outside the form, or the button. Mail
   scanners such as Microsoft 365 Safe Links open links in a browser that does

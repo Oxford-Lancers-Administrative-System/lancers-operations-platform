@@ -604,8 +604,10 @@ came, and the heading claimed a save that had not happened. Brian approved:
   mail scanners open links in a browser that runs script. The channel is read
   server-side from the token's own delivery record
   (`readAnswerTokenChannelIn`); a token the record cannot place is treated as
-  email. A WhatsApp link that would replace a _different_ standing answer also
-  waits for a touch, so reopening an old tab never silently flips an answer.
+  email. A WhatsApp link saves on load only while the invitation has no
+  standing answer at all; with any standing answer, the same as the link's
+  included, it waits for a touch, so reopening an old tab never silently flips
+  an answer or overwrites a No's reason or a Yes's question answers.
 - **Known preview fetchers and crawlers never save** (`src/lib/rsvp/preview-agents.ts`):
   for them the page arms nothing on either channel and `submitAnswer` refuses.
   WhatsApp's fetcher is matched only as a User-Agent starting `WhatsApp/`, so a
