@@ -2,6 +2,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { SEND_MESSAGES } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import { listClubMessages, type ClubMessageSummary } from "@/lib/services/club-messages";
 import { UnavailableScreen } from "@/app/operate/unavailable";
@@ -17,11 +18,11 @@ import {
 
 /**
  * **Messages** — LAN-514. Every message written here, scheduled and sent,
- * newest first, and the way to write another. `delivery_administration`: the
- * seats that already administer the club's delivery.
+ * newest first, and the way to write another. May send Messages (LAN-520):
+ * a seat-page switch, on for the five seats that held it before.
  */
 export default async function MessagesPage() {
-  const gate = await gateShellPage(MESSAGES_PATH, "delivery_administration");
+  const gate = await gateShellPage(MESSAGES_PATH, SEND_MESSAGES);
   if ("screen" in gate) return gate.screen;
 
   let messages: ClubMessageSummary[];

@@ -4,11 +4,12 @@
  *
  * Against the real database: the question is whether a row is written,
  * changed or removed. Only the session is stubbed (`resolveOperatorAccess`),
- * so the real `requireCapability("delivery_administration")` decides from the
- * operator's seats, and the real service decides whose upload it is.
+ * so the real `requireGrant(SEND_MESSAGES)` decides from the operator's grants
+ * (LAN-520: May send Messages, which replaced `delivery_administration`), and
+ * the real service decides whose upload it is.
  *
  * Every request is refused before anything is read unless it carries this
- * application's own Origin; a session without `delivery_administration` is
+ * application's own Origin; a session without May send Messages is
  * refused with a 403 status, never a redirect; and one operator can neither
  * add to nor remove another operator's upload.
  */
@@ -21,6 +22,8 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess }));
 
 import type { Client } from "pg";
 
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows } from "@/lib/auth/grants";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool } from "@/lib/db";
 import { MAX_ATTACHMENT_BYTES, UPLOAD_CHUNK_BYTES } from "@/lib/services/club-message-input";
@@ -36,22 +39,39 @@ let observer: Client;
 let ownerPersonId: string;
 let otherPersonId: string;
 
-function operator(personId: string, roleCodes: string[]): ResolvedOperator {
+function operator(
+  personId: string,
+  roleCodes: string[],
+  grants: ResolvedOperator["grants"],
+): ResolvedOperator {
   return {
     authUserId: `auth-${personId}`,
     personId,
     displayName: MARKER,
     roleCodes,
-    grants: {} as ResolvedOperator["grants"],
+    grants,
     isActive: true,
   };
 }
 
-function signedInAs(personId: string, roleCodes: string[] = ["secretary"]) {
+/** The seat's seeded grants unless `grants` says otherwise. */
+function signedInAs(
+  personId: string,
+  roleCodes: string[] = ["secretary"],
+  grants: ResolvedOperator["grants"] = seededGrantsFor(roleCodes),
+) {
   resolveOperatorAccess.mockResolvedValue({
     state: "active",
-    operator: operator(personId, roleCodes),
+    operator: operator(personId, roleCodes, grants),
   });
+}
+
+/** LAN-520: one seat's grants with May send Messages set to `level`, every other line as given. */
+function withSendMessages(
+  grants: ResolvedOperator["grants"],
+  level: "none" | "yes",
+): ResolvedOperator["grants"] {
+  return { ...grants, switches: { ...grants.switches, send_messages: level } };
 }
 
 function headers(origin: string | null): Headers {
@@ -229,7 +249,7 @@ describe("a request from anywhere but this application's own pages", () => {
 });
 
 describe("who may upload", () => {
-  it("is a seat that administers delivery: a coach is refused with a status, not a redirect", async () => {
+  it("is a seat with May send Messages: a coach is refused with a status, not a redirect", async () => {
     signedInAs(ownerPersonId, ["head_coach"]);
     const response = await start();
     expect(response.status).toBe(403);
@@ -243,6 +263,35 @@ describe("who may upload", () => {
     expect((await append(id, 0, new Uint8Array(5))).status).toBe(403);
     expect((await remove(id)).status).toBe(403);
     expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
+  });
+
+  // LAN-520: the switch decides, not `delivery_administration`.
+  it("refuses the Secretary once May send Messages is off, though the seat administers delivery", async () => {
+    signedInAs(
+      ownerPersonId,
+      ["secretary"],
+      withSendMessages(seededGrantsFor(["secretary"]), "none"),
+    );
+    const response = await start();
+    expect(response.status).toBe(403);
+    expect(await uploads()).toEqual([]);
+  });
+
+  it("lets a coach seat holding only May send Messages start, fill and remove an upload", async () => {
+    signedInAs(
+      ownerPersonId,
+      ["head_coach"],
+      mergeGrantRows([
+        { subject_kind: "switch", subject_key: "send_messages", template_id: null, level: "yes" },
+      ]),
+    );
+    const started = await start();
+    expect(started.status).toBe(200);
+    const { id } = (await started.json()) as { id: string };
+    expect(await uploads()).toEqual([{ id, uploaded_by_person_id: ownerPersonId, held: 0 }]);
+    expect((await append(id, 0, new Uint8Array(5))).status).toBe(200);
+    expect((await remove(id)).status).toBe(200);
+    expect(await uploads()).toEqual([]);
   });
 
   it("lets the Secretary start, fill and remove an upload of their own", async () => {

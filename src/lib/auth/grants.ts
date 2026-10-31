@@ -116,7 +116,7 @@ export const RECRUITING_CATEGORIES = Object.freeze([
 export type RecruitingCategory = (typeof RECRUITING_CATEGORIES)[number];
 
 /**
- * The three switches.
+ * The four switches.
  *
  * - `add_to_roster` — may add players to the roster (Add players).
  * - `add_recruits` — may add recruits (Add recruit, QR code).
@@ -125,11 +125,16 @@ export type RecruitingCategory = (typeof RECRUITING_CATEGORIES)[number];
  *   the fixed four-office rule, and works on its own: holding it offers Joined
  *   whatever the seat's Recruit details level. The seat page shows it with the
  *   Recruiting lines.
+ * - `send_messages` — may send Messages: the Messages destination, its sent
+ *   history, each Message's page, New message and the send (LAN-520, Brian,
+ *   31 October 2026). It replaced `delivery_administration` for Messages only.
+ *   The seat page shows it in its own Messaging group.
  */
 export const ACCESS_SWITCHES = Object.freeze([
   "add_to_roster",
   "add_recruits",
   "move_recruits_to_joined",
+  "send_messages",
 ] as const);
 
 export type AccessSwitch = (typeof ACCESS_SWITCHES)[number];

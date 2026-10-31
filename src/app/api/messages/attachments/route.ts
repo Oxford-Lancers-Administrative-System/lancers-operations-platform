@@ -7,7 +7,7 @@ import { startAttachmentUpload } from "@/lib/services/club-messages";
  * LAN-514. Starts one file's upload for a message on the Messages page. The
  * bytes follow in chunks to `./[id]` — a route, not a Server Action, because a
  * Server Action takes 1 MB and the proxy buffers 10 MB, and a playbook is
- * larger than both. `delivery_administration`, as sending is.
+ * larger than both. May send Messages (LAN-520), as sending is.
  */
 export const dynamic = "force-dynamic";
 

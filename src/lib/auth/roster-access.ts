@@ -74,6 +74,17 @@ export const ADD_RECRUITS: GrantRule = Object.freeze({
 }) as GrantRule;
 
 /**
+ * May send Messages — LAN-520 (Brian, 31 October 2026). The Messages
+ * destination, the sent history, each Message's page, New message, the
+ * attachment upload and the send action. It replaced `delivery_administration`
+ * for Messages alone; the messaging settings and the Messaging queue keep it.
+ */
+export const SEND_MESSAGES: GrantRule = Object.freeze({
+  subject: Object.freeze({ kind: "switch", key: "send_messages" }),
+  minimum: "yes",
+}) as GrantRule;
+
+/**
  * Merge two people into one — LAN-432. A merge rewrites a whole person: every
  * fact on the record, their memberships and their recruitment together, so it
  * asks for the whole record at its maximum: every roster category at `edit`

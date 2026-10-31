@@ -223,6 +223,54 @@ describe("save on press — one line of each kind", () => {
   });
 });
 
+// LAN-520: May send Messages is a line like every other: one press, one audit
+// row, one History entry, and the fixed seats keep it whatever is sent.
+describe("May send Messages — LAN-520", () => {
+  it("turns on and off for an ordinary seat, each press audited", async () => {
+    signedInAs(["president"]);
+    const treasurer = roleIds.treasurer;
+    expect(await levelOf("treasurer", "switch", "send_messages")).toBe("none");
+
+    const on = await setAccessGrantAction(
+      treasurer,
+      { kind: "switch", key: "send_messages" },
+      "yes",
+    );
+    expect(on).toMatchObject({ ok: true, notice: "May send Messages changed from No to Yes." });
+    if (on.ok) expect(on.grants.switches.send_messages).toBe("yes");
+    expect(await levelOf("treasurer", "switch", "send_messages")).toBe("yes");
+    expect(await accessAuditCount(treasurer)).toBe(1);
+
+    const off = await setAccessGrantAction(
+      treasurer,
+      { kind: "switch", key: "send_messages" },
+      "none",
+    );
+    expect(off).toMatchObject({ ok: true, notice: "May send Messages changed from Yes to No." });
+    expect(await levelOf("treasurer", "switch", "send_messages")).toBe("none");
+    expect(await accessAuditCount(treasurer)).toBe(2);
+
+    const history = await accessHistory("treasurer");
+    expect(history.map((entry) => accessHistoryLines(entry)[0]).sort()).toEqual(
+      ["May send Messages: No → Yes", "May send Messages: Yes → No"].sort(),
+    );
+  });
+
+  it("cannot be switched off for the President, General Manager or IT Officer", async () => {
+    signedInAs(["president"]);
+    for (const code of ["president", "general_manager", "it_officer"]) {
+      const result = await setAccessGrantAction(
+        roleIds[code],
+        { kind: "switch", key: "send_messages" },
+        "none",
+      );
+      expect(result, code).toMatchObject({ ok: false });
+      expect(await levelOf(code, "switch", "send_messages"), code).toBe("yes");
+      expect(await accessAuditCount(roleIds[code]), code).toBe(0);
+    }
+  });
+});
+
 describe("the floor — a forged request against a fixed seat", () => {
   it("refuses lowering the President, whatever the request says, and records nothing", async () => {
     signedInAs(["president"]);
@@ -248,7 +296,7 @@ describe("whole-seat edits", () => {
   it("copies the Vice-President onto the Treasurer as one History entry listing every changed line", async () => {
     signedInAs(["president"]);
     const plan = await planCopyAccessAction(roleIds.treasurer, roleIds.vice_president);
-    const expected = 12 + 3 + templates.length + 3;
+    const expected = 12 + 3 + templates.length + 4;
     expect(plan).toMatchObject({ ok: true });
     if (plan.ok) expect(plan.lines).toHaveLength(expected);
 

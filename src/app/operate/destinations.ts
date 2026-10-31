@@ -1,6 +1,6 @@
 import { holdsAccess, type AccessHolder, type AccessRule } from "@/lib/auth/access";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
-import { RECRUITING_REACH, ROSTER_REACH } from "@/lib/auth/roster-access";
+import { RECRUITING_REACH, ROSTER_REACH, SEND_MESSAGES } from "@/lib/auth/roster-access";
 
 /**
  * The playbook's index — LAN-399.
@@ -45,13 +45,9 @@ const DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({ href: "/operate/roster", label: "Roster", access: ANY_ROSTER }),
   Object.freeze({ href: "/operate/recruitment", label: "Recruitment", access: ANY_RECRUITING }),
   Object.freeze({ href: "/operate/events", label: "Events", access: EVENTS }),
-  // LAN-514. Its own place (Brian and Stewart, 29 October), for the seats
-  // that already administer the club's delivery.
-  Object.freeze({
-    href: "/operate/messages",
-    label: "Messages",
-    access: "delivery_administration" as AccessRule,
-  }),
+  // LAN-514. Its own place (Brian and Stewart, 29 October). LAN-520: the
+  // May send Messages switch, as every Messages page and the send check.
+  Object.freeze({ href: "/operate/messages", label: "Messages", access: SEND_MESSAGES }),
   Object.freeze({
     href: "/operate/report",
     label: "Report",

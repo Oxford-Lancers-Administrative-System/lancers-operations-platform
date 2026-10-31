@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/status-chip";
 import { formatAttemptTime } from "@/app/operate/events/[id]/delivery/presentation";
 import { DELIVERY_LABELS } from "@/app/participation/presentation";
 import { UnavailableScreen } from "@/app/operate/unavailable";
+import { SEND_MESSAGES } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import { formatMegabytes } from "@/lib/services/club-message-input";
 import { readClubMessage, type ClubMessageDetail } from "@/lib/services/club-messages";
@@ -36,13 +37,13 @@ import {
   sentNotice,
 } from "../presentation";
 
-/** One message: what was sent, to whom, and where each copy is. LAN-514. */
+/** One message: what was sent, to whom, and where each copy is. LAN-514; May send Messages (LAN-520). */
 export default async function MessagePage({
   params,
   searchParams,
 }: PageProps<"/operate/messages/[id]">) {
   const { id } = await params;
-  const gate = await gateShellPage(`${MESSAGES_PATH}/${id}`, "delivery_administration");
+  const gate = await gateShellPage(`${MESSAGES_PATH}/${id}`, SEND_MESSAGES);
   if ("screen" in gate) return gate.screen;
   const query = await searchParams;
 

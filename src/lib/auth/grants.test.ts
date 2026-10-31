@@ -41,7 +41,7 @@ function row(
 }
 
 describe("the vocabulary", () => {
-  it("names the twelve roster categories, the three recruiting ones and the three switches", () => {
+  it("names the twelve roster categories, the three recruiting ones and the four switches", () => {
     expect([...ROSTER_CATEGORIES]).toEqual([
       "person",
       "contact_emergency",
@@ -65,6 +65,7 @@ describe("the vocabulary", () => {
       "add_to_roster",
       "add_recruits",
       "move_recruits_to_joined",
+      "send_messages",
     ]);
   });
 
@@ -264,8 +265,8 @@ describe("diffGrants — what Copy access and Grant everything would change", ()
     const target = fullGrants([SOCIAL]);
 
     const changes = diffGrants(current, target, [SOCIAL]);
-    // Twelve roster lines less Kit, three recruiting, one template, three switches.
-    expect(changes).toHaveLength(11 + 3 + 1 + 3);
+    // Twelve roster lines less Kit, three recruiting, one template, four switches.
+    expect(changes).toHaveLength(11 + 3 + 1 + 4);
     // Round 6, M5: Attendance moves to its own maximum, View.
     expect(
       changes.find(

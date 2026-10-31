@@ -626,6 +626,7 @@ describe("resolveOperator — resolved operator", () => {
       add_to_roster: "yes",
       add_recruits: "none",
       move_recruits_to_joined: "none",
+      send_messages: "none",
     });
   });
 
