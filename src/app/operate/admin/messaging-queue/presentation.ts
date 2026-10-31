@@ -37,6 +37,7 @@ export const KIND_LABELS: Readonly<Record<MessageKind, string>> = Object.freeze(
   onboarding_escalation: "Onboarding escalation",
   attendance_sheet: "Attendance sheet",
   operator_details: "Operator details request",
+  club_message: "Message",
   other: "Other",
 });
 
@@ -48,13 +49,16 @@ export const KIND_FAMILY_LABELS: Readonly<Record<KindFamily, string>> = Object.f
   recruitment: "Recruitment",
   onboarding: "Onboarding",
   attendance: "Attendance sheets",
+  messages: "Messages",
 });
 
 export const STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   ...DELIVERY_LABELS,
   not_sent: "Not sent — event passed",
-  withheld: "Withheld — no consent",
 });
+
+/** A withheld row whose reason is the missing season consent. Other withheld rows read plain Withheld (LAN-483). */
+export const WITHHELD_NO_CONSENT = "Withheld — no consent";
 
 export const STATUS_FILTER_LABELS: Readonly<Record<StatusFilter, string>> = Object.freeze({
   queued: DELIVERY_LABELS.queued!,
@@ -64,7 +68,8 @@ export const STATUS_FILTER_LABELS: Readonly<Record<StatusFilter, string>> = Obje
   held: DELIVERY_LABELS.held!,
   cancelled: DELIVERY_LABELS.cancelled!,
   not_sent: STATE_LABELS.not_sent!,
-  withheld: STATE_LABELS.withheld!,
+  withheld: DELIVERY_LABELS.withheld!,
+  unknown: DELIVERY_LABELS.unknown!,
 });
 
 export const CHANNEL_FILTER_LABELS: Readonly<Record<ChannelFilter, string>> = Object.freeze({

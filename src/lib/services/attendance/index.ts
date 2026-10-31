@@ -12,7 +12,7 @@ export {
 export { eventStartInstant, isRegisterAvailable, registerOpensAt } from "../attendance-window";
 
 export type { AttendanceBoard } from "./read";
-export { readAttendanceBoard, readEventAttendanceSummary } from "./read";
+export { readAttendanceBoard, readEventAttendanceSummary, readEventGroupValues } from "./read";
 
 export {
   ATTENDANCE_CLOSED_MESSAGE,

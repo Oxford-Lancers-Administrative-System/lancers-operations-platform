@@ -112,11 +112,19 @@ export const FULL_RECRUITING_ACCESS: RecruitingAccess = Object.freeze({
 export function visibleRecruitmentColumns(
   columns: readonly ColumnDef[],
   access: RecruitingAccess,
+  mayMoveToJoined = false,
 ): readonly ColumnDef[] {
   return columns
-    .filter((column) => access[column.category] !== "none")
+    .filter(
+      // LAN-505: May move recruits to Joined acts on the status, so it keeps
+      // the Status column whatever the Recruit details level.
+      (column) =>
+        access[column.category] !== "none" || (column.key === "status" && mayMoveToJoined),
+    )
     .map((column) =>
-      access[column.category] === "edit" ? column : { ...column, viewOnly: true as const },
+      access[column.category] === "edit" || (column.key === "status" && mayMoveToJoined)
+        ? column
+        : { ...column, viewOnly: true as const },
     );
 }
 
@@ -233,20 +241,21 @@ const RECRUITMENT_COLUMN_TABLE: readonly Omit<ColumnDef, "category">[] = [
     filterable: true,
   },
   {
-    key: "source",
-    label: "Source",
-    band: "recruitment",
-    edit: "none",
-    width: 128,
-    sortable: true,
-    filterable: false,
-  },
-  {
+    // LAN-493: First contact sits immediately after Status.
     key: "firstContact",
     label: "First contact",
     band: "recruitment",
     edit: "none",
     width: 120,
+    sortable: true,
+    filterable: false,
+  },
+  {
+    key: "source",
+    label: "Source",
+    band: "recruitment",
+    edit: "none",
+    width: 128,
     sortable: true,
     filterable: false,
   },

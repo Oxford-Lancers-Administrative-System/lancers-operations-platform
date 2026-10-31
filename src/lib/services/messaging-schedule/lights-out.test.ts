@@ -183,7 +183,11 @@ describe("exactly four message kinds go at any hour", () => {
     expect(OTHER_JOB_KEY_PREFIX_KINDS).toEqual({
       [ATTENDANCE_SHEET_KEY_PREFIX]: "attendance_sheet",
       [RECRUIT_EVENT_REMINDER_KEY_PREFIX]: "recruit_event_reminder",
+      "club-message:": "club_message",
     });
+    // LAN-514: a message written on the Messages page waits for 07:00 too.
+    expect(LIGHTS_OUT_EXEMPT.club_message).toBe(false);
+    expect(isJobLightsOutExempt("other", "club-message:m1:p1")).toBe(false);
     expect(LIGHTS_OUT_EXEMPT_OTHER_KEY_PREFIXES).toEqual([ATTENDANCE_SHEET_KEY_PREFIX]);
     expect(isJobLightsOutExempt("other", "attendance-sheet:e1:p1")).toBe(true);
     expect(isJobLightsOutExempt("cancellation_notice", "cancellation:e1:p1")).toBe(true);

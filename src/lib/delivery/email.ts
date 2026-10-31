@@ -1,6 +1,16 @@
 import "server-only";
 
+import {
+  encodedAttachmentBytes,
+  RESEND_ENCODED_EMAIL_LIMIT_BYTES,
+} from "@/lib/services/club-message-input";
+
 import type { EmailConfig } from "./config";
+import {
+  attachmentContentSlot,
+  streamEmailBody,
+  type StreamedEmailBody,
+} from "./email-body-stream";
 import { renderEmailHtml } from "./email-shell";
 import type {
   DeliveryProvider,
@@ -204,8 +214,56 @@ export function buildEmailBody(
       stopLine: stop ? (lines.at(-1) ?? null) : null,
     }),
     ...(config.replyToAddress ? { reply_to: config.replyToAddress } : {}),
+    // LAN-514. Resend's own shape: a filename and the bytes as base64. The
+    // content is a placeholder here; `streamEmailBody` puts the file in its
+    // place, a slice at a time, as the request is sent.
+    ...(message.attachments && message.attachments.length > 0
+      ? {
+          attachments: message.attachments.map((attachment, index) => ({
+            filename: attachment.filename,
+            content: attachmentContentSlot(index),
+            ...(attachment.contentType ? { content_type: attachment.contentType } : {}),
+          })),
+        }
+      : {}),
   };
 }
+
+/**
+ * LAN-514. How long one send with `encodedBytes` of base64 attachments may
+ * take: {@link EMAIL_TIMEOUT_MS}, plus a second for every encoded megabyte, so
+ * a 20 MB playbook is not cut off mid-upload by a deadline sized for a plain
+ * email. 42 s at 20 MB of files, 29 s at 10 MB. The sweep starts such a send
+ * only when this fits inside its request (`messaging-scheduler.ts`).
+ */
+export function emailTimeoutForEncodedBytes(encodedBytes: number): number {
+  return Math.min(EMAIL_TIMEOUT_MS + Math.ceil(encodedBytes / 1_000_000) * 1_000, 120_000);
+}
+
+/** {@link emailTimeoutForEncodedBytes} for one message's files. */
+export function emailTimeoutFor(message: OutboundMessage): number {
+  return emailTimeoutForEncodedBytes(
+    encodedAttachmentBytes((message.attachments ?? []).map((file) => file.byteSize)),
+  );
+}
+
+/** Resend's own limit on an `Idempotency-Key`. */
+const IDEMPOTENCY_KEY_MAX_LENGTH = 256;
+
+export const EARLIER_ATTEMPT_REACHED_PROVIDER_REASON =
+  "An earlier attempt of this message already reached the email provider, so it was not " +
+  "sent again.";
+
+export const EARLIER_ATTEMPT_IN_PROGRESS_REASON =
+  "An earlier attempt of this message is still with the email provider. This will be " +
+  "attempted again.";
+
+export const ATTACHMENT_READ_FAILED_REASON =
+  "This message's files could not be read while it was being sent, so it was not sent. " +
+  "This will be attempted again.";
+
+export const EMAIL_TOO_LARGE_REASON =
+  "The attachments are larger than the email provider accepts, so nothing was sent.";
 
 /** Resend's success shape, as far as this adapter is willing to look at it. */
 interface AcceptedBody {
@@ -218,6 +276,31 @@ interface AcceptedBody {
  * Pure and exported, so every branch is testable without a network.
  */
 export function interpretEmailResponse(status: number, body: unknown): SendOutcome {
+  // LAN-514. The two refusals Resend gives a reused `Idempotency-Key`, told
+  // apart by its error name. Neither is a failure to send: one is the earlier
+  // attempt still in flight, retried later, and the other is the earlier
+  // attempt having already reached Resend, so sending again is never right.
+  if (status === 409) {
+    const name = (body as { name?: unknown } | null)?.name;
+    if (name === "concurrent_idempotent_requests") {
+      return {
+        status: "refused",
+        reason: EARLIER_ATTEMPT_IN_PROGRESS_REASON,
+        retryable: true,
+        faultScope: "message",
+      };
+    }
+    if (name === "invalid_idempotent_request") {
+      return {
+        status: "refused",
+        reason: EARLIER_ATTEMPT_REACHED_PROVIDER_REASON,
+        retryable: false,
+        faultScope: "message",
+        earlierAttemptReachedProvider: true,
+      };
+    }
+  }
+
   if (status >= 200 && status < 300) {
     const id = (body as AcceptedBody | null)?.id;
     if (typeof id === "string" && id !== "") {
@@ -270,19 +353,59 @@ export function createEmailProvider(
         };
       }
 
+      const attachments = message.attachments ?? [];
+      // LAN-514. Resend's 40 MB after encoding, as a second guard behind the
+      // club's own 20 MB: never upload a body Resend is bound to refuse.
+      if (
+        encodedAttachmentBytes(attachments.map((file) => file.byteSize)) >
+        RESEND_ENCODED_EMAIL_LIMIT_BYTES
+      ) {
+        return {
+          status: "refused",
+          reason: EMAIL_TOO_LARGE_REASON,
+          retryable: false,
+          faultScope: "message",
+        };
+      }
+
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), EMAIL_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), emailTimeoutFor(message));
+      let streamed: StreamedEmailBody | null = null;
 
       try {
-        const response = await transport(`${config.apiBaseUrl}/emails`, {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${config.apiKey}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(buildEmailBody(config, message)),
-          signal: controller.signal,
-        });
+        const headers: Record<string, string> = {
+          authorization: `Bearer ${config.apiKey}`,
+          "content-type": "application/json",
+        };
+        // LAN-514. The job's own key, the same on every attempt, so a retry
+        // after an attempt that did reach Resend sends nothing a second time.
+        const key = message.idempotencyKey ?? "";
+        if (key !== "" && key.length <= IDEMPOTENCY_KEY_MAX_LENGTH) {
+          headers["idempotency-key"] = key;
+        }
+        const json = buildEmailBody(config, message);
+        let init: RequestInit;
+        if (attachments.length > 0) {
+          // Streamed, at an exact length, so the file is never held whole.
+          streamed = streamEmailBody(json, attachments);
+          headers["content-length"] = String(streamed.length);
+          init = {
+            method: "POST",
+            headers,
+            body: streamed.stream,
+            signal: controller.signal,
+            // Required by fetch for a streamed request body.
+            duplex: "half",
+          } as RequestInit;
+        } else {
+          init = {
+            method: "POST",
+            headers,
+            body: JSON.stringify(json),
+            signal: controller.signal,
+          };
+        }
+        const response = await transport(`${config.apiBaseUrl}/emails`, init);
 
         let body: unknown = null;
         try {
@@ -294,6 +417,18 @@ export function createEmailProvider(
 
         return interpretEmailResponse(response.status, body);
       } catch (error) {
+        // LAN-514. The body's own stream failed — a file could not be read
+        // from the database, or changed, mid-send. This application's fault,
+        // not the provider's, so it does not count towards the provider's
+        // circuit; retried, as the next read may well succeed.
+        if (streamed?.failed()) {
+          return {
+            status: "refused",
+            reason: ATTACHMENT_READ_FAILED_REASON,
+            retryable: true,
+            faultScope: "message",
+          };
+        }
         // A timeout or a network fault. Retryable, and the reason names neither
         // the address nor the exception's message — a fetch error routinely
         // quotes the host and the recipient.

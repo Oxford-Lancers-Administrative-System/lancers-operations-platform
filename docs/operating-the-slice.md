@@ -140,7 +140,14 @@ Adding people — one line each: None / View / Edit on eleven roster categories
 and on Person information and Recruit details, None / View on Attendance (the
 Roster group's last line) and on Event details,
 None / View / Manage on each event template, and No / Yes on "May add to the
-roster" and "May add recruits". A press saves at once; the Notice reads the
+roster" and "May add recruits". Recruiting also carries **May move recruits to
+Joined** (No / Yes, help line "Moves them onto the roster as Onboarding.") after
+Event details (LAN-505, Brian 2026-10-16). It replaced the fixed rule that only
+the President, Vice-President, Secretary and General Manager could move a
+recruit to Joined, and the migration switched it on for those four. The IT
+Officer holds it at Yes as well, like everything the General Manager holds
+(Brian, 2026-10-19), and on that fixed seat it stays Yes; every other seat
+starts at No. A press saves at once; the Notice reads the
 change back and the seat's **History** gains an "Access changed" entry. **Copy
 access from another seat** (choose the seat, read every line that would
 change, confirm) and **Grant everything** each write one History entry listing
@@ -152,7 +159,8 @@ next request. The eleven roster group colours (Attendance, Slate by default, sin
 beside Add players on the roster, by the same three seats; the board, the
 player and prospect records and the recruitment board draw from them. The
 sidebar follows: Roster, People and Missing data with any roster category at
-View; Recruitment with any recruiting category at View; Events with any template
+View; Recruitment with any recruiting category at View or May move recruits to
+Joined; Events with any template
 at View or an attendance capability; Follow-ups with any template at View; the
 Messaging schedule with any template at Manage. Report appears only for the
 seats that hold the report (the core four and the IT Officer), never as a grant
@@ -163,6 +171,16 @@ delete, send, approve, delivery and chase control and that template's messaging
 schedule (LAN-431). Attendance recording is unchanged for every seat: the
 Attendance line governs the player record's Attendance section and the roster
 board's Attendance group (LAN-457), and nothing else.
+
+**Moving a recruit to Joined (LAN-505).** The recruit's status control, on the
+board, the phone card and the recruit record, offers exactly what the seat can
+do. May move recruits to Joined offers Joined, whatever the Recruit details
+level — with Recruit details at None the status alone is sent so the switch has
+something to act on. Recruit details at Edit offers every other status; without
+the switch, Joined is not offered and the open control's last line reads
+"Moving to Joined needs the May move recruits to Joined permission." With
+neither, the status reads with **Read only** beside it. The server refuses the
+move to Joined for a seat without the switch, whatever the page showed.
 
 **A seat holder is always an operator (LAN-434, Brian 2026-09-26; relaxed for a
 phone-only holder by LAN-459 below).** On a
@@ -258,7 +276,7 @@ Messaging and What changed read as Person; the mobile, both emails and the
 emergency contact as Contact & emergency, each row drawn only where its line
 allows; Their seasons as Membership. Student information shows for anyone who
 has ever been a player or a recruit, or once any student fact (college email,
-college, matriculation year, expected graduation, degree field, student number,
+college, matriculation year, expected graduation, degree, subject, student number,
 BAFA registration number) is recorded; on Correct this record it is present for
 every person, closed for anyone else, so a non-playing coach's BAFA number can
 still be entered. The missing-data rules are unchanged; Correct this record needs Edit on Person or
@@ -272,6 +290,72 @@ re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
 **Add recruits** (Add one recruit, Bulk import recruits) and **QR code** only with "May
 add recruits"; their pages and actions refuse without it.
+
+**Dietary preference (LAN-502, Brian 2026-10-15).** The player's onboarding
+details step (`/onboarding/<t>`, under Who you are, after Personal email) asks
+**Dietary preference**, one of **Vegan**, **Vegetarian** or **No dietary
+requirements**, required like the other details: left unanswered, the step stays
+with **Dietary preference is required.** under the choice. The answer is stored
+on the person (`people.dietary_preference`), so it carries across seasons. It is
+shown in the person record's Personal information and the player record's Person
+section, and the operator sets or changes it on **Correct this record** (a
+reason is needed to change an answer already recorded, as for every person
+fact). The roster board has a **Dietary preference** column in the Person group,
+read as Person, routed to the person record like the other Person columns,
+sortable and filterable by each answer or by **Not recorded**. Everyone who
+onboarded before it was asked shows **Not recorded**: it is not part of the
+required facts, so it adds nothing to Missing data, opens no completed
+questionnaire again and never triggers a chase. `agent_readonly` cannot read the
+column — a diet can disclose a belief — so it is on the hidden list in
+`scripts/production/agent-readonly.sql`.
+
+**College and degree are fixed lists (LAN-512, Brian and Stewart 2026-10-29;
+replaces LAN-494's Degree type with Other).** Wherever a person's college or
+degree is entered — the onboarding details step, Correct this record (which is
+also where the roster's and Missing data's college and degree are corrected),
+the recruitment hand-add, the QR and tokenised sign-up doors, and the recruit
+and roster imports — the answer comes only from the University's own lists:
+there is no free text and no Other. Each is a type-to-search box (typing
+filters the list; only a listed entry can be chosen).
+
+- **College**: the 39 constituent colleges and 5 permanent private halls, names
+  as the University writes them ("St Catherine's College", "Christ Church",
+  "The Queen's College", "Blackfriars"), plus Ripon College Cuddesdon, listed by
+  the University as an external college. All Souls College is included.
+- **Degree**: the award letters (37), "DPhil — Doctor of Philosophy" and so on,
+  the six most common first (DPhil, BA, MSc, MPhil, MSt, MBA), then the rest
+  alphabetically.
+- **Subject**: with no Degree chosen, every subject the University offers,
+  once each, alphabetically (Brian's walk, 2026-10-31; it had read "No
+  options"), and a listed subject with no letters saves. Once letters are
+  chosen it narrows to what the University offers with them (BA offers its
+  undergraduate subjects, MSc its MSc courses, MBA only "Business
+  Administration"), and choosing letters clears a subject they do not offer.
+  The same holds in an import.
+- **Degree and Subject filter each other** (Brian's second walk, 2026-10-31).
+  A subject chosen narrows the Degree list to the letters that offer it
+  (Geography: BA and PGCE); a legacy subject no letters offer leaves every
+  letter listed. Where only one option remains the other field fills itself in
+  — a Degree that offers one subject (MChem: Chemistry; MBA: Business
+  Administration), or, with no Degree chosen, a subject only one Degree offers
+  (Business Administration: MBA). With several options nothing is filled in.
+  Clearing either field widens the other list again and clears nothing; on
+  Correct this record a filled-in value that differs from the record needs a
+  reason like any other change. The pair is stored on `people.degree_type` and `people.degree_field`.
+  Where the University names a course by the award alone the subject is the
+  research's proposal (MPP Public Policy, EMBA Business Administration
+  (Executive), BCL Civil Law, MJur Law, DM Medicine, DClinPsych Clinical
+  Psychology); the doctoral training programmes are DPhil under their own names.
+
+The lists and their sources are in `src/lib/services/oxford-academic.ts`. The
+onboarding details step now asks for the degree letters as well as the
+subject, both required like the college. Validation is on input only: the
+database holds no list, so a free-text value already on file stays readable and
+is shown as it is on the record. A form opening on such a value shows "On file:
+<value>. Not in the list." beside the empty box and refuses the save until a
+listed entry is chosen; an import refuses the row naming the cell, and accepts a
+listed name in any case or punctuation ("st. anne's college"). LAN-513's
+one-time cleanup moves the existing values onto the lists.
 
 **The roster's Attendance group (LAN-457, Brian 2026-10-02).** On the wide
 board (and a phone on its side) an **Attendance** group sits immediately right
@@ -389,15 +473,42 @@ Onboarding → Active
 Two rows, not one: intake and activation are still two distinct events, but
 neither carries a reason any more.
 
-**On a phone, the Roster and Recruits boards sort from one select** (LAN-426).
-Where the boards draw cards, a **Sort** select beside **Filters** offers First
-name, Last name and Status, each A–Z or Z–A; Status sorts alphabetically by its
-label, with no ladder of its own, and is offered only where the Status column is
-shown. The choice writes the same `sort` / `dir` the desktop headings do, so it
-applies to the whole filtered set and a reload keeps it; it is also remembered
-per board in the browser, so returning to the board from the menu restores it.
-The remembered value is read only where the cards are drawn, so the desktop
-table's default order is unchanged.
+**The Roster and Recruits boards sort by up to three keys** (LAN-495, replacing
+LAN-426's phone select). A **Sort** button, **Sort (n)** once keys are set,
+sits beside **Filters** on a phone, upright or on its side, and opens a bottom
+sheet; on a desktop it ends the pinned filter row and opens a dialog. The sheet
+has three rows, **Sort by**, **Then by**, **Then by**, each a field and an
+order, then **Clear** and **Done**. Changes apply as they are made; Done only
+closes. A field chosen in one row is not offered below it, and choosing None
+removes that row and moves the later rows up. Orders are worded by type: A–Z /
+Z–A for text, Oldest first / Newest first for dates, Low–High / High–Low for
+numbers.
+
+- **Fields** are First name, Last name, the pinned Player or Recruit column, and
+  every column this viewer can see, in board order, including columns inside a
+  folded group. A column hidden from the viewer is never offered. A label two
+  columns share names its group (`Membership · BPS`), a special-teams cell its
+  squad, an event's RSVP and Attendance the event.
+- **Comparison:** numbers numerically, text with en-GB numeric collation, First
+  contact by instant, and an empty value last in either direction. A
+  multi-valued cell sorts by its first value in the column's option order.
+  Status stays alphabetical by its label, with no ladder of its own. Every tie
+  ends on display name, then record id, so the order is the same on every
+  device.
+- **Clear** returns to the board's default: Player A–Z on the Roster; ladder
+  order, then newest first contact, on Recruits.
+- A **Sorted by** bar under the toolbar shows numbered chips (`1 Status A–Z`),
+  so the order is readable when those columns are scrolled off screen;
+  removing a chip moves the later keys up. The Filtered by bar's **Clear all**
+  clears the search and filters, not the sort.
+- **A column heading** changes key 1 only and keeps keys 2 and 3; a second tap
+  flips its direction. Every sorted column shows its arrow.
+- **One order everywhere:** the cards, the sideways table and the desktop table
+  read the same keys, so rotating changes the layout only. The keys are in the
+  address bar as `?sort=status:asc,college:asc,lastName:asc` and remembered per
+  board in this browser, restored in every layout when the address carries
+  none. An older `?sort=status&dir=desc` link still reads as one key, and a
+  linked or remembered key this viewer can no longer see is dropped quietly.
 
 **A phone on its side gets the table** (LAN-427). "On its side" is judged by
 height, not width (Brian, 2026-09-28): landscape and at most 500px tall, which
@@ -410,7 +521,7 @@ both boards. On a phone on its side:
   only the phone gutter around the page; the top bar scrolls away with the page;
 - Roster and Recruits put their heading on one line — title, count and the page
   actions (Edit categories / Add players; QR code / Add recruit);
-- the toolbar is one row, **Filters** and the phone sort, with the search box
+- the toolbar is one row, **Filters** and **Sort**, with the search box
   and every filter select inside the Filters bottom sheet;
 - the desktop table follows directly, with every heading's sort, funnel filter
   and editable cell working as on a desktop and the Player or Recruit column
@@ -775,6 +886,143 @@ than sent late. On the **Messaging queue** these read **Recruit reminder**, and
 a dropped one is **Cancelled** with **Quiet hours ran past the event start.**
 under its time.
 
+### Messages: email any audience, with attachments
+
+**Messages** (`/operate/messages`, its own entry in the navigation after
+Events; LAN-514, Brian and Stewart 2026-10-29, a first pass for Brian's
+review) sends one email, with files attached, to people already in the
+system. Email only — never WhatsApp. It opens for the seats that administer
+delivery (`delivery_administration`: President, Vice-President, Secretary,
+General Manager, IT Officer); the send action checks that capability again on
+the server.
+
+**The list** shows every message, newest first: when it sends or sent, the
+subject (and how many files), the audience (the groups ticked, or **Chosen by
+name**), how many people it was queued for, who sent it, and **Scheduled**,
+**Sending** or **Sent**. A message opens on its own page: the body with the
+files and their sizes under it in the same box (Brian's walk, 2026-10-31),
+and **Recipients · N** (with **Not reachable: M** where any were), closed on
+arrival and opened to every recipient with their delivery state in the
+club's usual words (Queued, Attempted, Delivered, Failed…), with the reason
+where one was recorded. The recipients are the chosen people who had an
+email, so their names are listed only for a seat that reads Contact &
+emergency, as the event review names who is unreachable; any other seat sees
+the count.
+
+**New message** is one page in three steps:
+
+1. **Audience** — the event audience builder itself (the group bands, the
+   search, Capacity and Unit, one row per person), its per-person detail
+   narrowed to the sender's roster and recruiting grants as the event builder
+   narrows it (LAN-423). The send resolves the chosen keys against that same
+   narrowed catalogue, so a key the page did not offer is refused. Here it
+   starts closed (Brian's second walk, 2026-10-31): every group band is shut,
+   each keeping its **N chosen** mark, and the search, Capacity, Unit and the
+   person rows fold into one **People** section, closed on arrival, its header
+   reading **N of M chosen**. Ticks survive closing and reopening. The event
+   audience builder itself is unchanged. A person
+   with no current email is marked **Not reachable · No email**, and a recruit
+   with no granted season messaging consent **Not reachable · No consent**, as
+   their event invitation would be; both marks show only to a seat that reads
+   Contact & emergency, and the send refuses them either way.
+2. **Email** — subject (200 characters), message (20,000; each line one
+   paragraph, no images), and **Attach files**, inside the message's own box
+   under the text (Brian's walk, 2026-10-31). Files go up as they are chosen,
+   in 4 MB pieces, each with its own progress bar; beside the button the plain
+   label **Max attachment size: 20 MB** (no running total). The files may total **20 MB** (Brian, 2026-10-29): 20 MB
+   is about 27 MB once base64-encoded, inside Resend's 40 MB per email after
+   encoding and Microsoft 365's default 36 MB receive limit (Oxford's
+   Nexus365). A file that would take the total over is refused with "The
+   attachments are too large to send by email. One email can carry 20.0 MB of
+   files." — when it is chosen, again when the message is sent, and again at
+   send time from the bytes held. At most ten files.
+3. **Send** — **Send now** or **Schedule** (a date and a 24-hour time, club
+   time). Below it, **Recipients · N** (with **Not reachable · M** under it
+   where any are) is closed on arrival, the Group by sections' collapsible
+   section; opened, it names everybody it will reach and who it will not,
+   before anything is sent. The button
+   reads **Send to N people** or **Schedule for N people**.
+
+**What happens.** One `club_messages` row, its files claimed, and one email
+job per reachable person (`notification_jobs`, `other`, keyed
+`club-message:<message>:<person>`), with an audit row. Send now is due at once
+and goes on the next scheduler tick (every five minutes); a scheduled message
+is due at its time. From there it is an ordinary message: it appears in the
+**Messaging queue** as **Message**, waits through lights-out (22:00–07:00) like
+every other non-urgent message, is paced and capped by messaging safety, and
+each copy is recorded as a delivery attempt with Resend's own receipt. At send
+time the email is re-read from the person's record, and a recruit's consent is
+read again, so a Stop in between is honoured.
+
+**Sending files** (LAN-514, Brian 2026-10-29). Each copy reads the files out
+of the database in 3 MiB slices and streams the Resend request body, base64 a
+slice at a time, at an exact `Content-Length` (a fixed-length body, not
+chunked); no copy of a whole file is ever built in memory, so a send's extra
+memory stays roughly constant whatever the size and fits Cloud Run's 512 MiB.
+Measured against a mock endpoint over a real socket
+(`src/lib/delivery/email-attachment-send.test.ts`): the sender grew by at most
++43 MB RSS at 10 MB and +17 MB at 20 MB (heap under 3 MB), against +123 MB and
++227 MB for the old whole-string body. End to end on 29 October (the
+standalone production server, JS heap held at 384 MB, the Messages screen, four
+synthetic players, the local sink): the server peaked at 266 MB RSS sending
+10 MB to four and 276 MB sending 20 MB to four, from about 150 to 195 MB just
+before the send. Each copy took 0.2 s at 10 MB and 0.4 to 0.5 s at 20 MB, all
+four went in one tick of under 2 s, every recipient's file was byte-identical,
+and a further tick sent nothing again.
+
+- **No second copy.** Every copy carries Resend's `Idempotency-Key`, the job's
+  own key (`club-message:<message>:<person>`), the same on every attempt; Resend
+  keeps it 24 hours. A retry after an attempt that did reach Resend gets the
+  first email back and sends nothing. Resend's `409
+concurrent_idempotent_requests` (the earlier attempt still in progress) is
+  retried on the ordinary 15-minute backoff; `409 invalid_idempotent_request`
+  (the key already used with a different body, for instance after the
+  person's name or email changed between attempts) means an earlier attempt
+  already reached Resend, so the copy reads **Unknown** — sent, outcome not
+  coming — never **Failed**, and is not retried. Only club messages carry the
+  key: the other emails mint a fresh link on every attempt, so their body
+  differs each time and Resend would refuse the retry.
+- **Fits the scheduler's request.** A tick may run 60 s (Cloud Run). A copy
+  with files is started only when its own deadline (15 s plus 1 s per encoded
+  MB: 29 s at 10 MB, 42 s at 20 MB) ends within 55 s of the tick's start;
+  otherwise it stays due, untouched, for the next tick. Every other send is
+  started only in the first 40 s, and its 15 s deadline ends by 55 s too.
+  At 20 MB that is a few copies a tick, so a large file to a big audience goes
+  out over several ticks (every five minutes).
+- **A send cut off mid-flight** (the instance replaced or out of memory before
+  Resend answered) leaves the copy `processing` with an attempt and no answer.
+  Ten minutes on, the next tick concludes that attempt as failed ("This send
+  was cut off before the email provider answered…") and makes the copy due at
+  once, still inside Resend's 24 hours, so the retry carries the same key and
+  cannot deliver twice. One older than 23 hours is left reading **Attempted**
+  for an operator to judge. Only club messages are recovered this way; any
+  other job left `processing` still waits for an operator.
+- **A file that cannot be read mid-send** (the database drops, or the file
+  changed, while the body streams) fails that attempt as the application's own
+  fault ("This message's files could not be read while it was being sent…"),
+  retried on the ordinary backoff; it does not count against Resend in
+  messaging safety's provider circuit.
+- **Known case to watch on the first real Resend sends.** If Resend refused an
+  earlier attempt (a 422 or a 5xx) and the retry, carrying the same key, is
+  answered `409 invalid_idempotent_request`, the copy reads **Unknown** though
+  that earlier attempt may have sent nothing. Resend's documentation does not
+  say whether a refused request holds its key; Brian's real Resend test is to
+  settle it.
+
+**Uploads.** A file over 20 MB is refused when its upload starts (as well as
+when the message is sent), though the database would hold one up to 30 MiB.
+Each 4 MB piece must declare its `Content-Length`: a piece with none is
+refused (411) and one declaring or carrying more than 4 MB is refused (413),
+and the body is read only up to that limit. A request whose `Origin` is
+`null` or not a URL is refused (403), as one from another site is.
+
+**Locally**, the delivery sink writes each email to
+`.lancers-runtime/delivery-sink/` as the JSON record, the rendered `.html`, and
+a `-attachments/` folder holding each file as sent.
+
+Not in this pass: per-group variants of one message, cancelling a scheduled
+message, editing one, and WhatsApp.
+
 ### The Messaging queue: every message in one place
 
 **Administration → Messaging queue** (`/operate/admin/messaging-queue`,
@@ -786,27 +1034,62 @@ Vice-President, Secretary, General Manager, IT Officer) and is read-only.
 
 **Expected.** Four tiles: **Queued** (with **Due now** or the next due time
 under it), **Attempted**, **Delivered today** and **Failed today**, the last two
-with **Yesterday** under them. The lights-out line while 22:00–07:00 applies,
+with **Yesterday** under them; each day runs from one London midnight to the
+next, so on a clock-change day it is 25 or 23 hours long. The lights-out line while 22:00–07:00 applies,
 and a warning when any message is held. Filters **When** (opens on **Today**;
 Yesterday, Last 7 days, Next 7 days), **Status**, **Channel** and **Message**
 type. The list — fifty a page, cards on a phone — shows the time, who it is
 to (linked to the person where the viewer may open people), the message type,
 the channel, the event it belongs to and the status; no message text and no
-personal link. Two statuses the event's Delivery screen never needs: **Not sent
+personal link. One status the event's Delivery screen never needs: **Not sent
 — event passed** (queued against an event that has started or is no longer
-approved, so no sweep will ever send it) and **Withheld — no consent**.
+approved, so no sweep will ever send it). A message withheld for want of season
+consent reads **Withheld — no consent**.
 
-Two things the page computes rather than reads. **A queued message's "Sends
+A message the scheduler refuses just before sending it, on purpose, reads
+**Withheld** (LAN-483): a recruit who has already completed that track, a
+recruit who is no longer a prospect, no messaging consent, a membership that has
+gone. Nothing went to a provider and asking again gives the same answer, so it
+is final, has no Retry and no next attempt, and is counted under neither
+**Failed today** nor the event's **Failed** or Needs attention — on this page,
+the event's Delivery screen or the person's record. It is recognised by the
+attempt's shape, not its wording: never accepted, no provider message id,
+requested and concluded in the same instant. Two refusals of the same shape
+stay **Failed** and under Needs attention, because a person fixes them and
+presses Retry: no usable number or email (**Not dispatched — no channel**) and
+an event with no start time. A provider's own refusal or a bounced email stays
+**Failed**; **Retryable** is kept for a provider failure that another attempt
+might fix.
+
+**Unknown** (LAN-501) is a message that was sent and whose outcome will never
+arrive: its latest attempt was concluded and no delivered or failed result was
+ever recorded for it. The first of these are the WhatsApp sends made before
+delivery receipts were subscribed, which LAN-472 concluded on 5 October 2026.
+It is worked out from that state, not from the reason's wording, so any later
+conclusion without an outcome reads the same. An Unknown message is not counted
+under **Attempted**, **Delivered**, **Failed** or Needs attention — on this
+page, the event's Delivery screen or the person's record — and has no Retry;
+nothing is resent. **Attempted** therefore counts only messages whose outcome
+can still arrive.
+
+One thing the page computes rather than reads. **A queued message's "Sends
 07:00"** under its time is worked out when the page loads, from the lights-out
 hours, because the database does not record that a message was held overnight —
-reload after 07:00 and it reads differently. And **an email the provider
-accepted reads Attempted, not Delivered**: the email provider sends no delivery
-confirmation, so acceptance is the most the club ever learns about an email. A
-WhatsApp message moves from Attempted to Delivered only when WhatsApp confirms
-it. So **Delivered today** counts confirmed WhatsApp deliveries; an accepted
-email is counted under **Attempted** — until `WHATSAPP_MESSAGE_TTL_HOURS` (720 by
-default) has passed, when the sweep concludes every accepted attempt that was
-never confirmed as failed, an email's included.
+reload after 07:00 and it reads differently.
+
+**Delivered comes from the provider's own receipt, on both channels.** A
+WhatsApp message moves from Attempted to Delivered when WhatsApp confirms it.
+An email does the same when Resend reports it (LAN-484, `/api/webhooks/email`):
+**Delivered** means the recipient's mail server accepted it, not that it reached
+the inbox rather than spam. A bounce, or an email Resend could not send, reads
+**Failed** — final, never Retryable, because the same email to the same address
+gets the same answer — and counts under Needs attention. A delay changes
+nothing, and a spam complaint is acknowledged and changes nothing. An accepted
+email Resend has not reported on reads **Attempted**, and stays there: the
+sweep that concludes a silent message after `WHATSAPP_MESSAGE_TTL_HOURS` (720
+by default) applies to WhatsApp only (LAN-480), because the thirty-day window
+and the "assume it was dropped" rule are Meta's. Emails sent before the receipt
+webhook was set up stay **Attempted**.
 
 **Read cost** (measured on production through `npm run prod:inspect`, 2 October
 2026, 1,029 jobs): the summary and a day's page each run in about 6 ms on the
@@ -857,15 +1140,26 @@ dispatchers, an operator's Retry, a reissue, a nudge, a chase, a recruitment ask
 — passes one admission guard before it reaches a provider. Nothing is off by
 default; the guard is on from the first deploy with the values below.
 
-| Control                | Value                                        | What happens                                                        |
-| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
-| Shared pacing          | 50 admitted attempts per rolling 5 minutes   | extra messages wait, then go on their own                           |
-| Per person, per number | 1 admission per rolling 5 minutes            | the next one waits                                                  |
-| Person or number limit | 10 per 24 hours, 30 per 7 days               | that recipient is held until somebody resumes it                    |
-| Emergency stop         | 3,000 admitted attempts per rolling 24 hours | all messaging pauses until somebody resumes it                      |
-| Capacity warning       | 2,400 in 24 hours                            | a warning; nothing stops                                            |
-| Provider cooldown      | 5 provider-side faults in 5 minutes          | that transport rests for 5 minutes, then one probe, then 10, 20, 30 |
-| Queue warning          | oldest waiting over 60 minutes               | a warning; nothing stops                                            |
+| Control                 | Value                                        | What happens                                                        |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| Shared pacing           | 50 admitted attempts per rolling 5 minutes   | extra messages wait, then go on their own                           |
+| Per person, per number  | 1 admission per rolling 5 minutes            | the next one waits                                                  |
+| Player or recruit limit | 10 per 24 hours, 30 per 7 days               | that recipient is held until somebody resumes it                    |
+| Operator limit          | 50 per 24 hours, 150 per 7 days              | that operator is held until somebody resumes it                     |
+| Emergency stop          | 3,000 admitted attempts per rolling 24 hours | all messaging pauses until somebody resumes it                      |
+| Capacity warning        | 2,400 in 24 hours                            | a warning; nothing stops                                            |
+| Provider cooldown       | 5 provider-side faults in 5 minutes          | that transport rests for 5 minutes, then one probe, then 10, 20, 30 |
+| Queue warning           | oldest waiting over 60 minutes               | a warning; nothing stops                                            |
+
+**Operators have their own limit (LAN-503, Brian 2026-10-16).** Anyone holding
+a committee or coaching seat at the moment of the send is an operator, and is
+sent staff messages — attendance sheets, chase escalations — on top of a
+player's. Their ceiling is 50 in 24 hours and 150 in 7 days, applied to the
+person and to the number or address that send goes to. Everybody else, players
+and recruits, keeps 10 and 30, and a send to anybody else at a number still
+counts every message there against 10 and 30. Taking up or leaving a seat moves
+the person between the two on their next send; a hold already latched stays
+until somebody resumes it.
 
 **What this looks like while you are walking the slice.** A message the guard
 holds back is **queued**, not failed. It keeps its attempt count, it keeps its
@@ -1019,38 +1313,64 @@ Open the Yes link § 7a built from the delivery sink file. It is the link a play
 would have received; it is not recoverable from any screen, and nobody reads it
 out of the application.
 
-**Expected, and it is designed for a phone.** The page does not ask the question
-again — the player already answered it by pressing a button in WhatsApp, so this
-is a confirmation. A card headed with the event type, then **You're attending**,
-the event name with its date and time, then Player, Venue, Response deadline —
-"Monday, 12 October at 18:00 · Late responses accepted until start" — and Your
-answer — "You're attending". Under "This secure page records only your response.
-Other players' responses are never visible." come the event's own questions, if
-it asks any, under **A couple of questions for this event**; then one full-width
+**When the page saves depends on the channel that delivered the link** (LAN-498,
+Brian, 31 October 2026). The server reads the channel off the token's own
+delivery record — never off the URL:
+
+- **WhatsApp** — the page saves the answer by itself as soon as it has loaded in
+  the browser. WhatsApp's link-preview fetcher reads the HTML and runs no
+  script, so it cannot trigger the save. That holds only while the invitation
+  has no answer standing at all. Once any answer stands — a different one, or
+  the same one with a reason or question answers on it — the page waits for a
+  touch instead, so reopening an old tab never silently flips the answer or
+  replaces "Injured" with "No reason given".
+- **Email**, or a token the record cannot place — the page waits for the
+  player's first touch, scroll or key outside the form, or the button. Mail
+  scanners such as Microsoft 365 Safe Links open links in a browser that does
+  run script, so saving on load there would record answers nobody gave.
+- **A known preview fetcher or crawler** (`src/lib/rsvp/preview-agents.ts`;
+  WhatsApp's own fetcher is a User-Agent starting `WhatsApp/`) — nothing saves
+  by itself on either channel, and the POST refuses to record.
+
+The GET itself still writes nothing at all, which is what makes the link safe to
+paste into WhatsApp. There is no login; the link is the credential.
+
+**Expected, and it is designed for a phone.** The § 7a sink link is a WhatsApp
+message, so the page opens headed **Saving…**: the event type, the event name
+with its date and time, then Player, Venue, Response deadline — "Monday, 12
+October at 18:00 · Late responses accepted until start" — and Answer —
+**Attending** — with the button beneath reading **Saving…** while the save is in
+flight. Nothing on this page says "You're attending" before the save has
+committed. Within a moment the player is handed their own events page for the
+season — `/events/<durable token>`, minted by that save — with this event's
+panel open and its standing answer reading **Attending**. The event's own
+questions, if it asks any, are on that panel under **Save answers**.
+
+1. Close the page as soon as it has loaded, then refresh the operator's event.
+
+**Expected.** The Yes is recorded. Nothing had to be pressed.
+
+An email link opens headed **Confirm your answer** instead, with the event's
+questions inline under **A couple of questions for this event**, one full-width
 button — **Save options** when there are questions, **Go see other events** when
 there are none — and beneath it, quietly, **Plans changed? You can change your
-answer.**
+answer.** The first touch outside the form, or that button, saves.
 
-There is no login. The link is the credential. Opening it writes nothing at all,
-which is what makes it safe to paste into WhatsApp: the button below is the write.
-
-1. Press that button.
-
-**Expected.** The answer and any options are recorded in one go, and the player
-is handed their own events page for the season — `/events/<durable token>`,
-minted by that press — with this event's panel already open and its standing
-answer reading **Attending**.
+If a save fails, the page comes back headed **Not saved** with "Your response has
+not been saved." and a **Retry** button; nothing saves again by itself. A
+throttled save shows the same heading and button with the busy message.
 
 2. Now open the **No** link from the same sink file: the `n.` suffix, under
    `/a/no/`. It is a second, separate credential, so the Yes above did not
    consume it.
 
-**Expected.** **You're not attending — no reason given** — the press already
-recorded the No, and the page never suggests otherwise. Then "The club plans
-numbers, transport and coaching from these responses. Tell the club why if you
-can.", a **Reason** field, and two controls: **Give a reason and continue**, and
-**Change to Yes** carrying the emphasis. A blank reason is accepted, not refused;
-the recorded reason stays "No reason given" until the player types one.
+**Expected.** Saved on load, the No records "No reason given", and the events
+page's panel offers the **Reason** field and **Save**, with **Change to Yes**. A
+blank reason is accepted, not refused; the recorded reason stays "No reason
+given" until the player types one. An email No link instead shows **Confirm your
+answer**, "The club plans numbers, transport and coaching from these responses.
+Tell the club why if you can.", a **Reason** field, and two controls: **Give a
+reason and continue**, and **Change to Yes** carrying the emphasis.
 
 At 375px every field stacks, the buttons run the full width, and nothing is
 clipped or needs sideways scrolling.
@@ -1124,6 +1444,40 @@ with No response full width below them (its names in the same two columns). The
 dropdown is on the operator's event page only: on the public **Event info link**
 page the blocks do not open and carry no names.
 
+**Once the event has occurred, its attendance sits directly below the RSVP
+cards** (LAN-504, Lancers call, 2026-10-16; Brian's walk, 2026-10-22). On an
+approved event whose date has passed, a second row of cards appears, one per
+group the RSVP cards show and in the same order. The cards are titled by group
+and kind: **Players — Responses**, **Coaches — Responses**, **Players —
+Attendance**, **Coaches — Attendance** (and Recruits). An upcoming event's page
+has nothing new. Each attendance card reads:
+
+| Line     | What it says                                                                      |
+| -------- | --------------------------------------------------------------------------------- |
+| Title    | `Players — Attendance`                                                            |
+| Headline | `2 attended / 2 expected`                                                         |
+| Values   | **Present**, **Late**, **No-show** and **Excused**, each a count                  |
+| Bar      | Present (green), Late (amber), No-show (red), Excused (grey), across the expected |
+
+**Attended** is Present plus Late. **Expected** is everyone who said yes plus
+anyone the register marked Present or Late who did not (a walk-up, somebody who
+said no, somebody who never answered). One coach who said yes, with two coaches
+recorded present, reads `2 attended / 2 expected`, both Present. Somebody who
+said yes and has no register mark counts as a **No-show**; there is no "not
+recorded" count. The four counts add up to expected and the bar has no empty
+remainder. Somebody who is not expected (said no or never answered, and not
+marked Present or Late) is in no count, including an Excused one. There is no
+percentage (D62, D74). **No-show** is the register's **Absent**. The groups and
+the committee fold are the RSVP cards' own; a walk-up is counted under the group
+their record carries. The counting is `src/lib/services/event-attendance-progress.ts`.
+
+Like the Responses cards, each attendance card is a dropdown, closed on arrival,
+that opens in place below its bar onto the names: **Present** top left, **Late**
+top right, **No-show** bottom left, **Excused** bottom right (one column on a
+phone, in that order), each headed with its count (`Present · 2`) and listing
+names A–Z. The public **Event info link** page does not show the attendance
+cards. Cross-tabs such as "said yes but didn't show" are later reporting work.
+
 **The audience is grouped Yes, then No, then No response** (LAN-439, client
 QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort
 column still orders the people inside each group, and a walk-up sits with No
@@ -1132,6 +1486,22 @@ the first line, then Answer, Attendance, Delivery, Invitation sent, any reason
 and every question answer as labelled pairs sharing lines — every fact the
 desktop row carries, several to a line. The public **Event info link** page
 keeps its own order and card layout.
+
+**The table filters from its column headings, as the roster board does**
+(LAN-511, Brian's walk, 2026-10-31; this replaced the one-tap rows of
+2026-10-29). Above the table there is only the name search and **Group by**.
+On a desktop, **As** (Recruit, Player, Coach, Walk-up), **Answer** (Yes, No,
+No answer), **Attendance** and, at the operator tier, **Delivery** (Needs
+attention, each state, Not delivered, Nothing queued) each carry the roster's
+funnel in their heading: it opens the roster's menu (**All**, then the
+choices), a filtered column's funnel is filled and its choice shows under the
+heading. On a phone there is no heading row, so, as the roster does upright,
+each of those filters is a select under the search, then Group by. At every
+width the filters in force show as the roster's **Filtered by** chips, each
+removable, with **Clear all** (which keeps the Group by). One choice per
+filter, as before. The URL parameters are unchanged (`as`, `answer`, `att`,
+`delivery`, `q`, `by`), so old links still work. The same filters serve the
+club's **Event info link** table, without Delivery.
 
 **There is no Showed tile on this page at all** (Brian's visual review,
 2026-09-22): "Remove the Showed / Invited card entirely. The register panel
@@ -1224,7 +1594,58 @@ and were not put on the roster", and a new **Walk-ups** group — "Turned up
 uninvited, recorded present, to reconcile" — containing them, tagged
 `Walk-up · never invited` and `Walk-on · in recruitment`.
 
-### 10a. What the coach cannot reach
+### 10a. Group the register by coaching, position or warmup group
+
+LAN-497 (build spec approved by Brian, 16 October 2026). A **Group by** select
+sits in the register's toolbar beside **Filters**, and on a sideways phone the
+toolbar is one row. Its options are **None** and each of **Coaching group**,
+**Offensive position group**, **Defensive position group** and **Warmup group**
+that the viewer's role holds View on, by the roster access categories
+`coaching`, `offensive`, `defensive` and `warmup`. There is no new permission.
+A viewer holding none of the four sees no **Group by** at all; that includes the
+Head Coach, OC and DC seats as seeded, which hold no roster grants until the
+owner gives them some in the role editor.
+
+The service enforces it: `readAttendanceBoard` takes the viewer's grants, reads
+a family's assignment table only when that family is granted, and returns group
+values for granted families only.
+
+**None** is the register as described above. Choosing a family turns the sheet
+into one collapsible section per value somebody holds, in the roster's own
+vocabulary order (for example Offensive Line, Quarterbacks, Runningbacks, Wide
+Receivers), each with its count and names A–Z. A player in several groups of
+that family is under **each** heading; every copy is the same attendance record,
+so a tap on either copy saves once and both copies show the committed value.
+Everyone with no value in that family (unassigned players, coaches, committee,
+guests, recruits) is in one final section, **No <family>**, for example **No
+warmup group**, closed on arrival. Every group section opens on arrival, and
+**Walk-ups** stays last and open. RSVP stays on each row's own line and is not a
+section while a family is chosen. Section counts are per section and can add up
+to more than the head count; the operator's headline counts stay event-wide.
+
+Search, RSVP and Attendance filters work as before and combine with Group by. A
+search opens every section. **Clear filters** keeps the family.
+
+The choice is in the link (`?by=coaching|offensive|defensive|warmup`) and is
+remembered in this browser for this viewer: a first visit opens on **None**, and
+a later visit to a link without `by` opens on the last choice. A family in a
+link that the viewer may not see is ignored, and the register opens on **None**.
+
+**On the event page too.** The same select sits in the **Everyone asked** filter
+bar, after the search (and, on a phone, after the filter selects; there is no
+Filters sheet on that page). It is the same component, the same families, the
+same permission gating and the same `by` link parameter, and it shares the
+register's remembered choice (one browser key per viewer), so choosing on
+either page applies to both. With a family chosen the table splits into the
+register's collapsible sections: **Coaches** first as their own section, then
+one section per value somebody holds, then **No <family>** last and closed on
+arrival. Each section header shows its count and, on an occurred event only,
+"<attended> attended / <expected> expected" counted from the rows the section
+shows. Columns, sort and filters are unchanged and apply within each section;
+**Clear filters** keeps the family. The service (`readEventGroupValues`) reads
+only the chosen family, and only for a viewer who holds it.
+
+### 10b. What the coach cannot reach
 
 Still signed in as the coach, type these addresses directly. Hidden navigation is
 not an authorization boundary, so this is worth doing by hand.
@@ -1383,8 +1804,9 @@ and no sign-in. It shows no delivery state and no joining URL.
 
 **It expires seven days after the event** (Brian, 2026-09-16, LAN-354). The
 panel says so beside the link. Nothing is stored: the seven days are counted
-from the event's own end — or its start, where no end is recorded — as read at
-the moment the link is opened, so moving a fixture to a later date brings its
+from the event's own end — or its start, where no end is recorded — as seven
+London calendar days, so a week across a clock change still closes at the
+event's own time of day, and as read at the moment the link is opened, so moving a fixture to a later date brings its
 link back until seven days after the new date. On day eight the link shows the
 same "this link does not open anything" panel an unknown token gets, and says
 nothing about the squad. There is no revoke action, and no other token type

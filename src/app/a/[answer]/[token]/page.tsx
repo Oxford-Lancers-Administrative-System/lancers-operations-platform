@@ -10,18 +10,21 @@ import {
   logThrottledPlayerAnswerRequest,
   withUniformTerminalTiming,
 } from "@/lib/rsvp/public-surface";
+import { isPreviewAgent } from "@/lib/rsvp/preview-agents";
 import { readPlayerAnswerLandingIn, type PlayerAnswerLanding } from "@/lib/services/player-home";
 import {
   answerForSegment,
+  readAnswerTokenChannelIn,
   resolveAnswerTokenIn,
+  type AnswerTokenChannel,
   type AnswerTokenResolution,
   type PlayerAnswer,
 } from "@/lib/services/player-answer-tokens";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 
 import { ERROR_PARAM, SAVED_PARAM } from "./params";
-import { BUSY_ERROR } from "./presentation";
-import { Confirm } from "./confirm-panel";
+import { BUSY_ERROR, UNSAVED_ERROR } from "./presentation";
+import { Confirm, type SaveMode } from "./confirm-panel";
 import { AlreadyRecorded, Cancelled, RecruitAlreadyRecorded } from "./terminal-panels";
 
 /**
@@ -64,6 +67,7 @@ interface Resolved {
   readonly resolution: AnswerTokenResolution;
   readonly base: SignedRsvpPage | null;
   readonly landing: PlayerAnswerLanding | null;
+  readonly channel: AnswerTokenChannel | null;
 }
 
 const UNRESOLVED: Resolved = {
@@ -76,6 +80,7 @@ const UNRESOLVED: Resolved = {
   },
   base: null,
   landing: null,
+  channel: null,
 };
 
 export default async function AnswerLinkPage({ params, searchParams }: PageProps) {
@@ -100,17 +105,18 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
       return withTransaction(async (tx) => {
         const resolution = await resolveAnswerTokenIn(tx, token);
         if (resolution.invitation === null) {
-          return { resolution, base: null, landing: null };
+          return { resolution, base: null, landing: null, channel: null };
         }
         // The path said one thing and the hashed token says another. Uniform
         // with every other way this link fails to resolve: nothing about
         // which half disagreed reaches the visitor.
         if (resolution.answer !== expected) return UNRESOLVED;
-        const [base, landing] = await Promise.all([
+        const [base, landing, channel] = await Promise.all([
           readSignedRsvpPageIn(tx, resolution.invitation.invitationId),
           readPlayerAnswerLandingIn(tx, resolution.invitation.invitationId),
+          readAnswerTokenChannelIn(tx, token),
         ]);
-        return { resolution, base, landing };
+        return { resolution, base, landing, channel };
       });
     },
     (outcome) => outcome.base === null || outcome.resolution.state === "event_started",
@@ -127,6 +133,7 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
 
   const answer = resolved.resolution.answer as PlayerAnswer;
   const error = firstValue(query[ERROR_PARAM]);
+  const previewAgent = isPreviewAgent((await headers()).get("user-agent"));
 
   // LAN-376. This used to key off `resolution.consumed`, so a second tap of a
   // button the player had already used dead-ended here with no way to change
@@ -148,7 +155,49 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
       answer={answer}
       base={resolved.base}
       landing={resolved.landing as PlayerAnswerLanding}
-      busy={error === BUSY_ERROR}
+      mode={saveModeFor({
+        error,
+        previewAgent,
+        channel: resolved.channel,
+        answer,
+        base: resolved.base,
+      })}
     />
   );
+}
+
+/**
+ * LAN-498 (Brian, 31 October 2026). A WhatsApp link saves on load; anything
+ * else — email, or a channel the record cannot prove — keeps the interaction
+ * gate, because mail scanners run script. Never from the query string: the
+ * channel is read off the token's own delivery record.
+ *
+ * A known preview fetcher or crawler (`preview-agents.ts`) gets the page with
+ * nothing armed at all, on either channel; `submitAnswer` refuses it too.
+ *
+ * Any standing answer keeps the gate, the same answer as the link's
+ * included. Reopening an old WhatsApp tab must not silently turn a later No
+ * back into Yes, nor replace a No's reason ("Injured") or a Yes's question
+ * answers with the link's bare answer. LAN-376's rule still holds — the tap
+ * records, last recorded wins — but it takes the player's own touch or button.
+ */
+function saveModeFor({
+  error,
+  previewAgent,
+  channel,
+  answer,
+  base,
+}: {
+  error: string | null;
+  previewAgent: boolean;
+  channel: AnswerTokenChannel | null;
+  answer: PlayerAnswer;
+  base: SignedRsvpPage;
+}): SaveMode {
+  if (error === BUSY_ERROR) return "busy";
+  if (error === UNSAVED_ERROR) return "unsaved";
+  if (previewAgent) return "manual";
+  const standing = base.currentResponse?.response ?? null;
+  if (channel === "whatsapp" && standing === null) return "on-load";
+  return "on-interaction";
 }

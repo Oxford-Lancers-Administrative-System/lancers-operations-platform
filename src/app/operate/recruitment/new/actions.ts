@@ -199,6 +199,7 @@ function academicOf(values: AddRecruitFormValues): RecruitmentAddAcademic {
     matriculationYear: values.matriculationYear,
     knownAs: values.knownAs,
     expectedGraduationYear: values.expectedGraduationYear,
+    degreeType: values.degreeType,
     degreeField: values.degreeField,
     dateOfBirth: values.dateOfBirth,
     emergencyGivenName: values.emergencyGivenName,

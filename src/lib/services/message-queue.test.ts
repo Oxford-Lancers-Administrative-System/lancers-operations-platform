@@ -26,8 +26,8 @@ import { NO_GRANTS } from "@/lib/auth/grants";
 import { todayInClubZone } from "@/lib/club-time";
 import { closePool, NotPermitted } from "@/lib/db";
 import { openObserver } from "../../../tests/helpers/service-layer";
-import { buildListQuery, queuedTiming, readMessageQueue } from "./message-queue";
-import { KIND_FAMILIES, PAGE_SIZE, windowDays } from "./message-queue-vocabulary";
+import { buildListQuery, buildSummaryQuery, queuedTiming, readMessageQueue } from "./message-queue";
+import { KIND_FAMILIES, PAGE_SIZE, statesForFilter, windowDays } from "./message-queue-vocabulary";
 import { onboardingChaseExhaustedMarkerKey } from "./onboarding-chase/chase-state";
 import { WAITING_ALLOWANCE_LABEL } from "./messaging-safety/reasons";
 
@@ -272,5 +272,261 @@ describe("readMessageQueue — against the seeded database", () => {
     } finally {
       await observer.query("rollback");
     }
+  });
+
+  it("reads a send refused at claim time as Withheld, outside Failed, and keeps provider failures Failed (LAN-483)", async () => {
+    // Three failed jobs for one synthetic person, in a transaction that is
+    // always rolled back. The refusal has the claim-time shape
+    // (`failClaimTerminallyIn`): never accepted, no provider message id,
+    // requested and concluded in one instant. The provider rejection was
+    // requested before the call and concluded after it; the bounce (LAN-484)
+    // was accepted and failed later.
+    await observer.query("begin");
+    try {
+      const person = await observer.query<{ id: string }>(
+        `insert into public.people (given_name, family_name)
+         values ('LAN483Fixture', 'queue') returning id`,
+      );
+      const personId = person.rows[0]!.id;
+
+      async function failedJob(
+        tag: string,
+        attempt: { accepted: boolean; sameInstant: boolean },
+      ): Promise<string> {
+        const reason = `LAN483Fixture ${tag}`;
+        const job = await observer.query<{ id: string }>(
+          `insert into public.notification_jobs
+             (idempotency_key, job_type, status, person_id, channel, attempt_count, last_error)
+           values ($1, 'other', 'failed', $2::uuid, 'whatsapp', 1, $3) returning id::text as id`,
+          [`LAN483Fixture:${tag}:${randomUUID()}`, personId, reason],
+        );
+        const jobId = job.rows[0]!.id;
+        await observer.query(
+          `insert into public.delivery_attempts
+             (notification_job_id, attempt_number, channel, provider, provider_message_id,
+              requested_at, accepted_at, concluded_at, failure_reason)
+           values ($1::uuid, 1, 'whatsapp', 'whatsapp_cloud',
+                   case when $2 then $1::text || ':wamid' end,
+                   case when $3 then now() else now() - interval '2 seconds' end,
+                   case when $2 then now() - interval '1 second' end,
+                   now(), $4)`,
+          [jobId, attempt.accepted, attempt.sameInstant, reason],
+        );
+        await observer.query(
+          `insert into public.delivery_results
+             (notification_job_id, attempt_number, outcome, channel, provider, detail)
+           values ($1, 1, $2, 'whatsapp', 'whatsapp_cloud', $3)`,
+          [jobId, attempt.accepted ? "failed" : "rejected", reason],
+        );
+        return jobId;
+      }
+
+      const refused = await failedJob("refused", { accepted: false, sameInstant: true });
+      const rejected = await failedJob("rejected", { accepted: false, sameInstant: false });
+      const bounced = await failedJob("bounced", { accepted: true, sameInstant: false });
+
+      const today = windowDays("today", todayInClubZone());
+      async function listed(states: string[]): Promise<Map<string, string>> {
+        const query = buildListQuery({
+          ...today,
+          states,
+          channel: null,
+          kinds: ["other"],
+          forward: false,
+          limit: PAGE_SIZE,
+          offset: 0,
+        });
+        const rows = await observer.query<{ id: string; state: string }>(query.text, query.values);
+        return new Map(rows.rows.map((row) => [row.id, row.state]));
+      }
+
+      // The Failed filter and the Failed today metric read the same two states.
+      const failed = await listed([...statesForFilter("failed")]);
+      expect(failed.has(refused)).toBe(false);
+      expect(failed.get(rejected)).toBe("failed");
+      expect(["failed", "retryable"]).toContain(failed.get(bounced));
+
+      const withheld = await listed([...statesForFilter("withheld")]);
+      expect(withheld.get(refused)).toBe("withheld");
+      expect(withheld.has(rejected)).toBe(false);
+      expect(withheld.has(bounced)).toBe(false);
+    } finally {
+      await observer.query("rollback");
+    }
+  });
+
+  it("counts Failed today from provider failures only, never a send refused at claim time (LAN-483)", async () => {
+    // Committed rows, because `readMessageQueue` reads on its own connection;
+    // removed in `finally`. The delta is measured so the seeded queue does not matter.
+    const before = (await readMessageQueue()).summary.failedToday;
+    const tag = `LAN483Count-${randomUUID()}`;
+    const person = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'queue') returning id`,
+      [tag],
+    );
+    const personId = person.rows[0]!.id;
+    const jobIds: string[] = [];
+    try {
+      for (const outcome of ["failed", "rejected", "refused"] as const) {
+        const job = await observer.query<{ id: string }>(
+          `insert into public.notification_jobs
+             (idempotency_key, job_type, status, person_id, channel, attempt_count, last_error)
+           values ($1, 'other', 'failed', $2::uuid, 'whatsapp', 1, $3) returning id::text as id`,
+          [`${tag}:${outcome}`, personId, tag],
+        );
+        const jobId = job.rows[0]!.id;
+        jobIds.push(jobId);
+        const accepted = outcome === "failed";
+        await observer.query(
+          `insert into public.delivery_attempts
+             (notification_job_id, attempt_number, channel, provider, provider_message_id,
+              requested_at, accepted_at, concluded_at, failure_reason)
+           values ($1::uuid, 1, 'whatsapp', 'whatsapp_cloud',
+                   case when $2 then $1::text || ':wamid' end,
+                   case when $3 then now() else now() - interval '2 seconds' end,
+                   case when $2 then now() - interval '1 second' end,
+                   now(), $4)`,
+          [jobId, accepted, outcome === "refused", tag],
+        );
+        await observer.query(
+          `insert into public.delivery_results
+             (notification_job_id, attempt_number, outcome, channel, provider, detail)
+           values ($1, 1, $2, 'whatsapp', 'whatsapp_cloud', $3)`,
+          [jobId, accepted ? "failed" : "rejected", tag],
+        );
+      }
+
+      // The bounced send and the provider rejection count; the claim-time refusal does not.
+      expect((await readMessageQueue()).summary.failedToday - before).toBe(2);
+    } finally {
+      await observer.query(
+        "delete from public.delivery_results where notification_job_id = any($1::uuid[])",
+        [jobIds],
+      );
+      await observer.query(
+        "delete from public.delivery_attempts where notification_job_id = any($1::uuid[])",
+        [jobIds],
+      );
+      await observer.query("delete from public.notification_jobs where id = any($1::uuid[])", [
+        jobIds,
+      ]);
+      await observer.query("delete from public.people where id = $1", [personId]);
+    }
+  });
+});
+
+describe("the summary's today and yesterday across a clock change", () => {
+  // `buildSummaryQuery` takes the club day as a parameter, so a clock-change
+  // day is proved by naming it; the database clock is never pinned. Rows are
+  // staged inside a transaction that is always rolled back, and the counts are
+  // read as a delta so the seeded queue does not matter.
+  interface Counts {
+    delivered_today: number;
+    delivered_yesterday: number;
+    failed_today: number;
+    failed_yesterday: number;
+  }
+
+  async function counts(today: string): Promise<Counts> {
+    const yesterday = windowDays("yesterday", today).fromDay;
+    const query = buildSummaryQuery(today, yesterday);
+    const result = await observer.query<Counts>(query.text, query.values);
+    const row = result.rows[0]!;
+    return {
+      delivered_today: row.delivered_today,
+      delivered_yesterday: row.delivered_yesterday,
+      failed_today: row.failed_today,
+      failed_yesterday: row.failed_yesterday,
+    };
+  }
+
+  /** One delivered and one failed send, both last tried at `at`. */
+  async function sendsAt(personId: string, at: string): Promise<void> {
+    for (const status of ["completed", "failed"] as const) {
+      const job = await observer.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, person_id, channel, attempt_count, last_error)
+         values ($1, 'other', $2, $3::uuid, 'whatsapp', 1, $4)
+         returning id::text as id`,
+        [
+          `LAN501DayFixture:${status}:${randomUUID()}`,
+          status,
+          personId,
+          status === "failed" ? "LAN501DayFixture" : null,
+        ],
+      );
+      await observer.query(
+        `insert into public.delivery_attempts
+           (notification_job_id, attempt_number, channel, provider, requested_at, concluded_at)
+         values ($1::uuid, 1, 'whatsapp', 'whatsapp_cloud', $2::timestamptz,
+                 $2::timestamptz + interval '1 second')`,
+        [job.rows[0]!.id, at],
+      );
+    }
+  }
+
+  async function delta(
+    today: string,
+    instants: readonly string[],
+  ): Promise<{ [K in keyof Counts]: number }> {
+    await observer.query("begin");
+    try {
+      const before = await counts(today);
+      const person = await observer.query<{ id: string }>(
+        `insert into public.people (given_name, family_name)
+         values ('LAN501DayFixture', 'queue') returning id`,
+      );
+      for (const at of instants) await sendsAt(person.rows[0]!.id, at);
+      const after = await counts(today);
+      return {
+        delivered_today: after.delivered_today - before.delivered_today,
+        delivered_yesterday: after.delivered_yesterday - before.delivered_yesterday,
+        failed_today: after.failed_today - before.failed_today,
+        failed_yesterday: after.failed_yesterday - before.failed_yesterday,
+      };
+    } finally {
+      await observer.query("rollback");
+    }
+  }
+
+  it("keeps the 25-hour autumn change day open until London midnight", async () => {
+    // 25 Oct 2026: BST ends at 01:00 UTC. 23:30 UTC is 23:30 London, still the 25th;
+    // 00:30 UTC on the 26th is the 26th.
+    const lateOnTheDay = "2026-10-25T23:30:00Z";
+    const nextDay = "2026-10-26T00:30:00Z";
+
+    expect(await delta("2026-10-25", [lateOnTheDay, nextDay])).toEqual({
+      delivered_today: 1,
+      delivered_yesterday: 0,
+      failed_today: 1,
+      failed_yesterday: 0,
+    });
+    // The next morning, the same late send is yesterday's and the 00:30 one is today's.
+    expect(await delta("2026-10-26", [lateOnTheDay, nextDay])).toEqual({
+      delivered_today: 1,
+      delivered_yesterday: 1,
+      failed_today: 1,
+      failed_yesterday: 1,
+    });
+  });
+
+  it("closes the 23-hour spring change day at London midnight", async () => {
+    // 29 Mar 2026: BST starts at 01:00 UTC. 22:30 UTC is 23:30 London, still the 29th;
+    // 23:30 UTC is 00:30 London on the 30th.
+    const lateOnTheDay = "2026-03-29T22:30:00Z";
+    const nextDay = "2026-03-29T23:30:00Z";
+
+    expect(await delta("2026-03-29", [lateOnTheDay, nextDay])).toEqual({
+      delivered_today: 1,
+      delivered_yesterday: 0,
+      failed_today: 1,
+      failed_yesterday: 0,
+    });
+    expect(await delta("2026-03-30", [lateOnTheDay, nextDay])).toEqual({
+      delivered_today: 1,
+      delivered_yesterday: 1,
+      failed_today: 1,
+      failed_yesterday: 1,
+    });
   });
 });

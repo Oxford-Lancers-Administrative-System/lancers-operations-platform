@@ -13,6 +13,7 @@ import {
   updateEmergencyContactField,
   updatePersonField,
 } from "@/lib/services/person-write";
+import { academicProblems } from "@/lib/services/oxford-academic";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import {
@@ -101,6 +102,21 @@ export async function submitPersonEdit(
   if (dateOfBirthChanged && values.dateOfBirth.trim() !== "") {
     const validation = validateDateOfBirth(values.dateOfBirth);
     if (!validation.valid) errors.dateOfBirth = validation.message;
+  }
+
+  // LAN-512: college and degree from the University's lists only. Checked
+  // whenever the form carried them, changed or not, so a legacy free-text
+  // value on file asks for a choice from the list on save.
+  const degreeType = values.degreeType.trim();
+  if (formData.has("college") || formData.has("degreeType") || formData.has("degreeField")) {
+    const problems = academicProblems({
+      college: formData.has("college") ? values.college : null,
+      letters: degreeType,
+      subject: values.degreeField,
+    });
+    if (problems.college) errors.college = problems.college;
+    if (problems.letters) errors.degreeType = problems.letters;
+    if (problems.subject) errors.degreeField = problems.subject;
   }
 
   if (Object.keys(errors).length === 0) {
@@ -200,6 +216,17 @@ export async function submitPersonEdit(
         expectedVersion: nextExpectedVersion(),
       });
     }
+    // LAN-502. One of three codes; clearing it is a legitimate correction.
+    if (values.dietaryPreference.trim() !== (current.dietaryPreference ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "dietary_preference",
+        value: values.dietaryPreference.trim() === "" ? null : values.dietaryPreference.trim(),
+        reason: values.dietaryPreferenceReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
     if (values.college.trim() !== (current.college ?? "")) {
       await updatePersonField({
         actorPersonId: operator.personId,
@@ -207,6 +234,17 @@ export async function submitPersonEdit(
         field: "college",
         value: values.college.trim() === "" ? null : values.college.trim(),
         reason: values.collegeReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    // LAN-512: the letters first, so the subject is checked against them.
+    if (degreeType !== (current.degreeType ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "degree_type",
+        value: degreeType === "" ? null : degreeType,
+        reason: values.degreeTypeReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -473,10 +511,12 @@ const PERSON_FIELDS = Object.freeze([
   "givenName",
   "middleName",
   "familyName",
+  "dietaryPreference",
   "college",
   "matriculationYear",
   "expectedGraduationYear",
   "degreeField",
+  "degreeType",
   "studentNumber",
   "bafaRegistrationNumber",
   "dateOfBirth",
@@ -526,6 +566,8 @@ function recordedValue(record: PersonRecord, field: EditableField): string {
       return record.middleName ?? "";
     case "familyName":
       return record.familyName ?? "";
+    case "dietaryPreference":
+      return record.dietaryPreference ?? "";
     case "college":
       return record.college ?? "";
     case "matriculationYear":
@@ -534,6 +576,8 @@ function recordedValue(record: PersonRecord, field: EditableField): string {
       return record.expectedGraduationYear === null ? "" : String(record.expectedGraduationYear);
     case "degreeField":
       return record.degreeField ?? "";
+    case "degreeType":
+      return record.degreeType ?? "";
     case "studentNumber":
       return record.studentNumber ?? "";
     case "bafaRegistrationNumber":

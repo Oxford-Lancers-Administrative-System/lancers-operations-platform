@@ -37,7 +37,6 @@ import {
 } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
 import type { VisibleProspectRecord } from "@/lib/services/recruitment-board-access";
-import { StatusPill } from "../../board-filter-controls";
 import { FULL_RECRUITING_ACCESS } from "../board-columns";
 import { NOT_RECORDED } from "@/components/fact";
 import { RecordField, RecordRow } from "@/components/record-field";
@@ -48,6 +47,7 @@ import SendQuestionnaireButton from "./send-questionnaire-button";
 import ConsentControl from "./consent-control";
 import QueuedSendTime from "./queued-send-time";
 import StatusCell from "../status-cell";
+import { statusControlFor, type StatusControl } from "@/lib/services/recruitment-board-access";
 
 /** Same words as `../../roster/[membershipId]/attendance-section.tsx`'s own `EVENT_STATUS_LABEL`. */
 const EVENT_STATUS_LABEL: Readonly<Record<"upcoming" | "occurred" | "cancelled", string>> =
@@ -95,6 +95,8 @@ export default function RecruitmentRecordView({
   const personOpen = access.recruit_person !== "none";
   const detailsOpen = access.recruit_details !== "none";
   const detailsEdit = access.recruit_details === "edit";
+  // LAN-505: May move recruits to Joined, on its own or beside Recruit details.
+  const statusControl = statusControlFor(access.recruit_details, record.mayMoveToJoined ?? true);
   const eventsOpen = access.recruit_events !== "none";
 
   // LAN-204 item 9: the consent deadlock, fixed — personal and recruitment
@@ -346,7 +348,19 @@ export default function RecruitmentRecordView({
             </>
           )}
 
-          {status === undefined || answers === undefined || recruitmentSend === undefined ? (
+          {status !== undefined && answers === undefined ? (
+            /* LAN-505: May move recruits to Joined with Recruit details at
+               none — the status alone, which the switch acts on. */
+            <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
+              <StatusRow
+                control={statusControl}
+                status={status}
+                prospectId={record.prospectId}
+                displayName={record.displayName}
+                seasonLabel={record.seasonLabel}
+              />
+            </Section>
+          ) : status === undefined || answers === undefined || recruitmentSend === undefined ? (
             <Section
               variant="banded"
               band="recruitment"
@@ -357,7 +371,7 @@ export default function RecruitmentRecordView({
           ) : (
             <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
               <StatusRow
-                editable={detailsEdit}
+                control={statusControl}
                 status={status}
                 prospectId={record.prospectId}
                 displayName={record.displayName}
@@ -558,26 +572,19 @@ export default function RecruitmentRecordView({
  * The Recruitment card's Status row — same click-to-edit pill as other board cells.
  */
 function StatusRow({
-  editable,
+  control,
   status,
   prospectId,
   displayName,
   seasonLabel,
 }: {
-  /** LAN-432 — Recruit details at `edit`. At `view` the status is the board's own pill. */
-  editable: boolean;
+  /** LAN-505 — what this seat may change the status to; `read_only` reads and says so. */
+  control: StatusControl;
   status: RecruitmentProspectRecord["status"];
   prospectId: string;
   displayName: string;
   seasonLabel: string;
 }) {
-  if (!editable) {
-    return (
-      <RecordRow label="Status">
-        <StatusPill domain="recruitment" status={status} label={PROSPECT_STATUS_LABELS[status]} />
-      </RecordRow>
-    );
-  }
   return (
     <RecordRow label="Status">
       <StatusCell
@@ -585,6 +592,7 @@ function StatusRow({
         status={status}
         displayName={displayName}
         seasonLabel={seasonLabel}
+        control={control}
       />
     </RecordRow>
   );

@@ -14,6 +14,7 @@
  * it is never part of matching.
  */
 
+import { COLLEGE_NOT_LISTED, listedCollegeFor } from "./oxford-academic";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
@@ -250,7 +251,13 @@ function parseRow(
     }
   }
 
-  const college = trimmedOrNull(cells.college);
+  // LAN-512: the University's name for the college, whatever the case or
+  // punctuation of the cell; any other value refuses the row.
+  const rawCollege = trimmedOrNull(cells.college);
+  const college = rawCollege === null ? null : listedCollegeFor(rawCollege);
+  if (rawCollege !== null && college === null) {
+    reasons.push(`"college" reads "${rawCollege}". ${COLLEGE_NOT_LISTED}`);
+  }
   const matriculationYear = parseMatriculationYear(cells.matriculation_year, reasons);
 
   return {

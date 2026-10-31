@@ -6,28 +6,34 @@ import { ControlledSection } from "@/components/controlled-section";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import type { AttendanceParticipant } from "@/lib/services/attendance-vocabulary";
+import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
 import { AttendanceRow } from "./attendance-row";
-import { groupParticipants, type ParticipantGroupKey } from "./presentation";
+import { registerSections, type RegisterSection } from "./presentation";
 
-// The board's three groups, and the disclosure over them — Brian, 14 August 2026.
+// The board's sections, and the disclosure over them — Brian, 14 August 2026.
+// LAN-497: with a Group by family chosen, the sections are that family's values.
 
-type GroupOpenState = Record<ParticipantGroupKey, boolean>;
+type OpenMap = Record<string, boolean>;
 
-interface OpenState extends GroupOpenState {
-  saved: GroupOpenState | null;
+interface OpenState {
+  /** What has been set, by a search or a toggle. A section absent here is at its default. */
+  open: OpenMap;
+  /** The state before a search opened everything, restored when the search ends. */
+  saved: OpenMap | null;
   searching: boolean;
 }
 
-// Recruits/Attending/Walk-ups open, Everyone else closed — Brian, fidelity mockup.
-const DEFAULT_OPEN: OpenState = {
-  recruits: true,
-  attending: true,
-  everyone_else: false,
-  walk_ups: true,
-  saved: null,
-  searching: false,
-};
+const INITIAL: OpenState = { open: {}, saved: null, searching: false };
 
+function isOpen(state: OpenState, section: RegisterSection): boolean {
+  return state.open[section.key] ?? (state.searching ? true : section.defaultOpen);
+}
+
+function snapshot(state: OpenState, sections: readonly RegisterSection[]): OpenMap {
+  return Object.fromEntries(sections.map((section) => [section.key, isOpen(state, section)]));
+}
+
+/** The caller remounts this (a `key` per family) so a new family starts from its own defaults. */
 export function AttendanceGroups({
   eventId,
   eventType,
@@ -35,6 +41,7 @@ export function AttendanceGroups({
   search,
   showMismatch,
   mayRemove,
+  groupBy = null,
 }: {
   eventId: string;
   eventType: string;
@@ -42,58 +49,51 @@ export function AttendanceGroups({
   search: string;
   showMismatch: boolean;
   mayRemove: boolean;
+  groupBy?: AttendanceGroupFamily | null;
 }) {
-  const [open, setOpen] = useState<OpenState>(DEFAULT_OPEN);
+  const [state, setState] = useState<OpenState>(INITIAL);
   const searching = search.trim() !== "";
+  const sections = registerSections(participants, eventType, groupBy);
 
-  // Adjusted during render, not an effect — groups must already be open in
+  // Adjusted during render, not an effect — sections must already be open in
   // the render that first shows the search results.
-  if (open.searching !== searching) {
-    setOpen((prev) => {
-      if (searching) {
-        return {
-          recruits: true,
-          attending: true,
-          everyone_else: true,
-          walk_ups: true,
-          saved: {
-            recruits: prev.recruits,
-            attending: prev.attending,
-            everyone_else: prev.everyone_else,
-            walk_ups: prev.walk_ups,
-          },
-          searching: true,
-        };
-      }
+  if (state.searching !== searching) {
+    setState((prev) => {
+      if (searching) return { open: {}, saved: snapshot(prev, sections), searching: true };
       return prev.saved
-        ? { ...prev.saved, saved: null, searching: false }
-        : { ...prev, searching: false };
+        ? { open: prev.saved, saved: null, searching: false }
+        : { open: snapshot(prev, sections), saved: null, searching: false };
     });
   }
 
-  const groups = groupParticipants(participants, eventType);
-
   return (
-    <Stack spacing={2} data-testid="attendance-groups">
-      {groups.map((group) => {
-        if (group.participants.length === 0) return null;
+    <Stack spacing={2} data-testid="attendance-groups" data-group-by={groupBy ?? "none"}>
+      {sections.map((section) => {
+        if (section.participants.length === 0) return null;
 
-        const isOpen = open[group.key];
+        const open = isOpen(state, section);
 
         return (
-          <Box key={group.key} data-testid={`attendance-group-${group.key}`} data-open={isOpen}>
+          <Box key={section.key} data-testid={`attendance-group-${section.key}`} data-open={open}>
             <ControlledSection
-              title={group.label}
-              description={group.detail}
-              count={group.participants.length}
-              open={isOpen}
-              onToggle={() => toggle(setOpen, group.key)}
-              panelId={`attendance-group-panel-${group.key}`}
-              toggleTestId={`attendance-group-toggle-${group.key}`}
-              countTestId={`attendance-group-count-${group.key}`}
+              title={section.label}
+              description={section.detail}
+              count={section.participants.length}
+              open={open}
+              onToggle={() =>
+                // Clears `saved` too — a deliberate open/close during a search is the state to keep.
+                setState((prev) => ({
+                  ...prev,
+                  open: { ...prev.open, [section.key]: !isOpen(prev, section) },
+                  saved: null,
+                }))
+              }
+              panelId={`attendance-group-panel-${section.key}`}
+              toggleTestId={`attendance-group-toggle-${section.key}`}
+              countTestId={`attendance-group-count-${section.key}`}
             >
               <RowCardList component="ul" at="all">
-                {group.participants.map((participant) => (
+                {section.participants.map((participant) => (
                   <AttendanceRow
                     key={participant.key}
                     eventId={eventId}
@@ -109,12 +109,4 @@ export function AttendanceGroups({
       })}
     </Stack>
   );
-}
-
-/** Clears `saved` too — a deliberate open/close during a search is the state to keep. */
-function toggle(
-  setOpen: (update: (prev: OpenState) => OpenState) => void,
-  key: ParticipantGroupKey,
-): void {
-  setOpen((prev) => ({ ...prev, [key]: !prev[key], saved: null }));
 }

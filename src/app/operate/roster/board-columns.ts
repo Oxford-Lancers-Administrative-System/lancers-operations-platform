@@ -2,6 +2,10 @@ import { BAND_COLOURS, type BandColours } from "@/components/band-colours";
 import type { OperatorGrants, RosterCategory } from "@/lib/auth/grants";
 import { categoryOfBand, mayEditRoster, mayViewRoster } from "@/lib/auth/roster-access";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
+import {
+  DIETARY_PREFERENCE_LABELS,
+  DIETARY_PREFERENCE_VALUES,
+} from "@/lib/services/person-dietary";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 // Straight from the vocabulary module, never through the service index: that
 // index re-exports `server-only` code, and these column definitions are client.
@@ -450,6 +454,18 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       sortable: true,
       filterable: true,
     },
+    // LAN-502: the onboarding step's answer, corrected on the person record.
+    {
+      key: "dietary",
+      label: "Dietary preference",
+      band: "person",
+      edit: "record",
+      options: DIETARY_PREFERENCE_VALUES,
+      optionLabels: DIETARY_PREFERENCE_LABELS,
+      width: 180,
+      sortable: true,
+      filterable: true,
+    },
     {
       key: "contactable",
       label: "Contactable",
@@ -852,6 +868,7 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     matriculation: ["matriculationYear"],
     graduation: ["expectedGraduationYear"],
     degree: ["degreeField"],
+    dietary: ["dietaryPreference"],
     contactable: ["hasMobile", "hasEmail"],
     missing: ["missingCount"],
     onboarding: ["itemsTotal", "itemsResolved", "requiredOutstanding"],

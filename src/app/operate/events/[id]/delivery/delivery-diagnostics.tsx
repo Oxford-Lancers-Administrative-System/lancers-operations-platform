@@ -137,6 +137,8 @@ function describeAttemptOutcome(outcome: string): string {
       return "Failed";
     case "attempted":
       return "Attempted";
+    case "unknown":
+      return "Unknown";
     default:
       return "Sent";
   }

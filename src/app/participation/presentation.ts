@@ -32,6 +32,16 @@ export { CAPACITY_LABELS };
 /** LAN-440: the capacities the filter offers — the ones a row can read as, committee folded into Player. */
 export const FILTER_CAPACITIES: readonly string[] = Object.freeze(["recruit", "player", "coach"]);
 
+// LAN-504: the attendance blocks under the RSVP blocks on an occurred event.
+
+/** Stored `absent`, in the words of the 16 October call. */
+export const ATTENDANCE_NO_SHOW_LABEL = "No-show";
+
+/** "Players — Responses" / "Players — Attendance": the group, then which card it is (Brian, 22 October 2026). */
+export function cardTitle(group: string, card: "Responses" | "Attendance"): string {
+  return `${group} — ${card}`;
+}
+
 // The table
 
 export const TABLE_HEADINGS = Object.freeze({
@@ -91,6 +101,10 @@ export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   retryable: "Retryable",
   held: "Held",
   cancelled: "Cancelled",
+  // LAN-501. Sent, and the outcome will never arrive.
+  unknown: "Unknown",
+  // LAN-483. Refused on purpose at claim time.
+  withheld: "Withheld",
 });
 
 export const DELIVERY_NOT_QUEUED = "Nothing queued";
@@ -154,12 +168,12 @@ export const QUESTION_NO_ANSWER = "No answer";
 // Filters
 
 export const FILTER_SEARCH_LABEL = "Search name";
-export const FILTER_CAPACITY_LABEL = "As";
-export const FILTER_ANSWER_LABEL = "Answer";
-export const FILTER_ATTENDANCE_LABEL = "Attendance";
-export const FILTER_DELIVERY_LABEL = "Delivery";
-export const FILTER_ALL = "All";
-export const CLEAR_FILTERS = "Clear filters";
+/** LAN-511: the filter section's accessible name — the list it filters. */
+export const FILTER_HEADING = "Filter Everyone asked";
+/** LAN-511: the roster board's chip bar, in its words. */
+export const FILTERED_BY = "Filtered by";
+export const SEARCH_CHIP_LABEL = "Search";
+export const CLEAR_FILTERS = "Clear all";
 
 /** `slice-ux.md` § 9: a filtered-empty table must not read like an empty one. */
 export const NO_MATCHING_PEOPLE = "No one matches these filters.";

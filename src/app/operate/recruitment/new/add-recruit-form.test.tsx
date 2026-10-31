@@ -140,7 +140,8 @@ describe("V-2, correction round 2 — the widened field set", () => {
     for (const label of [
       "Known as",
       "Expected graduation",
-      "Degree field",
+      "Degree",
+      "Subject",
       "Date of birth",
       "First name", // inside the Emergency contact subsection, alongside "Who they are"'s own
       "Relationship",

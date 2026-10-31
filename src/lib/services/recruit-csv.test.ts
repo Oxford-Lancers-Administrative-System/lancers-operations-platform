@@ -142,3 +142,41 @@ describe("the file as a whole", () => {
     expect(refuseOversizedRecruitFile(file("Synthia,Testcase,07700900001,,,,"))).toBeNull();
   });
 });
+
+describe("LAN-512 — college and degree from the University's lists", () => {
+  const header = "first_name,last_name,mobile,college,degree_type,degree_field";
+  const csv = (...rows: string[]) => [header, ...rows].join("\r\n") + "\r\n";
+
+  it("stores each cell as the listed name it spells, whatever its case", () => {
+    const [row] = rowsOf(csv("Synthia,Testcase,07700900001,keble college,dphil,biochemistry"));
+    expect(row.reasons).toEqual([]);
+    expect([row.cells.college, row.cells.degree_type, row.cells.degree_field]).toEqual([
+      "Keble College",
+      "DPhil",
+      "Biochemistry",
+    ]);
+  });
+
+  it("refuses a value not in the lists, and a subject the letters do not offer", () => {
+    const rows = rowsOf(
+      csv(
+        "Synthia,Testcase,07700900001,St Catz,,",
+        "Second,Testcase,07700900002,,PhD,",
+        "Third,Testcase,07700900003,,MBA,Geography",
+        "Fourth,Testcase,07700900004,,,Geogrophy",
+      ),
+    );
+    expect(rows.map((row) => row.reasons)).toEqual([
+      ['"college" reads "St Catz". Choose a college from the list.'],
+      ['"degree_type" reads "PhD". Choose the degree from the list.'],
+      ['"degree_field" reads "Geography". Choose a subject from the list for this degree.'],
+      ['"degree_field" reads "Geogrophy". Choose a subject from the list for this degree.'],
+    ]);
+  });
+
+  it("LAN-512, 31 October: takes a listed subject with no letters, in the list's own spelling", () => {
+    const rows = rowsOf(csv("Fifth,Testcase,07700900005,,,geography"));
+    expect(rows[0].reasons).toEqual([]);
+    expect(rows[0].cells.degree_field).toBe("Geography");
+  });
+});

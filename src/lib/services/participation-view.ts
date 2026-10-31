@@ -206,6 +206,9 @@ export const PARTICIPATION_PARAMS = Object.freeze({
   direction: "dir",
 });
 
+/** LAN-497: the Group by choice, in the link — the attendance register's own `by`. */
+export const GROUP_BY_PARAM = "by";
+
 /** Every `DeliveryState` a `?delivery=` value may name, plus `none`. Written out (not imported) to keep `./delivery` out of the client bundle; the assertion below catches drift. */
 export const DELIVERY_FILTERS = Object.freeze([
   "queued",
@@ -215,6 +218,8 @@ export const DELIVERY_FILTERS = Object.freeze([
   "retryable",
   "held",
   "cancelled",
+  "unknown",
+  "withheld",
   "none",
 ] as const);
 
@@ -222,6 +227,18 @@ type UnlistedDeliveryState = Exclude<DeliveryState, (typeof DELIVERY_FILTERS)[nu
 type _EveryDeliveryStateIsFilterable = UnlistedDeliveryState extends never ? true : never;
 const _deliveryFiltersCoverEveryState: _EveryDeliveryStateIsFilterable = true;
 void _deliveryFiltersCoverEveryState;
+
+/**
+ * Every value the Delivery filter offers: the states above plus the two named
+ * exceptions the matcher reads (Needs attention, LAN-411's Not delivered).
+ * LAN-511: the reader had accepted only the states, so a link to either
+ * exception read back as no filter at all.
+ */
+const DELIVERY_FILTER_CHOICES = Object.freeze([
+  ...DELIVERY_FILTERS,
+  "attention",
+  "not_delivered",
+] as const);
 
 export interface ParticipationFilters {
   readonly search: string;
@@ -455,10 +472,12 @@ export function participationSortHref(
   basePath: string,
   filters: ParticipationFilters,
   column: string,
+  groupBy: string | null = null,
 ): string {
   return sortColumnHref(
     basePath,
     {
+      [GROUP_BY_PARAM]: groupBy ?? "",
       [PARTICIPATION_PARAMS.search]: filters.search,
       [PARTICIPATION_PARAMS.capacity]: filters.capacity,
       [PARTICIPATION_PARAMS.answer]: filters.answer,
@@ -472,6 +491,37 @@ export function participationSortHref(
     "name",
     column,
   );
+}
+
+/** The four filters a column-header funnel or a pinned select writes (LAN-511). */
+export type ParticipationFilterKey = "capacity" | "answer" | "attendance" | "delivery";
+
+/**
+ * LAN-511: the link a filter choice points at — `patch` over the filters in
+ * force, the chosen Group by and the sort carried, empty values dropped. The
+ * same keys `readParticipationFilters` reads back.
+ */
+export function participationFilterHref(
+  basePath: string,
+  filters: ParticipationFilters,
+  groupBy: string | null,
+  patch: Partial<Record<keyof ParticipationFilters, string>>,
+): string {
+  const next = { ...filters, ...patch };
+  const params = new URLSearchParams();
+  const entries: [string, string][] = [
+    [PARTICIPATION_PARAMS.search, next.search],
+    [PARTICIPATION_PARAMS.capacity, next.capacity],
+    [PARTICIPATION_PARAMS.answer, next.answer],
+    [PARTICIPATION_PARAMS.attendance, next.attendance],
+    [PARTICIPATION_PARAMS.delivery, next.delivery],
+    [PARTICIPATION_PARAMS.sort, next.sort],
+    [PARTICIPATION_PARAMS.direction, next.direction],
+    [GROUP_BY_PARAM, groupBy ?? ""],
+  ];
+  for (const [key, value] of entries) if (value !== "") params.set(key, value);
+  const query = params.toString();
+  return query === "" ? basePath : `${basePath}?${query}`;
 }
 
 export function participationSortState(
@@ -511,7 +561,7 @@ export function readParticipationFilters(
     answer: (ANSWER_FILTERS as readonly string[]).includes(answer) ? answer : "",
     attendance: (ATTENDANCE_FILTERS as readonly string[]).includes(attendance) ? attendance : "",
     delivery:
-      tier === "operator" && (DELIVERY_FILTERS as readonly string[]).includes(delivery)
+      tier === "operator" && (DELIVERY_FILTER_CHOICES as readonly string[]).includes(delivery)
         ? delivery
         : "",
     sort: isParticipationSort(sort, questions) ? sort : "",

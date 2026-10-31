@@ -173,6 +173,21 @@ describe("validateSignupSubmission (via signUpAnonymouslyIn)", () => {
     });
   });
 
+  it("LAN-512: refuses a college or a degree that is not in the University's lists", async () => {
+    const code = await mintCode();
+    for (const patch of [
+      { college: "St Catz" },
+      { degreeType: "PhD", degreeField: "Law" },
+      { degreeType: "BA", degreeField: "Law" },
+    ]) {
+      await withTransaction(async (tx) => {
+        await expect(
+          signUpAnonymouslyIn(tx, { seasonId, code, submission: baseSubmission(patch) }),
+        ).rejects.toMatchObject({ rule: "recruitment_signup_academic_listed" });
+      });
+    }
+  });
+
   it("refuses an unticked consent box — proved by test (LAN-202 Done when)", async () => {
     const code = await mintCode();
     await withTransaction(async (tx) => {
@@ -425,7 +440,7 @@ describe("signUpAnonymouslyIn — the QR door", () => {
         submission: baseSubmission({
           mobile: "07700900456",
           email: "recruit@example.ac.uk",
-          college: "Kestrelhall",
+          college: "Kellogg College",
           matriculationYear: "2026",
         }),
       }),
@@ -435,7 +450,7 @@ describe("signUpAnonymouslyIn — the QR door", () => {
       `select college, matriculation_year from public.people where id = $1::uuid`,
       [result.personId],
     );
-    expect(person.rows[0]).toEqual({ college: "Kestrelhall", matriculation_year: 2026 });
+    expect(person.rows[0]).toEqual({ college: "Kellogg College", matriculation_year: 2026 });
 
     const contacts = await observer.query(
       `select kind::text as kind, raw_value from public.contact_points where person_id = $1::uuid order by kind`,
@@ -665,7 +680,7 @@ describe("signUpWithTokenIn — the tokenised, prefilled door", () => {
       signUpWithTokenIn(tx, {
         personId,
         seasonId,
-        submission: baseSubmission({ familyName: "CorrectedFamily", college: "Kestrelhall" }),
+        submission: baseSubmission({ familyName: "CorrectedFamily", college: "Kellogg College" }),
       }),
     );
 
@@ -679,7 +694,7 @@ describe("signUpWithTokenIn — the tokenised, prefilled door", () => {
     expect(person.rows[0]).toEqual({
       given_name: MARKER,
       family_name: "CorrectedFamily",
-      college: "Kestrelhall",
+      college: "Kellogg College",
     });
 
     const people = await observer.query(
@@ -795,8 +810,9 @@ describe("readSignupPrefillIn", () => {
   it("reads back exactly the fields the tokenised door's form needs", async () => {
     const existing = await observer.query<{ id: string }>(
       `insert into public.people
-         (given_name, family_name, college, matriculation_year, expected_graduation_year, degree_field)
-       values ($1, 'Prefill', 'Kestrelhall', 2026, 2029, 'Law')
+         (given_name, family_name, college, matriculation_year, expected_graduation_year,
+          degree_type, degree_field)
+       values ($1, 'Prefill', 'Kellogg College', 2026, 2029, 'MJur', 'Law')
        returning id`,
       [MARKER],
     );
@@ -820,9 +836,10 @@ describe("readSignupPrefillIn", () => {
       // personal box, which is where it went when there was only one.
       collegeEmail: "m.ashdown@kestrelhall.ox.ac.uk",
       email: "m.ashdown@example.ac.uk",
-      college: "Kestrelhall",
+      college: "Kellogg College",
       matriculationYear: 2026,
       expectedGraduationYear: 2029,
+      degreeType: "MJur",
       degreeField: "Law",
     });
   });
@@ -998,7 +1015,7 @@ describe("the partial save (LAN-425)", () => {
     const complete = partial({
       mobile,
       collegeEmail: "lan425@balliol.ox.ac.uk",
-      college: "Balliol",
+      college: "Balliol College",
       matriculationYear: "2025",
       expectedGraduationYear: "2020", // before matriculation: held back, not a failed patch
     });
@@ -1010,7 +1027,7 @@ describe("the partial save (LAN-425)", () => {
     const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
     expect(prefill.mobile).toBe(mobile);
     expect(prefill.collegeEmail).toBe("lan425@balliol.ox.ac.uk");
-    expect(prefill.college).toBe("Balliol");
+    expect(prefill.college).toBe("Balliol College");
     expect(prefill.matriculationYear).toBe(2025);
     expect(prefill.expectedGraduationYear).toBeNull();
 
@@ -1055,12 +1072,12 @@ describe("the partial save (LAN-425)", () => {
         submission: partial({
           expectedGraduationYear: "2023",
           matriculationYear: "2025",
-          college: "Oriel",
+          college: "Oriel College",
         }),
       }),
     );
     const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
-    expect(prefill.college).toBe("Oriel");
+    expect(prefill.college).toBe("Oriel College");
     expect(prefill.expectedGraduationYear).toBe(2023);
     expect(prefill.matriculationYear).toBeNull();
 
@@ -1165,14 +1182,14 @@ describe("the partial save (LAN-425)", () => {
       patchPartialQrSignupIn(tx, {
         personId,
         seasonId,
-        submission: partial({ mobile, college: "Oriel" }),
+        submission: partial({ mobile, college: "Oriel College" }),
       }),
     );
     expect(result.matchedExisting).toBe(true);
     const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
     expect(prefill.mobile).not.toBe(mobile);
     expect(prefill.mobile).toBe(ownMobile);
-    expect(prefill.college).toBe("Oriel");
+    expect(prefill.college).toBe("Oriel College");
 
     // The visitor confirms the existing record: the partial is voided, its cycle stood down, its token revoked.
     await withTransaction((tx) => voidPartialQrSignupIn(tx, { personId, seasonId }));

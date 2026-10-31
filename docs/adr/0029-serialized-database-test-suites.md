@@ -44,6 +44,10 @@ are, not how they are written: each keeps whatever isolation it already had, and
 `40001` was considered and rejected — it removes one suite's symptom and leaves
 the next instance to arrive by surprise.
 
+> Note, 22 October 2026 (LAN-510): Vitest 4 removed `poolOptions`. The same
+> serialization is now expressed per project as `maxWorkers: 1` with the forks
+> pool, in `vitest.config.ts`. The decision is unchanged.
+
 `unit` contains everything else, runs in parallel as before, and **is refused a
 database connection**. `vitest.setup.ts` replaces `pg.Client#connect`,
 `pg.Pool#connect`, and — for the local Supabase origin only — `fetch`, with

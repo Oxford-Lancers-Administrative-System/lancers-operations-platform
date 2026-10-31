@@ -980,6 +980,13 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
  * (`src/lib/services/access-grants.ts` refuses with `access_fixed_seat`).
  * Here rather than in `./grants.ts` because this is the only module that may
  * name a seat.
+ *
+ * There is no exception, May move recruits to Joined (LAN-505) included: the
+ * IT Officer holds everything the General Manager holds (Brian, 19 October
+ * 2026: "IT Officer should always have that sort of access that the GM has.
+ * It should be equivalent"; `20261019500000_it_officer_moves_recruits_to_joined.sql`).
+ * `tests/printed-access.test.ts` fails any line the General Manager holds
+ * above the IT Officer.
  */
 export const FIXED_ACCESS_SEATS: readonly string[] = Object.freeze([
   "president",

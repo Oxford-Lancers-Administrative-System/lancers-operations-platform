@@ -36,6 +36,7 @@ function values(overrides: Partial<SignupFieldValues> = {}): SignupFieldValues {
     college: "",
     matriculationYear: "",
     expectedGraduationYear: "",
+    degreeType: "",
     degreeField: "",
     ...overrides,
   };
@@ -107,7 +108,7 @@ describe("submitTokenSignup", () => {
     const { personId, token } = await mintPersonAndToken();
 
     const outcome = await submitTokenSignup(token, {
-      ...values({ college: "Kestrelhall" }),
+      ...values({ college: "Kellogg College" }),
       consent: true,
       confirmedExistingMatch: false,
     });
@@ -116,7 +117,7 @@ describe("submitTokenSignup", () => {
     const person = await observer.query(`select college from public.people where id = $1::uuid`, [
       personId,
     ]);
-    expect(person.rows[0].college).toBe("Kestrelhall");
+    expect(person.rows[0].college).toBe("Kellogg College");
 
     const consent = await observer.query(
       `select state::text as state from public.season_messaging_consents

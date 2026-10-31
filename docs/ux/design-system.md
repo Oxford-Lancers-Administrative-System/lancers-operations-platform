@@ -119,7 +119,7 @@ the word from the owning vocabulary module. Nothing here renames a state.
 | `warning` filled   | Inactive                           | —                  | Retryable, Held, WhatsApp unresponsive | Disengaged         | Late                      | Invitation pending, Email change pending |
 | `error` filled     | —                                  | —                  | Failed, Not dispatched (no channel)    | Declined           | Absent; No                | Delivery failed                          |
 | `error` outlined   | —                                  | Cancelled          | Escalated                              | —                  | —                         | —                                        |
-| `neutral` filled   | Departed, Archived, Recruit (type) | Draft, Occurred    | Queued, Cancelled (job)                | Identified, Void   | No response, Not recorded | Deactivated                              |
+| `neutral` filled   | Departed, Archived, Recruit (type) | Draft, Occurred    | Queued, Cancelled (job), Unknown       | Identified, Void   | No response, Not recorded | Deactivated                              |
 | `success` outlined | —                                  | Upcoming (derived) | —                                      | —                  | —                         | —                                        |
 | `primary` outlined | Player (type)                      | —                  | —                                      | —                  | —                         | —                                        |
 
@@ -180,20 +180,21 @@ They take the tokens and the band colours and are otherwise untouched.
   LAN-195's three dismiss paths and drawer width are unchanged.
 - The public masthead is the same Oxford Blue, full bleed, with the crest and
   the name, on every page reached without a session.
-- The crest file is `public/brand/crest.svg`, supplied by Brian from the Figma;
-  the wordmark is set in Geist unless the export brings one.
-- **Email carries the same mark and the same palette, in its own shell.** Every
+- The crest is the club's round crest, `public/brand/icon-mark.svg` (LAN-509),
+  on dark and light grounds alike; the wordmark is set in Geist.
+- **Email carries the round badge and the same palette, in its own shell.** Every
   message the app sends through Resend is wrapped by
   `src/lib/delivery/email-shell.ts`: the crest at 48px and "Oxford Lancers" over
   a gold rule, the body at `body1` in Charcoal, and a signature block with the
   crest at 32px, the club's name in full and the privacy notice. One 600px
   column, fluid to 375px. Inline styles only and a raster crest
-  (`public/brand/crest-email.png` — since LAN-456 the application's own white
-  mark on an opaque Oxford Blue tile, not a blue mark), because no mail client fetches a stylesheet
+  (`public/brand/crest-email.png` — since LAN-491 the club's round badge, the
+  navy disc inside the gold ring, square and transparent outside the circle),
+  because no mail client fetches a stylesheet
   and Outlook draws HTML through Word, which renders neither `max-width` on a
   `div` nor an SVG `<img>`. Geist is named in the stack and never fetched; a
   reader without it lands on their platform's UI face. Evidence:
-  `review/LAN-398/`. LAN-398, Brian 2026-09-18.
+  `review/LAN-398/`, `review/lan-506/`. LAN-398, Brian 2026-09-18; LAN-491.
 - **The root is the sign-in page.** `/` renders the sign-in screen; there is no
   separate landing page. What stood at `/` was LAN-71's bootstrap scaffold,
   which described the repository as an "infrastructure scaffold" whose only job

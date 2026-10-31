@@ -1470,9 +1470,9 @@ describe("one role's record", () => {
     const access = screen.getByTestId("section-access");
     expect(within(access).getByTestId("access-copy")).toBeVisible();
     expect(within(access).getByTestId("access-grant-everything")).toBeVisible();
-    // Twelve roster lines, three recruiting, one per template, two switches.
+    // Twelve roster lines, three recruiting, one per template, three switches.
     const lines = access.querySelectorAll("[data-level]");
-    expect(lines).toHaveLength(12 + 3 + SEEDED_TEMPLATE_IDS.length + 2);
+    expect(lines).toHaveLength(12 + 3 + SEEDED_TEMPLATE_IDS.length + 3);
     // Round 6, M5: Attendance is the Roster group's last line, None / View.
     const rosterLines = [...lines].map((line) => line.getAttribute("data-testid"));
     expect(rosterLines.indexOf("access-line-attendance")).toBe(11);
@@ -1494,6 +1494,26 @@ describe("one role's record", () => {
         name: "No",
       }),
     ).toHaveAttribute("aria-pressed", "true");
+    // LAN-505: May move recruits to Joined sits with Recruiting, straight after
+    // Event details, as a No / Yes switch carrying its help line.
+    const order = [...lines].map((line) => line.getAttribute("data-testid"));
+    expect(order.indexOf("access-line-move_recruits_to_joined")).toBe(
+      order.indexOf("access-line-recruit_events") + 1,
+    );
+    const joined = within(access).getByTestId("access-line-move_recruits_to_joined");
+    expect(joined).toHaveTextContent("May move recruits to Joined");
+    expect(
+      within(joined).getByTestId("access-line-move_recruits_to_joined-help"),
+    ).toHaveTextContent("Moves them onto the roster as Onboarding.");
+    expect(
+      within(joined)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["No", "Yes"]);
+    expect(within(joined).getByRole("button", { name: "No" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("says what an access change changed, in the seat's History", async () => {
@@ -1596,7 +1616,12 @@ describe("one role's record", () => {
     fireEvent.click(
       within(screen.getByTestId("end-panel")).getByRole("button", { name: /Choose date/ }),
     );
-    expect(screen.getByRole("gridcell", { name: String(Number(today.slice(-2))) })).toBeDisabled();
+    // On a month's last day the picker opens on tomorrow's month, where today has no cell.
+    if (today.slice(0, 7) === tomorrow.slice(0, 7)) {
+      expect(
+        screen.getByRole("gridcell", { name: String(Number(today.slice(-2))) }),
+      ).toBeDisabled();
+    }
     expect(field.value).toBe(tomorrow);
     expect(screen.getByTestId("end-panel")).toHaveTextContent(formatClubDay(tomorrow));
     expect(screen.getByTestId("end-panel")).not.toHaveTextContent("Leave blank to end it today");

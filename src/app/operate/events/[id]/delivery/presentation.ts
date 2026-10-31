@@ -13,6 +13,10 @@ const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.fr
   retryable: "Retryable",
   held: "Held",
   cancelled: "Cancelled",
+  // LAN-501. Sent, and the outcome will never arrive.
+  unknown: "Unknown",
+  // LAN-483. Refused on purpose at claim time; the queue's own word.
+  withheld: "Withheld",
 });
 
 /** W6's two named exceptions to the plain five-state vocabulary — `REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`. */
@@ -83,7 +87,7 @@ export const DIAGNOSTICS_HEADING = "Delivery diagnostics";
 
 export const SEARCH_LABEL = "Search invitees";
 
-/** `held`/`cancelled` are not offered — nothing an operator does differently for either from this screen. */
+/** `held`/`cancelled`/`unknown` are not offered — nothing an operator does differently for any of them from this screen. */
 const FILTERABLE_STATES: readonly DeliveryState[] = Object.freeze([
   "queued",
   "attempted",
@@ -157,10 +161,12 @@ export function describeRetryability(
 ): string {
   if (state === "delivered") return "Delivered — nothing to repair";
   if (state === "attempted") return "Waiting for the provider to confirm delivery";
+  if (state === "unknown") return "Sent — no outcome will arrive";
   if (state === "queued") return "Waiting to be sent";
   // LAN-156, R156-B3: says only what is true today — nothing here clears held_at.
   if (state === "held") return "Held since this event was changed.";
   if (state === "cancelled") return "Cancelled with the event. Nothing further will be sent.";
+  if (state === "withheld") return "Withheld. Nothing further will be sent.";
   if (!retryable) {
     return `${countAttempts(attempts)} used, and no further automatic attempt. Somebody has to fix the cause first.`;
   }

@@ -40,6 +40,8 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
  * accurate.
  */
 export const DATABASE_TEST_SUITES: readonly string[] = [
+  "src/app/api/messages/attachments/route.test.ts",
+  "src/app/api/webhooks/email/route.test.ts",
   "src/app/api/webhooks/whatsapp/route.test.ts",
   "src/app/join/[code]/actions.test.ts",
   "src/app/operate/admin/permissions.test.ts",
@@ -55,6 +57,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/attendance.test.ts",
   "src/lib/services/club-link-availability.test.ts",
   "src/lib/services/club-link.test.ts",
+  "src/lib/services/club-messages.test.ts",
   "src/lib/services/delivery.test.ts",
   "src/lib/services/event-amendment.test.ts",
   "src/lib/services/event-approval.test.ts",
@@ -119,12 +122,15 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/weekly-report.test.ts",
   "tests/agent-readonly-role.test.ts",
   "tests/answer-lands-on-the-events-page.test.ts",
+  "tests/answer-saves-on-load.test.tsx",
   "tests/auth-flow.test.ts",
   "tests/auth-recovery-flow.test.ts",
   "tests/calendar-feed-side-effects.test.ts",
+  "tests/claim-refusal-correction.test.ts",
   "tests/email-classification-correction.test.ts",
   "tests/event-audience-payload.test.tsx",
   "tests/hosted-role-posture.test.ts",
+  "tests/lan-513-cleanup.test.ts",
   "tests/link-test-operator.test.ts",
   "tests/operator-capability-catalogue.test.ts",
   "tests/person-merge-reference-catalogue.test.ts",
@@ -155,6 +161,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/slice-walkthrough.test.ts",
   "tests/synthetic-seed-messiness.test.ts",
   "tests/synthetic-seed.test.ts",
+  "tests/test-record-removal.test.ts",
   "tests/token-link-preview-safety.test.ts",
 ];
 
@@ -266,13 +273,11 @@ export default defineConfig({
           // registry — the serialization is of database access, not of state.
           //
           // `fileParallelism` cannot be set per project (Vitest treats it as a
-          // root-only option), which is why this is expressed as a pool option.
-          //
-          // The pool is named explicitly because `poolOptions` is keyed by it:
-          // `poolOptions.forks` is read only when the pool is forks, so the two
-          // lines below only mean anything together.
+          // root-only option), which is why this is expressed as a worker cap.
+          // Vitest 4 removed `poolOptions.singleFork`; one worker is the same
+          // serialization with `isolate` left on.
           pool: "forks" as const,
-          poolOptions: { forks: { singleFork: true } },
+          maxWorkers: 1,
           // Read by `vitest.setup.ts`: this is the project that is allowed to
           // open a connection.
           env: { LANCERS_TEST_PROJECT: "database" },
@@ -285,7 +290,7 @@ export default defineConfig({
           name: "gate",
           include: [...GATE_SUITES],
           pool: "forks" as const,
-          poolOptions: { forks: { singleFork: true } },
+          maxWorkers: 1,
           env: {
             LANCERS_TEST_PROJECT: "database",
           },

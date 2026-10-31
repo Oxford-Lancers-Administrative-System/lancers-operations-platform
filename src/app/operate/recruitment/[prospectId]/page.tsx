@@ -18,7 +18,7 @@ import { gateShellPage } from "../../gate";
 import RecruitmentRecordView from "./record-view";
 import { operatorHoldsGrant } from "@/lib/auth/guards";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
-import { RECRUITING_REACH } from "@/lib/auth/roster-access";
+import { mayMoveToJoined, RECRUITING_REACH } from "@/lib/auth/roster-access";
 import { recruitingAccessFor, redactProspectRecord } from "@/lib/services/recruitment-board-access";
 
 // `/operate/recruitment/[prospectId]` — `W2`, LAN-204, on ../roster/[membershipId]'s shell (LAN-187).
@@ -98,7 +98,7 @@ export default async function RecruitmentRecordPage({
 
   return (
     <RecruitmentRecordView
-      record={redactProspectRecord(record, access)}
+      record={redactProspectRecord(record, access, mayMoveToJoined(operator.grants))}
       person={person}
       mayOpenPerson={operatorHoldsGrant(operator, { kind: "roster", key: "person" }, "view")}
       mayAssignRole={roleCodesPermit(operator.roleCodes, "role_management")}

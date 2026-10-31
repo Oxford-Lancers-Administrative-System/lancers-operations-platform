@@ -56,6 +56,8 @@ export const LIGHTS_OUT_EXEMPT: Readonly<Record<LightsOutMessageKind, boolean>> 
   onboarding_chase: false,
   onboarding_chase_escalation: false,
   attendance_sheet: true,
+  // LAN-514: a message an operator wrote can wait for the morning like any other.
+  club_message: false,
 });
 
 /**
@@ -83,6 +85,7 @@ export const JOB_TYPE_MESSAGE_KINDS: Readonly<Record<string, readonly LightsOutM
       "onboarding_chase_escalation",
       "attendance_sheet",
       "recruit_event_reminder",
+      "club_message",
     ],
   });
 
@@ -96,6 +99,7 @@ export const OTHER_JOB_KEY_PREFIX_KINDS: Readonly<Record<string, LightsOutMessag
   Object.freeze({
     "attendance-sheet:": "attendance_sheet",
     "recruit-event-reminder:": "recruit_event_reminder",
+    "club-message:": "club_message",
   });
 
 /** Whether lights-out lets this job type through. An unknown type waits. */

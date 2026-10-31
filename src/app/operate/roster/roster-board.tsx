@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
@@ -17,12 +24,9 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Notice } from "@/components/notice";
 import { PinnedSelect } from "@/components/pinned-select";
-import {
-  PhoneSortSelect,
-  rememberPhoneSort,
-  useRememberedPhoneSort,
-  type PhoneSort,
-} from "../board-phone-sort";
+import { ChipBar } from "@/components/chip-bar";
+import { SortButton, SortChips, SortSheet, useBoardSort } from "../board-sort-controls";
+import { boardUrl, formatSortParam, headerSort, type SortKey } from "../board-sort";
 import { SAVING } from "@/components/record-field";
 import { SIDEWAYS_PHONE } from "@/theme-tokens";
 import type { ResolvedOperator } from "@/lib/auth/operator";
@@ -66,7 +70,14 @@ import {
   type ColumnDef,
 } from "./board-columns";
 import { saveCollapsedGroupsAction } from "./group-preference-actions";
-import { applyBoard, filterOptionLabel, filterOptions, optionListLabel } from "./board-data";
+import {
+  applyBoard,
+  filterOptionLabel,
+  filterOptions,
+  optionListLabel,
+  ROSTER_DEFAULT_SORT,
+  rosterSortFields,
+} from "./board-data";
 import AddPlayersMenu from "./add-players-menu";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 import { bandBoundaryKeys, ColumnFilterMenu } from "../board-filter-controls";
@@ -86,11 +97,6 @@ const POSITION_COLUMN_BY_KEY: Readonly<Record<string, PositionColumn>> = Object.
 /** How long a toggle settles before the account is told — folding four groups away is four clicks in about a second, and only where they end up is worth a write. */
 const COLLAPSE_SAVE_DELAY_MS = 600;
 
-function buildUrl(base: string, params: URLSearchParams): string {
-  const query = params.toString();
-  return query === "" ? base : `${base}?${query}`;
-}
-
 export default function RosterBoard({
   operator,
   columns,
@@ -101,8 +107,7 @@ export default function RosterBoard({
   jerseyHolders,
   initialSearch,
   initialFilters,
-  initialSortKey,
-  initialSortDirection,
+  initialSort,
   initialCollapsedGroups,
   seasonHasOnboardingItemTypes,
   canEditCategories = false,
@@ -123,8 +128,8 @@ export default function RosterBoard({
   /** The URL's own search/filter/sort at the moment this page was requested — seeds, not props this component stays synced to. */
   initialSearch: string;
   initialFilters: Readonly<Record<string, string>>;
-  initialSortKey: string;
-  initialSortDirection: "asc" | "desc";
+  /** The address bar's sort keys, unchecked: the board keeps only those this viewer may sort by (LAN-495). */
+  initialSort: readonly SortKey[];
   /** What this operator's account remembers about folded-up groups, or `undefined` where it remembers nothing (LAN-387). */
   initialCollapsedGroups: readonly string[] | undefined;
   /** LAN-430 — whether this operator holds `role_management`, and so sees Edit categories. */
@@ -139,11 +144,11 @@ export default function RosterBoard({
   const [, startTransition] = useTransition();
   const [searchBox, setSearchBox] = useState(initialSearch);
   const [filters, setFilters] = useState<Readonly<Record<string, string>>>(initialFilters);
-  const [sortKey, setSortKey] = useState(initialSortKey);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(initialSortDirection);
   const [editing, setEditing] = useState<{ id: string; key: string } | null>(null);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; column: ColumnDef } | null>(null);
   const [phoneFilters, setPhoneFilters] = useState(false);
+  /** LAN-495 — where the sort sheet is open: the phone's bottom sheet or the desktop dialog. */
+  const [sortOpen, setSortOpen] = useState<"sheet" | "dialog" | null>(null);
   const [cellError, setCellError] = useState<{ id: string; message: string } | null>(null);
   /** Which row's own save is in flight — LAN-380. `useTransition`'s own flag cannot answer it: the transition is over before the request is. */
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
@@ -216,25 +221,6 @@ export default function RosterBoard({
   const squadBoundaries = squadBoundaryKeys(drawn);
 
   /**
-   * Search, filter and sort — applied here, over the one set of rows this page
-   * already fetched, rather than by re-running the server component. LAN-186
-   * item 11: "everything after [the first load], as fast as we can" — a
-   * `router.push()` on every change used to re-query the whole board for data
-   * this page was already holding. `applyBoard()` is the same pure function
-   * `page.tsx` used to call server-side; only where it runs has changed.
-   */
-  const applied = useMemo(
-    () =>
-      applyBoard(rows, {
-        search: searchBox,
-        filters,
-        sort: { key: sortKey, direction: sortDirection },
-      }),
-    [rows, searchBox, filters, sortKey, sortDirection],
-  );
-  const { visible, isFiltered } = applied;
-
-  /**
    * Keeps the address bar in step with the live view — LAN-186 item 11: "it
    * should be snappy and fast", and still "a filtered view is still linkable
    * and survives a refresh". `history.replaceState` rather than `router.push`
@@ -248,67 +234,70 @@ export default function RosterBoard({
     (next: {
       search: string;
       filters: Readonly<Record<string, string>>;
-      sortKey: string;
-      sortDirection: "asc" | "desc";
+      sort: readonly SortKey[];
     }) => {
       const params = new URLSearchParams();
       if (next.search.trim() !== "") params.set("q", next.search);
       for (const [key, value] of Object.entries(next.filters))
         if (value !== "") params.set(key, value);
-      params.set("sort", next.sortKey);
-      params.set("dir", next.sortDirection);
-      window.history.replaceState(null, "", buildUrl("/operate/roster", params));
+      if (next.sort.length > 0) params.set("sort", formatSortParam(next.sort));
+      window.history.replaceState(null, "", boardUrl("/operate/roster", params));
     },
     [],
   );
+
+  /**
+   * LAN-495: up to three sort keys, one state for cards, the sideways table and
+   * the desktop table. No key is the board's default, Player A–Z.
+   */
+  const sortFields = useMemo(() => rosterSortFields(columns), [columns]);
+  const { keys: sortKeys, setKeys: setSortKeys } = useBoardSort(
+    "roster",
+    sortFields,
+    initialSort,
+    (sort) => syncUrl({ search: searchBox, filters, sort }),
+  );
+  const effectiveSort = sortKeys.length > 0 ? sortKeys : ROSTER_DEFAULT_SORT;
+
+  /**
+   * Search, filter and sort — applied here, over the one set of rows this page
+   * already fetched, rather than by re-running the server component. LAN-186
+   * item 11: "everything after [the first load], as fast as we can" — a
+   * `router.push()` on every change used to re-query the whole board for data
+   * this page was already holding. `applyBoard()` is the same pure function
+   * `page.tsx` used to call server-side; only where it runs has changed.
+   */
+  const applied = useMemo(
+    () => applyBoard(rows, { search: searchBox, filters, sort: sortKeys, columns }),
+    [rows, searchBox, filters, sortKeys, columns],
+  );
+  const { visible, isFiltered } = applied;
 
   const setFilter = useCallback(
     (key: string, value: string) => {
       const next = { ...filters, [key]: value };
       if (value === "") delete next[key];
       setFilters(next);
-      syncUrl({ search: searchBox, filters: next, sortKey, sortDirection });
+      syncUrl({ search: searchBox, filters: next, sort: sortKeys });
     },
-    [filters, searchBox, sortKey, sortDirection, syncUrl],
+    [filters, searchBox, sortKeys, syncUrl],
   );
   const clearAll = useCallback(() => {
     setSearchBox("");
     setFilters({});
-    syncUrl({ search: "", filters: {}, sortKey, sortDirection });
-  }, [sortKey, sortDirection, syncUrl]);
+    syncUrl({ search: "", filters: {}, sort: sortKeys });
+  }, [sortKeys, syncUrl]);
+  /** A heading's tap changes key 1 only and keeps keys 2 and 3 (LAN-495). */
   const setSort = useCallback(
-    (key: string) => {
-      const direction = sortKey === key && sortDirection === "asc" ? "desc" : "asc";
-      setSortKey(key);
-      setSortDirection(direction);
-      syncUrl({ search: searchBox, filters, sortKey: key, sortDirection: direction });
-    },
-    [filters, searchBox, sortDirection, sortKey, syncUrl],
-  );
-  /** LAN-426: the phone board's sort — an exact key and direction, not a heading's toggle. */
-  const statusSortable = columns.some((column) => column.key === "status");
-  const applyPhoneSort = useCallback(
-    (next: PhoneSort) => {
-      setSortKey(next.key);
-      setSortDirection(next.direction);
-      syncUrl({ search: searchBox, filters, sortKey: next.key, sortDirection: next.direction });
-    },
-    [filters, searchBox, syncUrl],
-  );
-  useRememberedPhoneSort("roster", statusSortable, applyPhoneSort);
-  const choosePhoneSort = useCallback(
-    (next: PhoneSort) => {
-      applyPhoneSort(next);
-      rememberPhoneSort("roster", next);
-    },
-    [applyPhoneSort],
+    (key: string) => setSortKeys(headerSort(effectiveSort, key)),
+    [effectiveSort, setSortKeys],
   );
   const setSearch = useCallback(
     (value: string) => {
       setSearchBox(value);
-      syncUrl({ search: value, filters, sortKey, sortDirection });
+      syncUrl({ search: value, filters, sort: sortKeys });
     },
-    [filters, sortDirection, sortKey, syncUrl],
+    [filters, sortKeys, syncUrl],
   );
 
   const labelForKey = useCallback(
@@ -535,7 +524,7 @@ export default function RosterBoard({
   const anyPinnedFilter = pinnedStatus || pinnedAvailability || pinnedMissing;
   const addPlayers = canAddPlayers ? <AddPlayersMenu canBulkImport={canBulkImport} /> : null;
 
-  const pinned = (
+  const renderPinned = (trailing?: ReactNode) => (
     <Stack
       direction={{ xs: "column", md: "row" }}
       spacing={2}
@@ -585,42 +574,48 @@ export default function RosterBoard({
           minWidth={230}
         />
       ) : null}
+      {trailing}
     </Stack>
+  );
+  const pinned = renderPinned();
+  /** LAN-495: on a desktop the Sort button ends the pinned filter row and opens a dialog. */
+  const desktopSort = (
+    <SortButton
+      count={sortKeys.length}
+      onClick={() => setSortOpen("dialog")}
+      testId="roster-sort-desktop"
+      sx={{ display: { xs: "none", md: "inline-flex" }, alignSelf: { md: "center" } }}
+    />
   );
 
   const activeFilters = Object.entries(filters).filter(([, value]) => value !== "");
   const chips = isFiltered ? (
-    <Stack
-      direction="row"
-      spacing={1}
-      sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
-      data-testid="filter-chips"
-    >
-      <Typography variant="body2" color="text.secondary">
-        Filtered by
-      </Typography>
-      {searchBox.trim() !== "" ? (
-        <Chip size="small" label={`Search: ${searchBox}`} onDelete={() => setSearch("")} />
-      ) : null}
-      {activeFilters.map(([key, value]) => (
-        <Chip
-          key={key}
-          size="small"
-          label={
+    <ChipBar
+      caption="Filtered by"
+      testId="filter-chips"
+      chips={[
+        ...(searchBox.trim() !== ""
+          ? [{ key: "q", label: `Search: ${searchBox}`, onDelete: () => setSearch("") }]
+          : []),
+        ...activeFilters.map(([key, value]) => ({
+          key,
+          label: (
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>
                 {labelForKey(key)}:
               </Box>{" "}
               {filterOptionLabel(columns.find((c) => c.key === key) ?? columns[0], value)}
             </>
-          }
-          onDelete={() => setFilter(key, "")}
-        />
-      ))}
-      <Button size="small" onClick={clearAll}>
-        Clear all
-      </Button>
-    </Stack>
+          ),
+          onDelete: () => setFilter(key, ""),
+        })),
+      ]}
+      action={
+        <Button size="small" onClick={clearAll}>
+          Clear all
+        </Button>
+      }
+    />
   ) : null;
 
   /**
@@ -704,13 +699,20 @@ export default function RosterBoard({
       >
         Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
       </Button>
-      <PhoneSortSelect
-        sortKey={sortKey}
-        sortDirection={sortDirection}
-        statusAvailable={statusSortable}
-        onChange={choosePhoneSort}
+      <SortButton
+        count={sortKeys.length}
+        onClick={() => setSortOpen("sheet")}
+        testId="roster-sort-phone"
       />
     </Stack>
+  );
+  const sortChips = (
+    <SortChips
+      fields={sortFields}
+      keys={sortKeys}
+      onChange={setSortKeys}
+      testId="roster-sort-chips"
+    />
   );
 
   return (
@@ -728,9 +730,10 @@ export default function RosterBoard({
       />
       {noItemTypes}
       {/* LAN-427: a phone on its side gets the one-row bar below, so the table starts on the first screen. */}
-      <Box sx={{ [SIDEWAYS_PHONE]: { display: "none" } }}>{pinned}</Box>
+      <Box sx={{ [SIDEWAYS_PHONE]: { display: "none" } }}>{renderPinned(desktopSort)}</Box>
       {chips}
       {phoneBar}
+      {sortChips}
 
       <TableContainer
         component={Paper}
@@ -759,8 +762,7 @@ export default function RosterBoard({
             onToggleBand={toggleBand}
             bandBoundaries={bandBoundaries}
             squadBoundaries={squadBoundaries}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
+            sort={effectiveSort}
             setSort={setSort}
             filters={filters}
             onOpenFilter={(anchor, column) => setMenu({ anchor, column })}
@@ -877,6 +879,16 @@ export default function RosterBoard({
           </Button>
         </Box>
       </Drawer>
+
+      <SortSheet
+        open={sortOpen}
+        fields={sortFields}
+        keys={sortKeys}
+        onChange={setSortKeys}
+        onClear={() => setSortKeys([])}
+        onClose={() => setSortOpen(null)}
+        testId="roster-sort"
+      />
 
       <ColumnFilterMenu
         menu={menu}

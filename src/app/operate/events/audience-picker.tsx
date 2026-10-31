@@ -119,6 +119,8 @@ export interface AudiencePickerProps {
   people: number;
   onClear?: () => void;
   disabled?: boolean;
+  /** Every band starts closed (LAN-514, the Messages page: Brian's second walk, 31 October). */
+  startClosed?: boolean;
 }
 
 export function AudiencePicker({
@@ -129,6 +131,7 @@ export function AudiencePicker({
   people,
   onClear,
   disabled = false,
+  startClosed = false,
 }: AudiencePickerProps) {
   function countFor(token: string): AudienceGroupCount {
     return counts.get(token) ?? EMPTY_COUNT;
@@ -248,7 +251,9 @@ export function AudiencePicker({
             collapsible
             // The two Brian's picker opens on: the baseline groups, and the
             // assignments he came to the rework for. The rest is a long tail.
-            defaultOpen={category.category === "general" || category.category === "coaching"}
+            defaultOpen={
+              !startClosed && (category.category === "general" || category.category === "coaching")
+            }
             title={category.label}
             testId={`audience-category-${category.category}`}
             action={chosenMark(chosenIn(category.options))}

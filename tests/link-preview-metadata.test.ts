@@ -37,7 +37,7 @@ vi.mock("next/font/google", () => ({
 
 import type { Metadata } from "next";
 
-import { CLUB_NAME, SITE_DESCRIPTION, TOKEN_LINK_METADATA } from "@/lib/brand";
+import { CLUB_NAME, CREST_PATH, SITE_DESCRIPTION, TOKEN_LINK_METADATA } from "@/lib/brand";
 
 import { metadata as rootMetadata } from "@/app/layout";
 import manifest from "@/app/manifest";
@@ -181,8 +181,6 @@ describe("the icons and the install prompt", () => {
       ["src/app/twitter-image.png", 10_000],
       ["public/brand/icon-192.png", 1_000],
       ["public/brand/icon-512.png", 1_000],
-      ["public/brand/crest.svg", 1_000],
-      ["public/brand/crest-blue.svg", 1_000],
       ["public/brand/icon-mark.svg", 1_000],
       ["src/app/join/[code]/opengraph-image.png", 10_000],
       ["src/app/join/[code]/twitter-image.png", 10_000],
@@ -199,7 +197,7 @@ describe("the icons and the install prompt", () => {
     ["the sign-up card", "src/app/join/[code]"],
   ])("keeps %s exactly as supplied", async (_what, segment) => {
     // LAN-269: "do not generate one." LAN-383 said the same of the sign-up
-    // door's card, which used to be drawn in code from crest.svg. Within a pair
+    // door's card, which used to be drawn in code from the old square crest. Within a pair
     // the two files are the same bytes, so an edit to one that is not made to
     // the other shows up here.
     const og = await readFile(path.join(REPO, segment, "opengraph-image.png"));
@@ -292,17 +290,16 @@ describe("the icons and the install prompt", () => {
     }
   });
 
-  it("draws the header mark and the icon mark from different files", async () => {
-    // The two are different logos and swapping them is the mistake
-    // `public/brand/README.md` exists to prevent: the crest in the header, the
-    // round award badge in the tab. Both carry the club gold; only the badge
-    // carries the navy disc it sits on.
-    const crest = await readFile(path.join(REPO, "public/brand/crest.svg"), "utf8");
+  it("draws the header mark and the icon mark from the one round crest — LAN-509", async () => {
+    // LAN-509: the round crest is the application mark as well as the icon, so
+    // the square crest's files are gone and nothing may serve them again.
+    expect(CREST_PATH).toBe("/brand/icon-mark.svg");
     const icon = await readFile(path.join(REPO, "public/brand/icon-mark.svg"), "utf8");
-    expect(crest).not.toEqual(icon);
     expect(icon).toContain("#8D7149"); // the gold ring
     expect(icon).toContain("#002147"); // the navy disc it draws its own ground with
-    expect(crest).not.toContain("#8D7149");
+    for (const file of ["public/brand/crest.svg", "public/brand/crest-blue.svg"]) {
+      await expect(stat(path.join(REPO, file))).rejects.toThrow();
+    }
   });
 
   it("serves the same badge as the SVG icon, with no navy square around it", async () => {

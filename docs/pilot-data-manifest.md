@@ -140,14 +140,27 @@ invented one. Same ownership convention, same reason, same register.
 | **Retention**         | His choice at the end of tester week, recorded on LAN-221. Rollback is targeted and repeatable, refuses when application-created rows are attached, keeps history the application wrote and whatever it names, and writes residue SQL for the tables the application's login may not delete from — see `docs/pilot-data-runbook.md` § Rollback residue                                                                                     |
 | **Strays**            | Also removes, on rollback, the Person rows the parameter file names in `strays.personIds` — the rows created on 2026-08-21 while testing operator invitations (LAN-196 item 2). Preflight hints at candidates; the loader never guesses and never removes an operator                                                                                                                                                                      |
 
+## Test-record removal — LAN-397
+
+Not a scenario: it creates nothing. Two owner-run files that list the test
+records production still holds and delete the ones Brian marks, with
+everything keyed to them.
+
+|                       |                                                                                                                                                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Artifacts**         | `scripts/pilot/lan-397/inventory.sql` (read-only), `removal.sql` (one transaction, dry run first), `README.md`. Proved by `tests/test-record-removal.test.ts`                                      |
+| **Rows created**      | None                                                                                                                                                                                               |
+| **Rows removed**      | Only ids Brian pastes from the inventory. Refuses kept rows, unmarked people and events, active operators, current seats, audit history and the sign-up code                                       |
+| **Applied to hosted** | **Not yet.** Read-only check on 19 October 2026: the events, inactive players and void recruits on Stewart's 22 September list are already gone; deactivated test operators and later voids remain |
+
 ## Retired scenarios
 
 Retired on 26 September 2026 (LAN-436, Brian's decision), with their SQL and
 their local test suites deleted in the same change. **None was ever applied to
 hosted**, so there was nothing to clean up there: the LAN-221 showcase loader
 had replaced them as the way to load a synthetic dataset, production has run on
-the real baseline since the 14 September 2026 cutover, and LAN-397 removes the
-remaining test records. The last commit carrying them is `5bcb5ea0`. ADR 0016's
+the real baseline since the 14 September 2026 cutover, and the test-record
+removal above takes out what testing left behind. The last commit carrying them is `5bcb5ea0`. ADR 0016's
 amendment records the retirement; its procedure stands for any future scenario.
 
 | Issue     | Artifacts (deleted)      | Applied to hosted | Retired on |

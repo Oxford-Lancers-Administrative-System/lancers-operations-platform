@@ -469,6 +469,118 @@ export type Database = {
           },
         ]
       }
+      club_message_attachments: {
+        Row: {
+          byte_size: number
+          club_message_id: string | null
+          complete: boolean
+          content: string
+          content_type: string
+          created_at: string
+          filename: string
+          id: string
+          position: number
+          uploaded_by_person_id: string
+        }
+        Insert: {
+          byte_size: number
+          club_message_id?: string | null
+          complete?: boolean
+          content?: string
+          content_type: string
+          created_at?: string
+          filename: string
+          id?: string
+          position?: number
+          uploaded_by_person_id: string
+        }
+        Update: {
+          byte_size?: number
+          club_message_id?: string | null
+          complete?: boolean
+          content?: string
+          content_type?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          position?: number
+          uploaded_by_person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_message_attachments_club_message_id_fkey"
+            columns: ["club_message_id"]
+            isOneToOne: false
+            referencedRelation: "club_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_message_attachments_uploaded_by_person_id_fkey"
+            columns: ["uploaded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_message_attachments_uploaded_by_person_id_fkey"
+            columns: ["uploaded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      club_messages: {
+        Row: {
+          audience_groups: string[]
+          body: string
+          created_at: string
+          id: string
+          recipient_count: number
+          scheduled_for: string
+          sent_by_person_id: string
+          subject: string
+          unreachable_count: number
+        }
+        Insert: {
+          audience_groups?: string[]
+          body: string
+          created_at?: string
+          id?: string
+          recipient_count: number
+          scheduled_for: string
+          sent_by_person_id: string
+          subject: string
+          unreachable_count?: number
+        }
+        Update: {
+          audience_groups?: string[]
+          body?: string
+          created_at?: string
+          id?: string
+          recipient_count?: number
+          scheduled_for?: string
+          sent_by_person_id?: string
+          subject?: string
+          unreachable_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_messages_sent_by_person_id_fkey"
+            columns: ["sent_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_messages_sent_by_person_id_fkey"
+            columns: ["sent_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       coach_group_assignments: {
         Row: {
           coach_group: string
@@ -3103,6 +3215,8 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           degree_field: string | null
+          degree_type: string | null
+          dietary_preference: string | null
           erased_at: string | null
           expected_graduation_year: number | null
           family_name: string | null
@@ -3124,6 +3238,8 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          degree_type?: string | null
+          dietary_preference?: string | null
           erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null
@@ -3145,6 +3261,8 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          degree_type?: string | null
+          dietary_preference?: string | null
           erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null

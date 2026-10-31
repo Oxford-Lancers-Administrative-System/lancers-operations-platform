@@ -120,9 +120,10 @@ async function answerPlayerSide(
     fields: {
       given_name: "Daryan",
       family_name: "Testcase",
-      college: "Brasenose",
+      college: "Brasenose College",
       matriculation_year: "2024",
       expected_graduation_year: "2027",
+      degree_type: "MEng",
       degree_field: "Engineering Science",
       student_number: "1234567",
       bafa_registration_number: "BAFA-1234",

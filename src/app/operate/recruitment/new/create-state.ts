@@ -15,6 +15,8 @@ export interface AddRecruitFormValues {
   college: string;
   matriculationYear: string;
   expectedGraduationYear: string;
+  /** LAN-512. The degree letters, then the subject. */
+  degreeType: string;
   degreeField: string;
   dateOfBirth: string;
   emergencyGivenName: string;
@@ -38,6 +40,7 @@ const EMPTY_VALUES: AddRecruitFormValues = {
   college: "",
   matriculationYear: "",
   expectedGraduationYear: "",
+  degreeType: "",
   degreeField: "",
   dateOfBirth: "",
   emergencyGivenName: "",
@@ -102,6 +105,7 @@ export function readAddRecruitValues(formData: FormData): AddRecruitFormValues {
     college: read("college"),
     matriculationYear: read("matriculationYear"),
     expectedGraduationYear: read("expectedGraduationYear"),
+    degreeType: read("degreeType"),
     degreeField: read("degreeField"),
     dateOfBirth: read("dateOfBirth"),
     emergencyGivenName: read("emergencyGivenName"),

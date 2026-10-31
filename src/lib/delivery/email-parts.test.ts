@@ -96,6 +96,9 @@ export const FIXTURE_MESSAGE: OutboundMessage = {
   formUrl: "https://app.oxfordlancers.example/signup/form-token",
   stopUrl: "https://app.oxfordlancers.example/stop/stop-token",
   attendanceUrl: "https://app.oxfordlancers.example/operate/events/event-id/attendance",
+  // LAN-514: a message written on the Messages page.
+  subject: "Special teams playbook",
+  bodyText: "Hello all,\n\nThe playbook is attached.",
 };
 
 /** The four kinds `stopLine()` renders for today. LAN-372. */
@@ -183,6 +186,26 @@ describe("the HTML part", () => {
     expect(html).toContain('alt="Oxford Lancers crest"');
     expect(html).toContain("https://app.oxfordlancers.example/brand/crest-email.png");
     expect(html).toContain(">Oxford Lancers<");
+  });
+
+  it("draws the round crest in a square box, 48px above and 32px below — LAN-491", () => {
+    const { html } = renderedParts("invitation");
+    expect(html).toContain('width="48" height="48"');
+    expect(html).toContain("width:48px;height:48px;");
+    expect(html).toContain('width="32" height="32"');
+    expect(html).toContain("width:32px;height:32px;");
+  });
+
+  it.each([
+    ["crest-email.png", 96],
+    ["crest-email@1x.png", 48],
+  ])("ships %s as a square RGBA raster, %ipx — LAN-491", (file, size) => {
+    // The PNG header: width and height at bytes 16 and 20, colour type at 25.
+    // Type 6 is RGBA, the alpha that keeps the corners outside the disc clear.
+    const png = readFileSync(path.join(import.meta.dirname, "../../../public/brand", file));
+    expect(png.readUInt32BE(16)).toBe(size);
+    expect(png.readUInt32BE(20)).toBe(size);
+    expect(png.readUInt8(25)).toBe(6);
   });
 
   it("keeps the whole thing to one 600px column that can narrow", () => {

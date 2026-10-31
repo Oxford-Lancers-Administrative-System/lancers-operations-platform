@@ -45,6 +45,13 @@ const DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({ href: "/operate/roster", label: "Roster", access: ANY_ROSTER }),
   Object.freeze({ href: "/operate/recruitment", label: "Recruitment", access: ANY_RECRUITING }),
   Object.freeze({ href: "/operate/events", label: "Events", access: EVENTS }),
+  // LAN-514. Its own place (Brian and Stewart, 29 October), for the seats
+  // that already administer the club's delivery.
+  Object.freeze({
+    href: "/operate/messages",
+    label: "Messages",
+    access: "delivery_administration" as AccessRule,
+  }),
   Object.freeze({
     href: "/operate/report",
     label: "Report",
