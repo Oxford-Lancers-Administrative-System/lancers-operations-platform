@@ -186,7 +186,7 @@ export function ParticipationFilterBar({
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
           slotProps={{ htmlInput: { "data-testid": "filter-search" } }}
-          sx={{ minWidth: { md: 260 }, maxWidth: { md: 320 } }}
+          sx={{ width: { md: 300 } }}
         />
         {/* The roster's phone: no heading row to hold a funnel, so one select per filter. */}
         <Box
@@ -212,7 +212,7 @@ export function ParticipationFilterBar({
             remember(value);
             apply({ [GROUP_BY_PARAM]: value });
           }}
-          sx={{ minWidth: 220 }}
+          sx={{ width: { md: 280 } }}
         />
       </Stack>
       {anyFilter ? (
