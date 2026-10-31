@@ -169,3 +169,32 @@ wrote each email's HTML and its attachment beside the record.
 | `oct29-person-edit-phone375.png`                  | The same at 375                                                               |
 | `oct29-recruitment-new-desktop1440.png`           | Recruitment hand-add: college chosen, BA, Subject filtered to BA subjects     |
 | `oct29-recruitment-new-phone375.png`              | The same at 375                                                               |
+
+## 31 October walk fixes (LAN-511, LAN-514, LAN-512)
+
+Taken with Playwright against a production build of the batch branch on the
+local synthetic seed, at 1440 and 375.
+
+| File                                                      | Shows                                                                                     |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `oct31-event-filters-off-desktop1440.png`                 | LAN-511: search and Group by above the table; funnels in As, Delivery, Answer, Attendance |
+| `oct31-event-filters-off-phone375.png`                    | The same at 375: one select per filter under the search, as the roster's phone            |
+| `oct31-event-filters-two-on-desktop1440.png`              | As Player and Answer Yes: funnels filled, choice under each heading, Filtered by chips    |
+| `oct31-event-filters-two-on-phone375.png`                 | The same at 375                                                                           |
+| `oct31-event-filters-funnel-menu-desktop1440.png`         | The Delivery funnel's menu open: All, then the choices                                    |
+| `oct31-messages-compose-email-desktop1440.png`            | LAN-514: the message and its file in one box; Max attachment size: 20 MB                  |
+| `oct31-messages-compose-email-phone375.png`               | The same at 375                                                                           |
+| `oct31-messages-compose-send-desktop1440.png`             | Send step: Recipients closed, with the count and the not-reachable count                  |
+| `oct31-messages-compose-send-phone375.png`                | The same at 375                                                                           |
+| `oct31-messages-compose-recipients-open-desktop1440.png`  | Recipients opened: who it goes to and who it cannot reach                                 |
+| `oct31-messages-compose-recipients-open-phone375.png`     | The same at 375                                                                           |
+| `oct31-messages-sent-desktop1440.png`                     | Sent message: body and attachments in one card; Recipients closed                         |
+| `oct31-messages-sent-phone375.png`                        | The same at 375                                                                           |
+| `oct31-messages-sent-recipients-open-desktop1440.png`     | Sent message, Recipients opened                                                           |
+| `oct31-messages-sent-recipients-open-phone375.png`        | The same at 375                                                                           |
+| `oct31-person-edit-subject-no-degree-desktop1440.png`     | LAN-512: Correct this record, no Degree: Subject lists every subject                      |
+| `oct31-person-edit-subject-no-degree-phone375.png`        | The same at 375                                                                           |
+| `oct31-recruitment-new-subject-no-degree-desktop1440.png` | Recruitment hand-add, no Degree: Subject lists every subject                              |
+| `oct31-recruitment-new-subject-no-degree-phone375.png`    | The same at 375                                                                           |
+| `oct31-onboarding-subject-no-degree-desktop1440.png`      | Onboarding details step, no Degree: Subject lists every subject                           |
+| `oct31-onboarding-subject-no-degree-phone375.png`         | The same at 375                                                                           |
