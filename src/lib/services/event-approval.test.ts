@@ -178,6 +178,23 @@ afterAll(async () => {
   await closePool();
 });
 
+/**
+ * A London calendar date at least `aheadDays` from today, with no clock change
+ * in the `windowDays` before it (nor the day after), as `YYYY-MM-DD`. London
+ * changes its clocks twice a year, months apart, so the two ends of a window
+ * this short sharing an offset means nothing changed inside it.
+ */
+function londonDateClearOfClockChanges(aheadDays: number, windowDays: number): string {
+  const day = 24 * 60 * 60 * 1000;
+  const offset = (at: number) =>
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", timeZoneName: "shortOffset" })
+      .formatToParts(new Date(at))
+      .find((part) => part.type === "timeZoneName")?.value;
+  let at = Date.now() + aheadDays * day;
+  while (offset(at - windowDays * day) !== offset(at + day)) at += day;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(at));
+}
+
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Sunday practice`,
@@ -988,10 +1005,11 @@ describe("the recruit ladder — LAN-203", () => {
     // anchored both to the same instant cannot pass by coincidence. Far
     // enough ahead that the 20-day lead is still in the future (on 31 October
     // 2026 a 20 November event's lead had passed and was clamped to now), and
-    // with no clock change between the two leads.
+    // with no clock change between the two leads. Relative to today, so it
+    // never ages into the past the way a pinned date did.
     const event = await newDraft({
       templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
-      scheduledOn: "2027-03-19",
+      scheduledOn: londonDateClearOfClockChanges(60, 21),
     });
     await withTransaction((tx) =>
       updateMessagingScheduleIn(tx, actorPersonId, SEEDED_TEMPLATE_IDS.recruitment, {
