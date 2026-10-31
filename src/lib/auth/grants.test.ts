@@ -140,6 +140,17 @@ describe("mergeGrantRows — the union across seats", () => {
     expect(mergeGrantRows([...kitManager, ...treasurer])).toEqual(merged);
   });
 
+  it("keeps a switch on when any seat holds it, whichever seat comes first", () => {
+    // LAN-520: a person in two seats, one with May send Messages and one
+    // without, keeps Messages. The same holds for every switch.
+    for (const key of ACCESS_SWITCHES) {
+      const on = [row("switch", key, "yes")];
+      const off = [row("switch", key, "none")];
+      expect(mergeGrantRows([...on, ...off]).switches[key]).toBe("yes");
+      expect(mergeGrantRows([...off, ...on]).switches[key]).toBe("yes");
+    }
+  });
+
   it("grants nothing for a row outside the vocabulary or at a level its line does not admit", () => {
     const merged = mergeGrantRows([
       row("roster_category", "recruits", "edit"),
