@@ -2,16 +2,16 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import { SEND_MESSAGES } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import { createClubMessage } from "@/lib/services/club-messages";
 import { MESSAGES_PATH } from "./presentation";
 
 /**
- * LAN-514. Sending a message from the Messages page. `delivery_administration`
- * — the seats that already administer the club's delivery (President, Vice
- * President, Secretary, General Manager, IT Officer) — checked against the
- * verified session here, whatever the page showed. A refusal or a rule the
+ * LAN-514. Sending a message from the Messages page. May send Messages
+ * (LAN-520, the seat-page switch that replaced `delivery_administration` here)
+ * — checked against the verified session here, whatever the page showed. A refusal or a rule the
  * service enforces comes back as the form's own error, entries intact.
  */
 export interface SendMessageState {
@@ -33,7 +33,7 @@ export async function sendClubMessageAction(
 ): Promise<SendMessageState> {
   let created: { id: string };
   try {
-    const operator = await requireCapability("delivery_administration");
+    const operator = await requireGrant(SEND_MESSAGES);
     const scheduled = text(formData, "when") === "schedule";
     created = await createClubMessage({
       actorPersonId: operator.personId,

@@ -23,12 +23,14 @@ import {
   grantLevel,
   levelsFor,
   subjectKey,
+  type AccessSwitch,
   type GrantSubject,
   type OperatorGrants,
 } from "@/lib/auth/grants";
 import { templateColourFor } from "@/lib/services/event-template-input";
 import {
   ACCESS_GROUP_LABELS,
+  ACCESS_MESSAGING_SWITCH_LINES,
   ACCESS_RECRUITING_LINES,
   ACCESS_RECRUITING_SWITCH_LINES,
   ACCESS_ROSTER_LINES,
@@ -48,7 +50,8 @@ import {
 
 /**
  * The seat page's Access section — LAN-430, W1 (W1-03, W1-04, W1-05, W1-07,
- * W1-08). Four groups — Roster, Recruiting, Event templates, Adding people —
+ * W1-08). Five groups — Roster, Recruiting, Event templates, Messaging
+ * (LAN-520), Adding people —
  * one line each, every line the recorder's exclusive `ToggleButtonGroup`.
  * A press saves at once; the one Notice reads the outcome back. A fixed seat
  * prints its values with no control. At 375 each group folds, its summary
@@ -109,6 +112,23 @@ function groupsFor(templates: readonly AccessTemplateLine[]): readonly Group[] {
     label,
     testId: `access-line-${key}`,
   });
+  // A switch with its help line beneath the label (LAN-505, LAN-520).
+  const helpedSwitch = (entry: { key: AccessSwitch; label: string; help: string }): Line =>
+    line(
+      { kind: "switch", key: entry.key },
+      <>
+        <span>{entry.label}</span>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: "block" }}
+          data-testid={`access-line-${entry.key}-help`}
+        >
+          {entry.help}
+        </Typography>
+      </>,
+      entry.key,
+    );
   return [
     {
       key: "roster",
@@ -124,23 +144,7 @@ function groupsFor(templates: readonly AccessTemplateLine[]): readonly Group[] {
         ),
         // LAN-505: May move recruits to Joined sits with Recruiting, not
         // under Adding people, with its help line beneath the label.
-        ...ACCESS_RECRUITING_SWITCH_LINES.map((entry) =>
-          line(
-            { kind: "switch", key: entry.key },
-            <>
-              <span>{entry.label}</span>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block" }}
-                data-testid={`access-line-${entry.key}-help`}
-              >
-                {entry.help}
-              </Typography>
-            </>,
-            entry.key,
-          ),
-        ),
+        ...ACCESS_RECRUITING_SWITCH_LINES.map(helpedSwitch),
       ],
     },
     {
@@ -153,6 +157,8 @@ function groupsFor(templates: readonly AccessTemplateLine[]): readonly Group[] {
         ),
       ),
     },
+    // LAN-520: May send Messages, its own group after Event templates.
+    { key: "messaging", lines: ACCESS_MESSAGING_SWITCH_LINES.map(helpedSwitch) },
     {
       key: "switch",
       lines: ACCESS_SWITCH_LINES.map((entry) =>

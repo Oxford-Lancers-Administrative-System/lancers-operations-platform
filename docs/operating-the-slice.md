@@ -966,10 +966,20 @@ keeps nothing of the image. The email payload's `html` carries the brief.
 **Messages** (`/operate/messages`, its own entry in the navigation after
 Events; LAN-514, Brian and Stewart 2026-10-29, a first pass for Brian's
 review) sends one email, with files attached, to people already in the
-system. Email only — never WhatsApp. It opens for the seats that administer
-delivery (`delivery_administration`: President, Vice-President, Secretary,
-General Manager, IT Officer); the send action checks that capability again on
-the server.
+system. Email only — never WhatsApp. It opens for the seats holding **May
+send Messages** (`send_messages`, LAN-520, Brian 2026-10-31), a switch on the
+seat page in its own **Messaging** group after Event templates, with the help
+line "Email roster groups from Messages". It starts on for the President,
+Vice-President, Secretary, General Manager and IT Officer — the seats that had
+Messages through `delivery_administration` — and off for every other seat; the
+President, General Manager and IT Officer cannot be switched off. **On** gives
+the seat Messages in the navigation, the sent history (every club message),
+each message's page, New message and sending, whatever else the seat holds (a
+coach seat with only this switch reaches Messages). **Off** removes all of it:
+the pages refuse, and the send action and the attachment upload check the
+switch again on the server and queue nothing. Which people a sender can pick is
+unchanged. The messaging settings, the Messaging queue and Messaging safety stay
+on `delivery_administration`.
 
 **The list** shows every message, newest first: when it sends or sent, the
 subject (and how many files), the audience (the groups ticked, or **Chosen by

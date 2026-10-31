@@ -1,5 +1,6 @@
 import Stack from "@mui/material/Stack";
 import { PageHeader } from "@/components/page-header";
+import { SEND_MESSAGES } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import { readClubMessageAudience, type ClubMessageAudience } from "@/lib/services/club-messages";
 import { UnavailableScreen } from "@/app/operate/unavailable";
@@ -12,10 +13,10 @@ import { BACK_TO_MESSAGES, MESSAGES_PATH, NEW_MESSAGE, NEW_MESSAGE_PATH } from "
  * narrowed to the viewer's grants as it is there (LAN-423) by the service the
  * send resolves against too. Who has no email is a contact fact, so the names
  * are marked only for a seat that reads Contact & emergency; the send refuses
- * them either way.
+ * them either way. May send Messages (LAN-520).
  */
 export default async function NewMessagePage() {
-  const gate = await gateShellPage(NEW_MESSAGE_PATH, "delivery_administration");
+  const gate = await gateShellPage(NEW_MESSAGE_PATH, SEND_MESSAGES);
   if ("screen" in gate) return gate.screen;
 
   let audience: ClubMessageAudience;

@@ -348,11 +348,28 @@ export const ACCESS_RECRUITING_SWITCH_LINES: readonly {
   },
 ]);
 
-/** The four group headings, in page order. */
+/**
+ * The Messaging group's one switch, after Event templates — LAN-520 (Brian,
+ * 31 October 2026), with its help line.
+ */
+export const ACCESS_MESSAGING_SWITCH_LINES: readonly {
+  key: AccessSwitch;
+  label: string;
+  help: string;
+}[] = Object.freeze([
+  {
+    key: "send_messages",
+    label: "May send Messages",
+    help: "Email roster groups from Messages",
+  },
+]);
+
+/** The five group headings, in page order. */
 export const ACCESS_GROUP_LABELS = Object.freeze({
   roster: "Roster",
   recruiting: "Recruiting",
   template: "Event templates",
+  messaging: "Messaging",
   switch: "Adding people",
 });
 
@@ -379,9 +396,11 @@ function accessLineLabel(subject: GrantSubject, templateName: string | null = nu
       return ACCESS_RECRUITING_LINES.find((line) => line.key === subject.key)?.label ?? subject.key;
     case "switch":
       return (
-        [...ACCESS_SWITCH_LINES, ...ACCESS_RECRUITING_SWITCH_LINES].find(
-          (line) => line.key === subject.key,
-        )?.label ?? subject.key
+        [
+          ...ACCESS_SWITCH_LINES,
+          ...ACCESS_RECRUITING_SWITCH_LINES,
+          ...ACCESS_MESSAGING_SWITCH_LINES,
+        ].find((line) => line.key === subject.key)?.label ?? subject.key
       );
     case "template":
       return templateName ?? "A deleted template";

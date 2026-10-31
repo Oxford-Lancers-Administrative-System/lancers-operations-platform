@@ -26,7 +26,7 @@
  * needs a human at that width.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -139,7 +139,8 @@ import InviteOperatorPage from "./operators/new/page";
 import RolesPage from "./roles/page";
 import RoleRecordPage from "./roles/[roleId]/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
-import { SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
+import { NO_GRANTS, SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
+import { setAccessGrantAction } from "./roles/[roleId]/access-actions";
 import { readSeatAccess } from "@/lib/services/access-grants";
 import { readSeatHolderEmails } from "@/lib/services/operator-administration";
 import { readOperatorDetailsStatuses } from "@/lib/services/operator-details";
@@ -1470,9 +1471,9 @@ describe("one role's record", () => {
     const access = screen.getByTestId("section-access");
     expect(within(access).getByTestId("access-copy")).toBeVisible();
     expect(within(access).getByTestId("access-grant-everything")).toBeVisible();
-    // Twelve roster lines, three recruiting, one per template, three switches.
+    // Twelve roster lines, three recruiting, one per template, four switches.
     const lines = access.querySelectorAll("[data-level]");
-    expect(lines).toHaveLength(12 + 3 + SEEDED_TEMPLATE_IDS.length + 3);
+    expect(lines).toHaveLength(12 + 3 + SEEDED_TEMPLATE_IDS.length + 4);
     // Round 6, M5: Attendance is the Roster group's last line, None / View.
     const rosterLines = [...lines].map((line) => line.getAttribute("data-testid"));
     expect(rosterLines.indexOf("access-line-attendance")).toBe(11);
@@ -1513,6 +1514,91 @@ describe("one role's record", () => {
     expect(within(joined).getByRole("button", { name: "No" })).toHaveAttribute(
       "aria-pressed",
       "true",
+    );
+  });
+
+  // LAN-520 (Brian, 31 October 2026): May send Messages, its own Messaging
+  // group straight after Event templates, a No / Yes switch with its help line.
+  it("offers May send Messages in its own Messaging group after Event templates", async () => {
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+
+    const access = screen.getByTestId("section-access");
+    const groups = [...access.querySelectorAll("[data-testid^='access-group-']")]
+      .map((group) => group.getAttribute("data-testid"))
+      .filter((id) => !id!.endsWith("-summary"));
+    expect(groups).toEqual([
+      "access-group-roster",
+      "access-group-recruiting",
+      "access-group-template",
+      "access-group-messaging",
+      "access-group-switch",
+    ]);
+    const messaging = within(access).getByTestId("access-group-messaging");
+    expect(within(messaging).getByRole("heading", { name: "Messaging" })).toBeVisible();
+    expect(messaging.querySelectorAll("[data-level]")).toHaveLength(1);
+    const line = within(messaging).getByTestId("access-line-send_messages");
+    expect(line).toHaveTextContent("May send Messages");
+    expect(within(line).getByTestId("access-line-send_messages-help")).toHaveTextContent(
+      "Email roster groups from Messages",
+    );
+    expect(
+      within(line)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["No", "Yes"]);
+    expect(within(line).getByRole("button", { name: "No" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("saves May send Messages on press and reads the outcome back", async () => {
+    vi.mocked(setAccessGrantAction).mockResolvedValue({
+      ok: true,
+      grants: {
+        ...NO_GRANTS,
+        switches: { ...NO_GRANTS.switches, send_messages: "yes" },
+      },
+      notice: "May send Messages changed from No to Yes.",
+    });
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+
+    fireEvent.click(screen.getByTestId("access-line-send_messages-yes"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("access-line-send_messages")).toHaveAttribute("data-level", "yes"),
+    );
+    expect(setAccessGrantAction).toHaveBeenCalledWith(
+      "role-kit-manager",
+      { kind: "switch", key: "send_messages" },
+      "yes",
+    );
+    expect(screen.getByText("May send Messages changed from No to Yes.")).toBeVisible();
+  });
+
+  it("prints a fixed seat's May send Messages as Yes, with no control", async () => {
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+    const access = screen.getByTestId("section-access");
+    expect(within(access).getByTestId("access-line-send_messages-value")).toHaveTextContent("Yes");
+    expect(within(access).queryByTestId("access-line-send_messages-no")).toBeNull();
+  });
+
+  it("names May send Messages in the seat's History", async () => {
+    vi.mocked(readHolderHistory).mockResolvedValue([
+      historyEntry({
+        action: "administration.access.changed",
+        family: "access",
+        label: "Access changed",
+        target: { personId: null, operatorAccountId: null, name: null },
+        role: { id: "role-kit-manager", code: "kit_manager", assignmentId: null },
+        fromState: "none",
+        toState: "yes",
+        detail: { subjectKind: "switch", subjectKey: "send_messages", templateId: null },
+      }),
+    ]);
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+    expect(screen.getByTestId("history-entry-change")).toHaveTextContent(
+      "May send Messages: No \u2192 Yes",
     );
   });
 

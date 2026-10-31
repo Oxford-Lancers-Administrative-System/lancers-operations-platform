@@ -57,6 +57,9 @@ const FULL_SEATS = ["president", "general_manager", "it_officer", "vice_presiden
  */
 const MOVE_TO_JOINED_LINE = "switch move_recruits_to_joined";
 
+/** LAN-520 (Brian, 2026-10-31): May send Messages follows the floor too. */
+const SEND_MESSAGES_LINE = "switch send_messages";
+
 /** The lines in the order the seat page lists them. Retyped, not imported. */
 const LINE_ORDER = [
   "roster_category person",
@@ -76,6 +79,8 @@ const LINE_ORDER = [
   "recruiting_category recruit_events",
   // LAN-505: the seat page shows it with the Recruiting lines.
   "switch move_recruits_to_joined",
+  // LAN-520: its own Messaging group, after the templates.
+  "switch send_messages",
   "switch add_to_roster",
   "switch add_recruits",
 ];
@@ -148,14 +153,14 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     expect(`${printed}\n`).toBe(readFileSync(FIXTURE, "utf8"));
   });
 
-  it("gives every one of the twenty-one seats every line: 12 + 3 + 7 templates + 3", async () => {
+  it("gives every one of the twenty-one seats every line: 12 + 3 + 7 templates + 4", async () => {
     const seats = await client.query<{ code: string }>("select code from public.roles");
     expect(seats.rows).toHaveLength(21);
     for (const { code } of seats.rows) {
       expect(
         rows.filter((row) => row.role_code === code),
         code,
-      ).toHaveLength(25);
+      ).toHaveLength(26);
     }
   });
 
@@ -203,7 +208,7 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
 
   it("holds every other seat at none on every line", () => {
     const others = rows.filter((entry) => !FULL_SEATS.includes(entry.role_code));
-    expect(others).toHaveLength(16 * 25);
+    expect(others).toHaveLength(16 * 26);
     for (const row of others) {
       expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe("none");
     }
@@ -216,6 +221,17 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
       .sort();
     expect(holders).toEqual([...FULL_SEATS].sort());
     expect(rows.filter((row) => lineOf(row) === MOVE_TO_JOINED_LINE)).toHaveLength(21);
+  });
+
+  // LAN-520 (Brian, 2026-10-31): on for exactly the five seats that held
+  // Messages through `delivery_administration`, off for every other.
+  it("switches May send Messages on for the five named seats alone — LAN-520", () => {
+    const holders = rows
+      .filter((row) => lineOf(row) === SEND_MESSAGES_LINE && row.level === "yes")
+      .map((row) => row.role_code)
+      .sort();
+    expect(holders).toEqual([...FULL_SEATS].sort());
+    expect(rows.filter((row) => lineOf(row) === SEND_MESSAGES_LINE)).toHaveLength(21);
   });
 
   it("seeds the roster group colours from the packet, Attendance at Slate (LAN-457)", async () => {

@@ -41,7 +41,7 @@ function row(
 }
 
 describe("the vocabulary", () => {
-  it("names the twelve roster categories, the three recruiting ones and the three switches", () => {
+  it("names the twelve roster categories, the three recruiting ones and the four switches", () => {
     expect([...ROSTER_CATEGORIES]).toEqual([
       "person",
       "contact_emergency",
@@ -65,6 +65,7 @@ describe("the vocabulary", () => {
       "add_to_roster",
       "add_recruits",
       "move_recruits_to_joined",
+      "send_messages",
     ]);
   });
 
@@ -137,6 +138,17 @@ describe("mergeGrantRows — the union across seats", () => {
     expect(merged.templates).toEqual({ [SOCIAL]: "view", [GAME]: "manage" });
     // Order does not matter.
     expect(mergeGrantRows([...kitManager, ...treasurer])).toEqual(merged);
+  });
+
+  it("keeps a switch on when any seat holds it, whichever seat comes first", () => {
+    // LAN-520: a person in two seats, one with May send Messages and one
+    // without, keeps Messages. The same holds for every switch.
+    for (const key of ACCESS_SWITCHES) {
+      const on = [row("switch", key, "yes")];
+      const off = [row("switch", key, "none")];
+      expect(mergeGrantRows([...on, ...off]).switches[key]).toBe("yes");
+      expect(mergeGrantRows([...off, ...on]).switches[key]).toBe("yes");
+    }
   });
 
   it("grants nothing for a row outside the vocabulary or at a level its line does not admit", () => {
@@ -264,8 +276,8 @@ describe("diffGrants — what Copy access and Grant everything would change", ()
     const target = fullGrants([SOCIAL]);
 
     const changes = diffGrants(current, target, [SOCIAL]);
-    // Twelve roster lines less Kit, three recruiting, one template, three switches.
-    expect(changes).toHaveLength(11 + 3 + 1 + 3);
+    // Twelve roster lines less Kit, three recruiting, one template, four switches.
+    expect(changes).toHaveLength(11 + 3 + 1 + 4);
     // Round 6, M5: Attendance moves to its own maximum, View.
     expect(
       changes.find(

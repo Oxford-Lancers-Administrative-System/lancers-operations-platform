@@ -2,21 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { requireCapability, createClubMessage, redirect } = vi.hoisted(() => ({
-  requireCapability: vi.fn(),
+const { requireGrant, createClubMessage, redirect } = vi.hoisted(() => ({
+  requireGrant: vi.fn(),
   createClubMessage: vi.fn(),
   redirect: vi.fn((href: string) => {
     throw new Error(`redirect:${href}`);
   }),
 }));
 
-vi.mock("@/lib/auth/guards", () => ({ requireCapability }));
+vi.mock("@/lib/auth/guards", () => ({ requireGrant }));
 vi.mock("@/lib/services/club-messages", () => ({ createClubMessage }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { NotPermitted } from "@/lib/db";
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { SEND_MESSAGES } from "@/lib/auth/roster-access";
 import { sendClubMessageAction } from "./actions";
 
 function form(fields: Record<string, string | string[]>): FormData {
@@ -28,26 +28,24 @@ function form(fields: Record<string, string | string[]>): FormData {
 }
 
 beforeEach(() => {
-  requireCapability.mockReset();
+  requireGrant.mockReset();
   createClubMessage.mockReset();
   redirect.mockClear();
 });
 
 describe("LAN-514 — who may send a message", () => {
-  it("is the seats that administer delivery, the IT Officer with the core four", () => {
-    expect([...capabilityRoleCodes("delivery_administration")].sort()).toEqual([
-      "general_manager",
-      "it_officer",
-      "president",
-      "secretary",
-      "vice_president",
-    ]);
+  // LAN-520: May send Messages, the seat-page switch, not `delivery_administration`.
+  it("is the May send Messages switch", () => {
+    expect(SEND_MESSAGES).toEqual({
+      subject: { kind: "switch", key: "send_messages" },
+      minimum: "yes",
+    });
   });
 
-  it("checks delivery_administration on the session and sends nothing when refused", async () => {
-    requireCapability.mockRejectedValue(new NotPermitted("Not permitted."));
+  it("checks May send Messages on the session and sends nothing when refused", async () => {
+    requireGrant.mockRejectedValue(new NotPermitted("Not permitted."));
     const state = await sendClubMessageAction({ error: null }, form({ subject: "Hi" }));
-    expect(requireCapability).toHaveBeenCalledWith("delivery_administration");
+    expect(requireGrant).toHaveBeenCalledWith(SEND_MESSAGES);
     expect(createClubMessage).not.toHaveBeenCalled();
     expect(state.error).toBe("Not permitted.");
   });
@@ -55,7 +53,7 @@ describe("LAN-514 — who may send a message", () => {
   it("posts the selection, the files and the schedule, then opens the message", async () => {
     // The sender's own grants go with the selection: it resolves against what they were shown.
     const grants = { roster: {}, recruiting: {}, templates: {}, switches: {} };
-    requireCapability.mockResolvedValue({ personId: "person-1", grants });
+    requireGrant.mockResolvedValue({ personId: "person-1", grants });
     createClubMessage.mockResolvedValue({ id: "message-1", queued: 2, unreachable: 0 });
     await expect(
       sendClubMessageAction(
@@ -85,7 +83,7 @@ describe("LAN-514 — who may send a message", () => {
   });
 
   it("sends now when Send now is chosen", async () => {
-    requireCapability.mockResolvedValue({ personId: "person-1" });
+    requireGrant.mockResolvedValue({ personId: "person-1" });
     createClubMessage.mockResolvedValue({ id: "message-2", queued: 1, unreachable: 0 });
     await expect(
       sendClubMessageAction({ error: null }, form({ when: "now", sendDay: "2026-11-02" })),

@@ -21,6 +21,7 @@ general_manager        event_template Practice                      manage
 general_manager        event_template Recruitment                   manage
 general_manager        event_template Social                        manage
 general_manager        event_template Strength and conditioning     manage
+general_manager        switch send_messages                         yes
 general_manager        switch add_to_roster                         yes
 general_manager        switch add_recruits                          yes
 it_officer             roster_category person                       edit
@@ -46,6 +47,7 @@ it_officer             event_template Practice                      manage
 it_officer             event_template Recruitment                   manage
 it_officer             event_template Social                        manage
 it_officer             event_template Strength and conditioning     manage
+it_officer             switch send_messages                         yes
 it_officer             switch add_to_roster                         yes
 it_officer             switch add_recruits                          yes
 president              roster_category person                       edit
@@ -71,6 +73,7 @@ president              event_template Practice                      manage
 president              event_template Recruitment                   manage
 president              event_template Social                        manage
 president              event_template Strength and conditioning     manage
+president              switch send_messages                         yes
 president              switch add_to_roster                         yes
 president              switch add_recruits                          yes
 vice_president         roster_category person                       edit
@@ -96,6 +99,7 @@ vice_president         event_template Practice                      manage
 vice_president         event_template Recruitment                   manage
 vice_president         event_template Social                        manage
 vice_president         event_template Strength and conditioning     manage
+vice_president         switch send_messages                         yes
 vice_president         switch add_to_roster                         yes
 vice_president         switch add_recruits                          yes
 secretary              roster_category person                       edit
@@ -121,6 +125,7 @@ secretary              event_template Practice                      manage
 secretary              event_template Recruitment                   manage
 secretary              event_template Social                        manage
 secretary              event_template Strength and conditioning     manage
+secretary              switch send_messages                         yes
 secretary              switch add_to_roster                         yes
 secretary              switch add_recruits                          yes
 treasurer              roster_category person                       none
@@ -146,6 +151,7 @@ treasurer              event_template Practice                      none
 treasurer              event_template Recruitment                   none
 treasurer              event_template Social                        none
 treasurer              event_template Strength and conditioning     none
+treasurer              switch send_messages                         none
 treasurer              switch add_to_roster                         none
 treasurer              switch add_recruits                          none
 social_secretary       roster_category person                       none
@@ -171,6 +177,7 @@ social_secretary       event_template Practice                      none
 social_secretary       event_template Recruitment                   none
 social_secretary       event_template Social                        none
 social_secretary       event_template Strength and conditioning     none
+social_secretary       switch send_messages                         none
 social_secretary       switch add_to_roster                         none
 social_secretary       switch add_recruits                          none
 gameday_secretary      roster_category person                       none
@@ -196,6 +203,7 @@ gameday_secretary      event_template Practice                      none
 gameday_secretary      event_template Recruitment                   none
 gameday_secretary      event_template Social                        none
 gameday_secretary      event_template Strength and conditioning     none
+gameday_secretary      switch send_messages                         none
 gameday_secretary      switch add_to_roster                         none
 gameday_secretary      switch add_recruits                          none
 kit_manager            roster_category person                       none
@@ -221,6 +229,7 @@ kit_manager            event_template Practice                      none
 kit_manager            event_template Recruitment                   none
 kit_manager            event_template Social                        none
 kit_manager            event_template Strength and conditioning     none
+kit_manager            switch send_messages                         none
 kit_manager            switch add_to_roster                         none
 kit_manager            switch add_recruits                          none
 media_secretary        roster_category person                       none
@@ -246,6 +255,7 @@ media_secretary        event_template Practice                      none
 media_secretary        event_template Recruitment                   none
 media_secretary        event_template Social                        none
 media_secretary        event_template Strength and conditioning     none
+media_secretary        switch send_messages                         none
 media_secretary        switch add_to_roster                         none
 media_secretary        switch add_recruits                          none
 head_coach             roster_category person                       none
@@ -271,6 +281,7 @@ head_coach             event_template Practice                      none
 head_coach             event_template Recruitment                   none
 head_coach             event_template Social                        none
 head_coach             event_template Strength and conditioning     none
+head_coach             switch send_messages                         none
 head_coach             switch add_to_roster                         none
 head_coach             switch add_recruits                          none
 offence_coach          roster_category person                       none
@@ -296,6 +307,7 @@ offence_coach          event_template Practice                      none
 offence_coach          event_template Recruitment                   none
 offence_coach          event_template Social                        none
 offence_coach          event_template Strength and conditioning     none
+offence_coach          switch send_messages                         none
 offence_coach          switch add_to_roster                         none
 offence_coach          switch add_recruits                          none
 defence_coach          roster_category person                       none
@@ -321,6 +333,7 @@ defence_coach          event_template Practice                      none
 defence_coach          event_template Recruitment                   none
 defence_coach          event_template Social                        none
 defence_coach          event_template Strength and conditioning     none
+defence_coach          switch send_messages                         none
 defence_coach          switch add_to_roster                         none
 defence_coach          switch add_recruits                          none
 quarterbacks_coach     roster_category person                       none
@@ -346,6 +359,7 @@ quarterbacks_coach     event_template Practice                      none
 quarterbacks_coach     event_template Recruitment                   none
 quarterbacks_coach     event_template Social                        none
 quarterbacks_coach     event_template Strength and conditioning     none
+quarterbacks_coach     switch send_messages                         none
 quarterbacks_coach     switch add_to_roster                         none
 quarterbacks_coach     switch add_recruits                          none
 running_backs_coach    roster_category person                       none
@@ -371,6 +385,7 @@ running_backs_coach    event_template Practice                      none
 running_backs_coach    event_template Recruitment                   none
 running_backs_coach    event_template Social                        none
 running_backs_coach    event_template Strength and conditioning     none
+running_backs_coach    switch send_messages                         none
 running_backs_coach    switch add_to_roster                         none
 running_backs_coach    switch add_recruits                          none
 offensive_line_coach   roster_category person                       none
@@ -396,6 +411,7 @@ offensive_line_coach   event_template Practice                      none
 offensive_line_coach   event_template Recruitment                   none
 offensive_line_coach   event_template Social                        none
 offensive_line_coach   event_template Strength and conditioning     none
+offensive_line_coach   switch send_messages                         none
 offensive_line_coach   switch add_to_roster                         none
 offensive_line_coach   switch add_recruits                          none
 wide_receivers_coach   roster_category person                       none
@@ -421,6 +437,7 @@ wide_receivers_coach   event_template Practice                      none
 wide_receivers_coach   event_template Recruitment                   none
 wide_receivers_coach   event_template Social                        none
 wide_receivers_coach   event_template Strength and conditioning     none
+wide_receivers_coach   switch send_messages                         none
 wide_receivers_coach   switch add_to_roster                         none
 wide_receivers_coach   switch add_recruits                          none
 defensive_line_coach   roster_category person                       none
@@ -446,6 +463,7 @@ defensive_line_coach   event_template Practice                      none
 defensive_line_coach   event_template Recruitment                   none
 defensive_line_coach   event_template Social                        none
 defensive_line_coach   event_template Strength and conditioning     none
+defensive_line_coach   switch send_messages                         none
 defensive_line_coach   switch add_to_roster                         none
 defensive_line_coach   switch add_recruits                          none
 linebackers_coach      roster_category person                       none
@@ -471,6 +489,7 @@ linebackers_coach      event_template Practice                      none
 linebackers_coach      event_template Recruitment                   none
 linebackers_coach      event_template Social                        none
 linebackers_coach      event_template Strength and conditioning     none
+linebackers_coach      switch send_messages                         none
 linebackers_coach      switch add_to_roster                         none
 linebackers_coach      switch add_recruits                          none
 defensive_backs_coach  roster_category person                       none
@@ -496,6 +515,7 @@ defensive_backs_coach  event_template Practice                      none
 defensive_backs_coach  event_template Recruitment                   none
 defensive_backs_coach  event_template Social                        none
 defensive_backs_coach  event_template Strength and conditioning     none
+defensive_backs_coach  switch send_messages                         none
 defensive_backs_coach  switch add_to_roster                         none
 defensive_backs_coach  switch add_recruits                          none
 special_teams_coach    roster_category person                       none
@@ -521,5 +541,6 @@ special_teams_coach    event_template Practice                      none
 special_teams_coach    event_template Recruitment                   none
 special_teams_coach    event_template Social                        none
 special_teams_coach    event_template Strength and conditioning     none
+special_teams_coach    switch send_messages                         none
 special_teams_coach    switch add_to_roster                         none
 special_teams_coach    switch add_recruits                          none
