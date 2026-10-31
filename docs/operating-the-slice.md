@@ -886,8 +886,10 @@ the server.
 **The list** shows every message, newest first: when it sends or sent, the
 subject (and how many files), the audience (the groups ticked, or **Chosen by
 name**), how many people it was queued for, who sent it, and **Scheduled**,
-**Sending** or **Sent**. A message opens on its own page: the body, the files
-with their sizes, and every recipient with their delivery state in the
+**Sending** or **Sent**. A message opens on its own page: the body with the
+files and their sizes under it in the same box (Brian's walk, 2026-10-31),
+and **Recipients · N** (with **Not reachable: M** where any were), closed on
+arrival and opened to every recipient with their delivery state in the
 club's usual words (Queued, Attempted, Delivered, Failed…), with the reason
 where one was recorded. The recipients are the chosen people who had an
 email, so their names are listed only for a seat that reads Contact &
@@ -906,9 +908,10 @@ the count.
    their event invitation would be; both marks show only to a seat that reads
    Contact & emergency, and the send refuses them either way.
 2. **Email** — subject (200 characters), message (20,000; each line one
-   paragraph, no images), and **Attach files**. Files go up as they are
-   chosen, in 4 MB pieces, with a progress bar; the running total reads
-   `12.4 MB of 20.0 MB`. The files may total **20 MB** (Brian, 2026-10-29): 20 MB
+   paragraph, no images), and **Attach files**, inside the message's own box
+   under the text (Brian's walk, 2026-10-31). Files go up as they are chosen,
+   in 4 MB pieces, each with its own progress bar; beside the button the plain
+   label **Max attachment size: 20 MB** (no running total). The files may total **20 MB** (Brian, 2026-10-29): 20 MB
    is about 27 MB once base64-encoded, inside Resend's 40 MB per email after
    encoding and Microsoft 365's default 36 MB receive limit (Oxford's
    Nexus365). A file that would take the total over is refused with "The
@@ -916,8 +919,10 @@ the count.
    files." — when it is chosen, again when the message is sent, and again at
    send time from the bytes held. At most ten files.
 3. **Send** — **Send now** or **Schedule** (a date and a 24-hour time, club
-   time). Below it, **Recipients · N** names everybody it will reach and **Not
-   reachable · M** names who it will not, before anything is sent. The button
+   time). Below it, **Recipients · N** (with **Not reachable · M** under it
+   where any are) is closed on arrival, the Group by sections' collapsible
+   section; opened, it names everybody it will reach and who it will not,
+   before anything is sent. The button
    reads **Send to N people** or **Schedule for N people**.
 
 **What happens.** One `club_messages` row, its files claimed, and one email

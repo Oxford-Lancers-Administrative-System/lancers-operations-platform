@@ -64,8 +64,9 @@ export function peopleCount(count: number): string {
   return `${count} ${count === 1 ? "person" : "people"}`;
 }
 
-export function sizeOfLimit(used: string, limit: string): string {
-  return `${used} of ${limit}`;
+/** LAN-514, Brian's walk on 31 October: the limit as a plain label, not a running total. */
+export function maxAttachmentSize(bytes: number): string {
+  return `Max attachment size: ${Math.round(bytes / 1_000_000)} MB`;
 }
 
 export function sendButtonLabel(people: number, scheduled: boolean): string {

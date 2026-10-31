@@ -47,10 +47,11 @@ import {
   UNREACHABLE_LABELS,
   UPLOAD_FAILED,
   UPLOADING,
+  maxAttachmentSize,
   peopleCount,
   sendButtonLabel,
-  sizeOfLimit,
 } from "./presentation";
+import { RecipientsSection } from "./recipients-section";
 
 const ATTACHMENTS_API = "/api/messages/attachments";
 
@@ -114,7 +115,6 @@ export function ComposeForm({
   const notReachable = members.filter((member) => unreachable[member.personId]);
 
   const held = files.filter((file) => file.status !== "failed");
-  const totalBytes = held.reduce((total, file) => total + file.size, 0);
   const uploading = files.some((file) => file.status === "uploading");
 
   const update = (localId: string, patch: Partial<PendingFile>) =>
@@ -264,80 +264,106 @@ export function ComposeForm({
               multiline
               minRows={8}
               onChange={(event) => setBody(event.target.value)}
+              // LAN-514, Brian's walk on 31 October: the message and its files in one box.
+              // The files sit inside the field's own outline, under the text.
+              data-testid="compose-message-box"
+              sx={{
+                "& .MuiInputBase-root": { flexWrap: "wrap", alignItems: "flex-start" },
+              }}
               slotProps={{
                 htmlInput: { maxLength: BODY_MAX_LENGTH, "data-testid": "compose-body" },
+                input: {
+                  endAdornment: (
+                    <Stack
+                      spacing={1}
+                      data-testid="compose-attachments"
+                      sx={{ width: "100%", pt: 2 }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={2}
+                        sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
+                      >
+                        <Button
+                          variant="outlined"
+                          onClick={() => picker.current?.click()}
+                          disabled={held.length >= MAX_ATTACHMENTS}
+                          data-testid="compose-attach"
+                          sx={{ minHeight: 44 }}
+                        >
+                          {ATTACH_FILES}
+                        </Button>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          data-testid="compose-size"
+                        >
+                          {maxAttachmentSize(MAX_ATTACHMENT_BYTES)}
+                        </Typography>
+                        <input
+                          ref={picker}
+                          type="file"
+                          multiple
+                          hidden
+                          data-testid="compose-file-input"
+                          onChange={(event) => {
+                            choose(event.target.files);
+                            event.target.value = "";
+                          }}
+                        />
+                      </Stack>
+                      {fileError ? (
+                        <Notice severity="error" testId="compose-file-error">
+                          {fileError}
+                        </Notice>
+                      ) : null}
+                      {files.map((file) => (
+                        <Stack
+                          key={file.localId}
+                          direction="row"
+                          spacing={1}
+                          sx={{
+                            alignItems: "center",
+                            borderBottom: 1,
+                            borderColor: "divider",
+                            py: 1,
+                          }}
+                          data-testid="compose-file"
+                          data-status={file.status}
+                        >
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 600, overflowWrap: "anywhere" }}
+                            >
+                              {file.name}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              color={file.status === "failed" ? "error" : "text.secondary"}
+                            >
+                              {file.status === "failed"
+                                ? (file.error ?? UPLOAD_FAILED)
+                                : formatMegabytes(file.size)}
+                            </Typography>
+                            {file.status === "uploading" ? (
+                              <LinearProgress
+                                variant="determinate"
+                                value={file.size === 0 ? 0 : (file.received / file.size) * 100}
+                                aria-label={`${UPLOADING} ${file.name}`}
+                              />
+                            ) : null}
+                          </Box>
+                          <Button size="small" onClick={() => remove(file)} sx={{ minHeight: 44 }}>
+                            {REMOVE_FILE}
+                          </Button>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  ),
+                },
               }}
             />
-            <Stack spacing={1} data-testid="compose-attachments">
-              <Stack
-                direction="row"
-                spacing={2}
-                sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
-              >
-                <Button
-                  variant="outlined"
-                  onClick={() => picker.current?.click()}
-                  disabled={held.length >= MAX_ATTACHMENTS}
-                  data-testid="compose-attach"
-                  sx={{ minHeight: 44 }}
-                >
-                  {ATTACH_FILES}
-                </Button>
-                <Typography variant="body2" color="text.secondary" data-testid="compose-size">
-                  {sizeOfLimit(formatMegabytes(totalBytes), formatMegabytes(MAX_ATTACHMENT_BYTES))}
-                </Typography>
-                <input
-                  ref={picker}
-                  type="file"
-                  multiple
-                  hidden
-                  data-testid="compose-file-input"
-                  onChange={(event) => {
-                    choose(event.target.files);
-                    event.target.value = "";
-                  }}
-                />
-              </Stack>
-              {fileError ? (
-                <Notice severity="error" testId="compose-file-error">
-                  {fileError}
-                </Notice>
-              ) : null}
-              {files.map((file) => (
-                <Stack
-                  key={file.localId}
-                  direction="row"
-                  spacing={1}
-                  sx={{ alignItems: "center", borderBottom: 1, borderColor: "divider", py: 1 }}
-                  data-testid="compose-file"
-                  data-status={file.status}
-                >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                      {file.name}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color={file.status === "failed" ? "error" : "text.secondary"}
-                    >
-                      {file.status === "failed"
-                        ? (file.error ?? UPLOAD_FAILED)
-                        : formatMegabytes(file.size)}
-                    </Typography>
-                    {file.status === "uploading" ? (
-                      <LinearProgress
-                        variant="determinate"
-                        value={file.size === 0 ? 0 : (file.received / file.size) * 100}
-                        aria-label={`${UPLOADING} ${file.name}`}
-                      />
-                    ) : null}
-                  </Box>
-                  <Button size="small" onClick={() => remove(file)} sx={{ minHeight: 44 }}>
-                    {REMOVE_FILE}
-                  </Button>
-                </Stack>
-              ))}
-            </Stack>
           </Stack>
         </Section>
 
@@ -373,27 +399,34 @@ export function ComposeForm({
             ) : null}
 
             <Box data-testid="compose-preview">
-              <Typography variant="subtitle2" component="h3">
-                {`${RECIPIENTS_HEADING} · ${peopleCount(reachable.length)}`}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" data-testid="compose-recipients">
-                {reachable.map((member) => member.displayName).join(", ")}
-              </Typography>
-              {notReachable.length > 0 ? (
-                <Box sx={{ mt: 1.5 }} data-testid="compose-unreachable">
-                  <Typography variant="subtitle2" component="h3" color="warning.main">
-                    {`${NOT_REACHABLE_HEADING} · ${peopleCount(notReachable.length)}`}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {notReachable
-                      .map(
-                        (member) =>
-                          `${member.displayName} (${UNREACHABLE_LABELS[unreachable[member.personId]]})`,
-                      )
-                      .join(", ")}
-                  </Typography>
-                </Box>
-              ) : null}
+              <RecipientsSection
+                title={`${RECIPIENTS_HEADING} · ${peopleCount(reachable.length)}`}
+                description={
+                  notReachable.length > 0
+                    ? `${NOT_REACHABLE_HEADING} · ${peopleCount(notReachable.length)}`
+                    : undefined
+                }
+                testId="compose-recipients-section"
+              >
+                <Typography variant="body2" color="text.secondary" data-testid="compose-recipients">
+                  {reachable.map((member) => member.displayName).join(", ")}
+                </Typography>
+                {notReachable.length > 0 ? (
+                  <Box sx={{ mt: 1.5 }} data-testid="compose-unreachable">
+                    <Typography variant="subtitle2" component="h4" color="warning.main">
+                      {`${NOT_REACHABLE_HEADING} · ${peopleCount(notReachable.length)}`}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {notReachable
+                        .map(
+                          (member) =>
+                            `${member.displayName} (${UNREACHABLE_LABELS[unreachable[member.personId]]})`,
+                        )
+                        .join(", ")}
+                    </Typography>
+                  </Box>
+                ) : null}
+              </RecipientsSection>
             </Box>
 
             {state.error ? (

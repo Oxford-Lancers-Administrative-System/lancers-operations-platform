@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Fact, FactGrid } from "@/components/fact";
@@ -15,6 +16,7 @@ import { isServiceError } from "@/lib/db";
 import { formatMegabytes } from "@/lib/services/club-message-input";
 import { readClubMessage, type ClubMessageDetail } from "@/lib/services/club-messages";
 import { gateShellPage } from "../../gate";
+import { RecipientsSection } from "../recipients-section";
 import { audienceLabel } from "../message-list";
 import {
   ATTACHMENTS_HEADING,
@@ -102,28 +104,38 @@ export default async function MessagePage({
         />
       </FactGrid>
 
+      {/* LAN-514, Brian's walk on 31 October: the message and its files in one box. */}
       <Section title={BODY_LABEL} testId="club-message-body">
         <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
           {message.body}
         </Typography>
+        {message.attachments.length > 0 ? (
+          <Box data-testid="club-message-attachments">
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
+              {ATTACHMENTS_HEADING}
+            </Typography>
+            <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2.5 }}>
+              {message.attachments.map((file) => (
+                <Typography component="li" variant="body2" key={file.id}>
+                  {`${file.filename} · ${formatMegabytes(file.byteSize)}`}
+                </Typography>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
       </Section>
 
-      {message.attachments.length > 0 ? (
-        <Section title={ATTACHMENTS_HEADING} testId="club-message-attachments">
-          <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2.5 }}>
-            {message.attachments.map((file) => (
-              <Typography component="li" variant="body2" key={file.id}>
-                {`${file.filename} · ${formatMegabytes(file.byteSize)}`}
-              </Typography>
-            ))}
-          </Stack>
-        </Section>
-      ) : null}
-
       {/* Named only for a seat that reads Contact & emergency: the list says who had an email. */}
+      {/* LAN-514: closed on arrival; the header keeps the count and the not-reachable count. */}
       {message.recipientsNamed ? (
-        <Section
+        <RecipientsSection
           title={`${RECIPIENTS_HEADING} · ${message.recipients.length}`}
+          description={
+            message.unreachableCount > 0
+              ? `${NOT_REACHABLE_HEADING}: ${message.unreachableCount}`
+              : undefined
+          }
           testId="club-message-recipients"
         >
           <RowCardList at="all" dense testId="club-message-recipient-list">
@@ -143,7 +155,7 @@ export default async function MessagePage({
               />
             ))}
           </RowCardList>
-        </Section>
+        </RecipientsSection>
       ) : null}
     </Stack>
   );
