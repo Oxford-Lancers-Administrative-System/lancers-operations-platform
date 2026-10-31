@@ -32,6 +32,21 @@ vi.mock("@/lib/services/events/template-of", () => ({
   })),
 }));
 vi.mock("server-only", () => ({}));
+// LAN-508. The event messages read the database; these screens have none.
+vi.mock("@/lib/services/event-messages/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/event-messages/store")>()),
+  readEventMessages: vi.fn(async () => []),
+  readTemplateEventMessages: vi.fn(async () => []),
+  saveApprovedEventMessages: vi.fn(async () => ({ changed: false, resent: 0 })),
+  replaceTemplateEventMessages: vi.fn(async () => undefined),
+}));
+// LAN-508. The three halves share one transaction; the services under it are
+// mocked, so the transaction is a pass-through here. That it rolls a refused
+// half back is proved against the database in `event-messages.test.ts`.
+vi.mock("@/lib/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db")>()),
+  withTransaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})),
+}));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -71,6 +86,11 @@ import {
   renotifyEvent,
 } from "@/lib/services/event-amendment";
 import { addEventAudienceMembers } from "@/lib/services/event-audience-amendment";
+import {
+  EVENT_MESSAGE_RESEND_REQUIRED_MESSAGE,
+  readEventMessages,
+  saveApprovedEventMessages,
+} from "@/lib/services/event-messages/store";
 import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "../form-state";
 import { EMPTY_CANCEL_STATE } from "./change-state";
 import {
@@ -474,5 +494,96 @@ describe("every change action hands its refusal back rather than throwing it", (
     await expect(
       cancelEventAction(EMPTY_CANCEL_STATE, eventForm({ reason: "Pitch waterlogged" })),
     ).rejects.toBe(boom);
+  });
+});
+
+/**
+ * LAN-508, W1-05. A change to an event message that has gone is saved only
+ * with Save and send again; the server refuses the save without that answer,
+ * before anything is written. A change to one that has not gone just saves.
+ */
+describe("the event messages half", () => {
+  const MESSAGE_ID = "66666666-6666-4666-8666-666666666666";
+
+  function storedMessage(sent: boolean) {
+    return {
+      id: MESSAGE_ID,
+      sortOrder: 0,
+      hoursBefore: 48,
+      channel: "both" as const,
+      recipients: "everyone" as const,
+      body: "# GAMEDAY",
+      fromTemplate: false,
+      lastSend: sent
+        ? {
+            id: "77777777-7777-4777-8777-777777777777",
+            version: 1,
+            hoursBefore: 48,
+            channel: "both" as const,
+            recipients: "everyone" as const,
+            body: "# GAMEDAY",
+            sentAt: new Date("2026-11-06T14:00:00Z"),
+          }
+        : null,
+    };
+  }
+
+  function withMessage(body: string, resend?: boolean): FormData {
+    const form = editForm();
+    form.set("eventMessagesPresent", "1");
+    form.append("eventMessageId", MESSAGE_ID);
+    form.append("eventMessageHoursBefore", "48");
+    form.append("eventMessageChannel", "both");
+    form.append("eventMessageRecipients", "everyone");
+    form.append("eventMessageBody", body);
+    form.append("eventMessageFromTemplate", "false");
+    if (resend) form.set("resendEventMessages", "1");
+    return form;
+  }
+
+  it("refuses a change to a sent message without Save and send again, writing nothing", async () => {
+    vi.mocked(readEventMessages).mockResolvedValue([storedMessage(true)]);
+
+    const state = await editApprovedEventAction(EMPTY_FORM_STATE, withMessage("# Changed"));
+
+    expect(state.error).toBe(EVENT_MESSAGE_RESEND_REQUIRED_MESSAGE);
+    expect(state.eventMessages?.[0]?.body).toBe("# Changed");
+    expect(amendApprovedEvent).not.toHaveBeenCalled();
+    expect(saveApprovedEventMessages).not.toHaveBeenCalled();
+  });
+
+  it("saves and sends again when the operator pressed Save and send again", async () => {
+    givenNothingToAmend();
+    vi.mocked(readEventMessages).mockResolvedValue([storedMessage(true)]);
+
+    await expect(
+      editApprovedEventAction(EMPTY_FORM_STATE, withMessage("# Changed", true)),
+    ).rejects.toThrow(/^REDIRECT:/);
+
+    const call = vi.mocked(saveApprovedEventMessages).mock.calls[0];
+    expect(call[0]).toBe(OPERATOR_PERSON_ID);
+    expect(call[2][0]).toMatchObject({ id: MESSAGE_ID, body: "# Changed" });
+    expect(call[3]).toEqual({ resend: true });
+  });
+
+  it("just saves a change to a message that has not gone", async () => {
+    givenNothingToAmend();
+    vi.mocked(readEventMessages).mockResolvedValue([storedMessage(false)]);
+
+    await expect(
+      editApprovedEventAction(EMPTY_FORM_STATE, withMessage("# Changed")),
+    ).rejects.toThrow(/^REDIRECT:/);
+
+    expect(vi.mocked(saveApprovedEventMessages).mock.calls[0][3]).toEqual({ resend: false });
+  });
+
+  it("leaves the messages alone when they did not change", async () => {
+    vi.mocked(readEventMessages).mockResolvedValue([storedMessage(true)]);
+
+    await expect(
+      editApprovedEventAction(EMPTY_FORM_STATE, withMessage("# GAMEDAY")),
+    ).rejects.toThrow(/^REDIRECT:/);
+
+    expect(saveApprovedEventMessages).not.toHaveBeenCalled();
   });
 });

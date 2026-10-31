@@ -110,6 +110,7 @@ const KIND_EXPRESSION = `
     when j.idempotency_key like 'attendance-sheet:%' then 'attendance_sheet'
     when j.idempotency_key like 'operator-details:%' then 'operator_details'
     when j.idempotency_key like 'recruit-event-reminder:%' then 'recruit_reminder'
+    when j.idempotency_key like 'event-message:%' then 'event_message'
     when j.idempotency_key like 'club-message:%' then 'club_message'
     else 'other'
   end`;

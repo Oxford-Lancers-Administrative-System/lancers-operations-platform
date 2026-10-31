@@ -103,6 +103,10 @@ export const DUE_JOB_PREDICATE = `held_at is null
             -- LAN-464. The recruit event reminder. It carries its event, so it
             -- takes the approved-and-future check below like the sheet does.
             or (job_type = 'other' and idempotency_key like 'recruit-event-reminder:%')
+            -- LAN-508. One recipient's copy of an event message. It carries
+            -- its event, so it takes the approved-and-future check below too:
+            -- a cancelled or started event's brief is never due.
+            or (job_type = 'other' and idempotency_key like 'event-message:%')
             -- LAN-514. A message written on the Messages page, one job per
             -- recipient, email only.
             or (job_type = 'other' and idempotency_key like 'club-message:%')

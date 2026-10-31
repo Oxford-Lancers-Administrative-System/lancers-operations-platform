@@ -202,17 +202,31 @@ export function buildEmailBody(
   // `text` is assembled from the untouched `lines` and is unaffected.
   const stop = lines.at(-1)?.startsWith(`${RECRUIT_STOP_MESSAGES_LABEL}: `) === true;
 
+  // LAN-508. A template that builds its own HTML (the event brief) frames
+  // that instead of its escaped lines; `text` is still the lines.
+  const own = template.emailHtml?.(message) ?? null;
+
   return {
     from: emailFromHeader(config.fromAddress),
     to: [config.recipientOverride ?? message.recipient],
     subject,
     text: lines.join("\n\n"),
-    html: renderEmailHtml({
-      appBaseUrl: config.appBaseUrl,
-      subject,
-      lines: stop ? lines.slice(0, -1) : lines,
-      stopLine: stop ? (lines.at(-1) ?? null) : null,
-    }),
+    html: renderEmailHtml(
+      own
+        ? {
+            appBaseUrl: config.appBaseUrl,
+            subject,
+            lines: own.lines,
+            stopLine: null,
+            html: own.html,
+          }
+        : {
+            appBaseUrl: config.appBaseUrl,
+            subject,
+            lines: stop ? lines.slice(0, -1) : lines,
+            stopLine: stop ? (lines.at(-1) ?? null) : null,
+          },
+    ),
     ...(config.replyToAddress ? { reply_to: config.replyToAddress } : {}),
     // LAN-514. Resend's own shape: a filename and the bytes as base64. The
     // content is a placeholder here; `streamEmailBody` puts the file in its

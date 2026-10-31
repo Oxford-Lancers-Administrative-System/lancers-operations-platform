@@ -26,6 +26,14 @@ vi.mock("@/lib/services/events/template-of", () => ({
   })),
 }));
 vi.mock("server-only", () => ({}));
+// LAN-508. The event messages read the database; these screens have none.
+vi.mock("@/lib/services/event-messages/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/event-messages/store")>()),
+  readEventMessages: vi.fn(async () => []),
+  readTemplateEventMessages: vi.fn(async () => []),
+  saveApprovedEventMessages: vi.fn(async () => ({ changed: false, resent: 0 })),
+  replaceTemplateEventMessages: vi.fn(async () => undefined),
+}));
 const routerPush = vi.fn();
 const routerReplace = vi.fn();
 vi.mock("next/navigation", () => ({

@@ -1,5 +1,6 @@
 import type { FieldIssue, RawEventDraft } from "@/lib/services/event-input";
 import type { QuestionIssue, RawEventQuestion } from "@/lib/services/event-questions-input";
+import type { EventMessageIssue, RawEventMessage } from "@/lib/services/event-messages-input";
 
 /**
  * What a questions save is about to do, shown before it does it — LAN-367.
@@ -26,6 +27,10 @@ export interface EventFormState {
   questions: RawEventQuestion[] | null;
   /** LAN-367. Set when the save needs the operator to confirm first. */
   questionChange?: QuestionChangePreview | null;
+  /** LAN-508. Corrections to the event message cards, addressed by position. */
+  eventMessageIssues?: EventMessageIssue[];
+  /** LAN-508. The event message cards as posted, so a refused save keeps them. */
+  eventMessages?: RawEventMessage[] | null;
 }
 
 export const EMPTY_FORM_STATE: EventFormState = {

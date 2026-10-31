@@ -897,6 +897,15 @@ export const EVENT_HAS_NO_START_TIME_REASON =
   "time, then retry.";
 
 /**
+ * LAN-508. Why a WhatsApp copy of an event message failed without a send: its
+ * brief could not be drawn as the header image. Defined here, beside the other
+ * refusals a person has to act on, so {@link NEEDS_A_PERSON_REASONS} can keep it
+ * Failed rather than Withheld (LAN-483): it is not a skip by design.
+ */
+export const EVENT_MESSAGE_RENDER_FAILED_REASON =
+  "The brief could not be drawn as an image, so this WhatsApp message was not sent.";
+
+/**
  * LAN-203. What an operator is told when a recruit invitation's dispatch was
  * refused because there is no granted `season_messaging_consents` record for
  * that person, that season — the LAN-202 seam's own refusal, restated in the
@@ -2216,13 +2225,15 @@ function sqlLiteral(text: string): string {
 
 /**
  * The claim-time refusals a person has to act on — a missing route, a missing
- * start time. Fix the record or the event, then Retry. Every other refusal
- * made at claim time is a skip by design.
+ * start time, an event brief that cannot be drawn (LAN-508). Fix the record,
+ * the event or the brief, then Retry. Every other refusal made at claim time is
+ * a skip by design.
  */
 const NEEDS_A_PERSON_REASONS = [
   NO_USABLE_NUMBER_REASON,
   NO_USABLE_EMAIL_REASON,
   EVENT_HAS_NO_START_TIME_REASON,
+  EVENT_MESSAGE_RENDER_FAILED_REASON,
 ]
   .map(sqlLiteral)
   .join(", ");

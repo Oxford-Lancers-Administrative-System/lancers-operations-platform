@@ -107,7 +107,15 @@ export type MessageKind =
    * and no per-person detail**: `T11-escalation-target`'s own reasoning for
    * why an escalation goes to an office survives unchanged for this one.
    */
-  | "onboarding_chase_escalation";
+  | "onboarding_chase_escalation"
+  /**
+   * LAN-508. The game day brief: the coach's own Markdown, drawn as a 900px
+   * PNG and carried as the image header of `lancers_event_brief_image_v1`,
+   * with the reader's name, the event and its time in the body. The email
+   * carries the same brief in the club shell. Declared and dispatched by
+   * `event-messages/`.
+   */
+  | "event_brief";
 
 /**
  * Messages the club sends by email only — LAN-465.
@@ -244,6 +252,17 @@ export interface OutboundMessage {
    * behind the operator login. `attendance_sheet` only.
    */
   readonly attendanceUrl?: string | null;
+  /**
+   * LAN-508. The event brief's Markdown, exactly as this version was sent.
+   * `event_brief` only. The email renders it; WhatsApp carries it as
+   * {@link headerImage}.
+   */
+  readonly brief?: string | null;
+  /**
+   * LAN-508. The brief drawn as a PNG, for a template whose header is an
+   * image. The adapter uploads it as Meta media and sends the header by id.
+   */
+  readonly headerImage?: Uint8Array | null;
   /** LAN-514. The operator's own subject line. `club_message` only. */
   readonly subject?: string | null;
   /** LAN-514. The operator's own body, as typed. `club_message` only. */

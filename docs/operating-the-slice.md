@@ -886,6 +886,81 @@ than sent late. On the **Messaging queue** these read **Recruit reminder**, and
 a dropped one is **Cancelled** with **Quiet hours ran past the event start.**
 under its time.
 
+### Event messages: the game day brief
+
+An event can carry **event messages** (LAN-508, Brian's build spec of
+21 October 2026): a brief the coach writes once, sent to every player's phone
+a set number of hours before the event. The section **Event messages** sits on
+the event form after **Questions**, one card per message, built like the
+question editor:
+
+- **Hours before** — a whole number from 1 to 336. The helper under it is the
+  send time, worked out from the event's date and start: the start less the
+  hours, and **07:00** if that falls between 22:00 and 07:00 (lights-out,
+  above). A second line explains the number (LAN-515):
+  `48 = sent two days before the event starts`.
+- **Channel** — WhatsApp, Email or Both. The line under it says what the
+  choice means, including that anyone without WhatsApp consent gets email.
+- **Recipients** — **Everyone invited**, or **Those who said Yes**. The line
+  under it says the list is read when the message sends.
+- **Message** — one Markdown box at full card width, with four buttons above
+  it: **Heading** (`## `), **Bold** (`**…**`), **Bullet** (`- `) and
+  **Itinerary line** (`- 12:00 `, a time then what happens). A `# ` title line
+  and a `> ` call-out also render; anything else is plain text, and nothing
+  typed into the box is ever treated as HTML.
+- **Preview** — a disclosure under the box showing the brief exactly as the
+  player receives it: the 900px-wide image the server draws for WhatsApp,
+  scaled to the column, redrawn a moment after typing stops.
+
+Nothing is pulled from elsewhere on the event; the brief says what the coach
+typed. A template can carry event messages too (the template editor has the
+same section), and a new event made from it starts with them; **Duplicate**
+copies the source event's messages, so next week's brief starts from this
+week's.
+
+**At approval** the review's messaging plan lists each event message as one
+more row, in time order: its moment, **Event message**, `48 hours before ·
+WhatsApp and email · Everyone invited`, and how many people (or **Said Yes**).
+**After approval** the event page has an **Event messages** section after the
+plan: one row per message reading `Scheduled 6 Nov 14:00` until it goes and
+`Sent 6 Nov 14:00` after, with the brief as last sent in a **Preview**
+disclosure. On a cancelled event an unsent message reads **Cancelled**; one
+whose moment fell in lights-out too late for 07:00 to beat the start reads
+**Not sent**.
+
+**When it goes.** The send time is never stored. The first sweep at or after
+the event start less the hours sends it — on an approved event that has not
+started, outside lights-out (a moment in the night goes at 07:00). Moving the
+event moves every unsent message; cancelling it means none goes, and any copy
+still queued is cancelled with the event's other jobs. If the event is
+approved after a message's moment has passed, it goes on the next sweep.
+
+**Who gets it** is read at that sweep: everybody with a live invitation, or
+only those whose current answer is **Yes** then. Somebody added to the
+audience afterwards does not get a message that has already gone. Each person
+gets one copy per channel; a person without **current-season WhatsApp
+consent** gets the email only, whatever the channel says. WhatsApp is the
+Utility template `lancers_event_brief_image_v1` — "Hello {name}, your brief
+for {event} on {when} is attached. It has the itinerary and what to bring." —
+with the brief as its image header; email is the same brief in the club
+email shell. Every copy goes through the delivery records, the Messaging
+queue (as **Event message**) and messaging safety like any other message, so
+a person on **Both** gets the email five minutes after the WhatsApp.
+
+**Editing.** A message that has not gone just saves. Saving a change to one
+that **has** gone (on **Edit event** of the approved event) opens **Send
+again?** — "This event message was sent on 6 November at 14:00. Saving sends
+it again to everyone it went to." — with **Cancel** and **Save and send
+again** only. There is no save without sending (Brian, 21 October); the
+server refuses the change without that answer. The resend goes to exactly the
+people the previous send went to, every version that went is kept, and the
+event page shows the last. A message that has gone has no **Remove**.
+
+**Locally** the brief arrives in the delivery sink like any other message: the
+WhatsApp payload carries the header as `{"type": "image", "image": {"id":
+"sink-media-…"}}`, because the sink answers the media upload with an id and
+keeps nothing of the image. The email payload's `html` carries the brief.
+
 ### Messages: email any audience, with attachments
 
 **Messages** (`/operate/messages`, its own entry in the navigation after
@@ -1054,10 +1129,11 @@ is final, has no Retry and no next attempt, and is counted under neither
 **Failed today** nor the event's **Failed** or Needs attention — on this page,
 the event's Delivery screen or the person's record. It is recognised by the
 attempt's shape, not its wording: never accepted, no provider message id,
-requested and concluded in the same instant. Two refusals of the same shape
-stay **Failed** and under Needs attention, because a person fixes them and
-presses Retry: no usable number or email (**Not dispatched — no channel**) and
-an event with no start time. A provider's own refusal or a bounced email stays
+requested and concluded in the same instant. Three refusals of the same shape
+stay **Failed** and under Needs attention, because a person has to act on them:
+no usable number or email (**Not dispatched — no channel**), an event with no
+start time, and an event message whose brief could not be drawn as the
+WhatsApp image (LAN-508). A provider's own refusal or a bounced email stays
 **Failed**; **Retryable** is kept for a provider failure that another attempt
 might fix.
 

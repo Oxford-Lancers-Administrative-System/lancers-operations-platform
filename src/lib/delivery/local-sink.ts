@@ -226,6 +226,36 @@ function validateWhatsApp(payload: unknown, source: EnvironmentSource): Validati
     };
   }
 
+  // LAN-508. A template whose header is an image must carry it, by media id,
+  // exactly as Meta requires; one without must carry no header at all.
+  {
+    const headers = (body.template.components ?? []).filter((entry) => entry.type === "header");
+    if (MESSAGE_TEMPLATES[kind].headerImage) {
+      const image = (headers[0]?.parameters?.[0] ?? null) as {
+        type?: unknown;
+        image?: { id?: unknown };
+      } | null;
+      if (
+        headers.length !== 1 ||
+        image?.type !== "image" ||
+        typeof image.image?.id !== "string" ||
+        image.image.id.trim() === ""
+      ) {
+        return {
+          ok: false,
+          code: 132_000,
+          detail: `Template "${name}" has an image header and this message carried no uploaded image.`,
+        };
+      }
+    } else if (headers.length > 0) {
+      return {
+        ok: false,
+        code: 132_000,
+        detail: `Template "${name}" has no header and this message carried one.`,
+      };
+    }
+  }
+
   // LAN-172, Q-11, LAN-348: eleven of the fourteen approved templates declare
   // URL buttons — eight with one, three with a Yes/No pair. The registry is the
   // one place that says how many each carries, and reading `buttonCount` here
@@ -531,6 +561,21 @@ export function createDeliverySink(
     const target = new URL(url);
     const isEmail = target.pathname.endsWith("/emails");
     const isWhatsApp = /\/v\d+\.\d+\/[^/]+\/messages$/.test(target.pathname);
+    const isMedia = /\/v\d+\.\d+\/[^/]+\/media$/.test(target.pathname);
+
+    // LAN-508. The brief's image header is uploaded before the message that
+    // names it. The sink keeps nothing: it checks there is a PNG and answers
+    // with an id, which the message's header then has to carry.
+    if (isMedia) {
+      const file = init.body instanceof FormData ? init.body.get("file") : null;
+      if (!(file instanceof Blob) || file.type !== "image/png" || file.size === 0) {
+        return metaError(100, "A media upload needs a PNG file.");
+      }
+      return new Response(JSON.stringify({ id: `sink-media-${crypto.randomUUID()}` }), {
+        status: 200,
+        headers: jsonHeaders(),
+      });
+    }
 
     if (!isEmail && !isWhatsApp) {
       // Unrecognised, and refused rather than passed through to the network. A

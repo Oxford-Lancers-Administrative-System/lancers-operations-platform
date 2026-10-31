@@ -166,6 +166,12 @@ interface EmailShell {
   readonly lines: readonly string[];
   /** The line `stopLine()` put last, where it put one. Signed off with, not sent. */
   readonly stopLine: string | null;
+  /**
+   * LAN-508. Markup placed after the lines, for a body the template builds
+   * itself (the event brief, `src/lib/event-brief/email.ts`), which escapes
+   * every character of the text it carries. Never a caller's raw input.
+   */
+  readonly html?: string;
 }
 
 /**
@@ -175,10 +181,17 @@ interface EmailShell {
  * a `max-width`, so at 375px it is the viewport less the 16px gutter either
  * side, and nothing scrolls sideways.
  */
-export function renderEmailHtml({ appBaseUrl, subject, lines, stopLine }: EmailShell): string {
-  const paragraphs = lines
-    .map((line) => `<p ${PARAGRAPH}>${escapeHtml(line)}</p>`)
-    .join("\n        ");
+export function renderEmailHtml({
+  appBaseUrl,
+  subject,
+  lines,
+  stopLine,
+  html,
+}: EmailShell): string {
+  const paragraphs = [
+    ...lines.map((line) => `<p ${PARAGRAPH}>${escapeHtml(line)}</p>`),
+    ...(html ? [html] : []),
+  ].join("\n        ");
 
   // The privacy notice is a link on the application's own origin, so it shares
   // the crest's fate when there is no origin to name: nothing relative goes

@@ -89,6 +89,8 @@ const MESSAGE: OutboundMessage = {
   questionSummary: "Do you need a lift to this one?",
   // LAN-465: the attendance sheet, behind the operator login.
   attendanceUrl: attendanceSheetUrl(BASE, "11111111-1111-4111-8111-111111111111"),
+  // LAN-508: the event brief's Markdown.
+  brief: "## Itinerary\n- 8:30 AM Bus",
   // LAN-514: a message written on the Messages page.
   subject: "Special teams playbook",
   bodyText: "Hello all,\n\nThe playbook is attached.",
@@ -220,8 +222,9 @@ describe("every path a message mints", () => {
     // left to answer, and the escalations carry the operator queue only. The
     // recruit event reminder (LAN-464) goes to a recruit who has already said
     // Yes: it states what, when and where, and there is nothing to answer.
+    // The event brief (LAN-508) is the same: the brief itself, attached.
     const withoutLinks = MESSAGE_KINDS.filter((kind) => urlsIn(kind).length === 0);
-    expect(withoutLinks).toEqual(["cancellation", "recruit_event_reminder"]);
+    expect(withoutLinks).toEqual(["cancellation", "recruit_event_reminder", "event_brief"]);
   });
 
   it("sends each message to its own approved base — the LAN-343 table, verbatim", () => {

@@ -17,6 +17,8 @@ import { gateEventPage } from "../../event-gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AMEND_HEADLINE_PREFIX } from "../change-presentation";
 import AmendForm from "./amend-form";
+import { readEventMessages } from "@/lib/services/event-messages/store";
+import type { RawEventMessage } from "@/lib/services/event-messages-input";
 import { AddToAudience } from "./add-to-audience";
 
 /**
@@ -36,8 +38,9 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
   let terms: TermWindow[];
   let addable: Awaited<ReturnType<typeof readAddableAudience>>;
   let storedQuestions: Awaited<ReturnType<typeof readEventQuestions>>;
+  let storedMessages: Awaited<ReturnType<typeof readEventMessages>>;
   try {
-    [context, terms, addable, storedQuestions] = await Promise.all([
+    [context, terms, addable, storedQuestions, storedMessages] = await Promise.all([
       readAmendmentContext(id),
       listTermWindows(),
       // LAN-393. Read here rather than inside the client component so the
@@ -46,6 +49,8 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
       // LAN-419. The questions as stored, not the template's — an operator who
       // removed one (D42) must not find it back.
       readEventQuestions(id),
+      // LAN-508. The event messages, and which of them have gone.
+      readEventMessages(id),
     ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
@@ -75,6 +80,21 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
     choices: joinQuestionChoices(question.choices),
     fromTemplate: question.fromTemplate ? "true" : "false",
   }));
+
+  // LAN-508. The cards, and when each one that has gone last went (W1-05).
+  const initialEventMessages: RawEventMessage[] = storedMessages.map((message) => ({
+    id: message.id,
+    hoursBefore: String(message.hoursBefore),
+    channel: message.channel,
+    recipients: message.recipients,
+    body: message.body,
+    fromTemplate: message.fromTemplate ? "true" : "false",
+  }));
+  const sentEventMessages: Record<string, string> = Object.fromEntries(
+    storedMessages.flatMap((message) =>
+      message.lastSend ? [[message.id, message.lastSend.sentAt.toISOString()]] : [],
+    ),
+  );
 
   /**
    * LAN-419 — editing the questions and amending the details are one save.
@@ -133,6 +153,8 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
         eventTypeLabel={event.templateName}
         eventType={event.eventType}
         mayEditQuestions={mayEditQuestions}
+        initialEventMessages={initialEventMessages}
+        sentEventMessages={sentEventMessages}
       />
 
       {/* LAN-393. Only while the event is still ahead: the service refuses an

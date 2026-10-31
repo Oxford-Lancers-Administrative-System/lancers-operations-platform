@@ -1,4 +1,6 @@
 import { PageHeader } from "@/components/page-header";
+import { readTemplateEventMessages } from "@/lib/services/event-messages/store";
+import type { RawEventMessage } from "@/lib/services/event-messages-input";
 import { Refusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
@@ -74,6 +76,18 @@ export default async function EventTemplatePage({
     audienceGroups: template.audienceGroups,
   };
 
+  // LAN-508: the template's event messages, the skeleton a new event starts with.
+  const initialEventMessages: RawEventMessage[] = (
+    await readTemplateEventMessages(template.id)
+  ).map((message) => ({
+    id: "",
+    hoursBefore: String(message.hoursBefore),
+    channel: message.channel,
+    recipients: message.recipients,
+    body: message.body,
+    fromTemplate: "false",
+  }));
+
   const initialQuestions: RawEventQuestion[] = template.questions.map((question) => ({
     prompt: question.prompt,
     answerType: question.answerType,
@@ -95,6 +109,7 @@ export default async function EventTemplatePage({
         eventTypeLabel={template.name}
         initial={initial}
         initialQuestions={initialQuestions}
+        initialEventMessages={initialEventMessages}
         categories={audienceCategoriesForEventType(template.eventType, { templateOnly: true })}
         candidates={candidates}
         eventCount={eventCount}

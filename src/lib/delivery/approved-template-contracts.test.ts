@@ -53,6 +53,8 @@ const expected = {
   onboarding_welcome: [["inviteeName", "subject", "openedOn"], 1],
   onboarding_chase: [["inviteeName", "subject", "openedOn"], 1],
   onboarding_chase_escalation: [["outstandingCount"], 0],
+  // LAN-508. Brian's body on the ticket; an image header, no buttons.
+  event_brief: [["inviteeName", "eventName", "whenLabel"], 0],
 } as const;
 
 const config: OutboundConfig = {
@@ -94,6 +96,7 @@ const message: OutboundMessage = {
   stopUrl: "https://club.example/stop/stop.token",
   queueUrl:
     "https://club.example/operate/admin/follow-ups?event=11111111-1111-4111-8111-111111111111",
+  brief: "## Itinerary\n- 8:30 AM Bus",
 };
 
 type Payload = {
@@ -113,7 +116,8 @@ describe("the approved production WhatsApp contracts", () => {
       expect(MESSAGE_TEMPLATES[kind].parameterNames).toEqual(names);
       expect(MESSAGE_TEMPLATES[kind].buttonCount ?? 0).toBe(count);
 
-      const payload = buildMessageBody(config, { ...message, kind }) as Payload;
+      // LAN-508: an image header is named by the id its upload returned.
+      const payload = buildMessageBody(config, { ...message, kind }, "media.id") as Payload;
       const body = payload.template.components.filter((c) => c.type === "body");
       expect(body).toHaveLength(names.length ? 1 : 0);
       expect(body[0]?.parameters ?? []).toHaveLength(names.length);
@@ -123,8 +127,26 @@ describe("the approved production WhatsApp contracts", () => {
       );
       // Meta renders an empty parameter as literal nothing rather than
       // refusing it, so a blank slot is a delivered message with a hole in it.
-      for (const component of payload.template.components)
+      for (const component of payload.template.components.filter((c) => c.type !== "header"))
         for (const parameter of component.parameters) expect(parameter.text.trim()).not.toBe("");
+
+      // LAN-508: the brief's template has an image header and no other does.
+      const headers = payload.template.components.filter((c) => c.type === "header");
+      expect(headers).toHaveLength(kind === "event_brief" ? 1 : 0);
+      if (kind === "event_brief") {
+        expect(headers[0].parameters).toEqual([{ type: "image", image: { id: "media.id" } }]);
+        expect(TEMPLATE_NAMES.event_brief).toBe("lancers_event_brief_image_v1");
+        const bare = structuredClone(payload);
+        bare.template.components = bare.template.components.filter((c) => c.type !== "header");
+        const refused = await createDeliverySink(
+          { APP_BASE_URL: "http://localhost:3000" },
+          { write: () => {} },
+        )("https://graph.facebook.com/v26.0/12345/messages", {
+          method: "POST",
+          body: JSON.stringify(bare),
+        });
+        expect(refused.status).toBe(400);
+      }
 
       // Both escalations carry their queue URL hardcoded in the approved body,
       // because Meta refuses a body variable holding a URL. The payload must

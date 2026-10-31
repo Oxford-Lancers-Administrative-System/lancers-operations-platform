@@ -43,6 +43,9 @@ import { showsAttendanceProgress } from "@/lib/services/event-attendance-progres
 import { AudienceList } from "./audience-list";
 import { responseNamePanels } from "./response-names";
 import { QuestionList } from "./question-list";
+import { EventMessageList } from "./event-message-list";
+import type { StoredEventMessage } from "@/lib/services/event-messages";
+import { clubEventStart } from "@/lib/services/event-messages-input";
 import {
   APPROVED_HEADLINE,
   APPROVED_NOTHING_SENT_YET,
@@ -147,6 +150,7 @@ export function EventDetailView({
   groupByStorageKey,
   share,
   frozenPlan,
+  eventMessages = [],
 }: {
   event: EventDetail;
   mayManage: boolean;
@@ -176,6 +180,8 @@ export function EventDetailView({
   } | null;
   /** LAN-171. Non-null exactly when the event is approved. */
   frozenPlan: FrozenMessagingPlan | null;
+  /** LAN-508. The event's messages, shown from approval on. */
+  eventMessages?: readonly StoredEventMessage[];
 }) {
   const preApproval = isPreApproval(event.status);
   // W5-04 recovery path: offered only when the last amendment went out
@@ -387,7 +393,7 @@ export function EventDetailView({
         {/* W1: frozen at approval — REQ-schedule-not-retroactive. A later schedule change never rewrites this. */}
         {frozenPlan ? (
           <MessagingPlanDisclosure
-            display={frozenPlanForDisplay(frozenPlan)}
+            display={frozenPlanForDisplay(frozenPlan, eventMessages, event)}
             audienceSize={audience.filter((member) => member.capacity !== "recruit").length}
             recruitAudienceSize={audience.filter((member) => member.capacity === "recruit").length}
             approved
@@ -399,6 +405,15 @@ export function EventDetailView({
             </Typography>
             <Typography variant="body2">{PLAN_MISSING_NOTE}</Typography>
           </Notice>
+        ) : null}
+
+        {/* LAN-508, W1-04: the event messages, after the plan. */}
+        {event.status !== "draft" && eventMessages.length > 0 ? (
+          <EventMessageList
+            messages={eventMessages}
+            eventStatus={event.status}
+            eventStart={clubEventStart(event.scheduledOn, event.startsAt)}
+          />
         ) : null}
 
         {/* §4.13: below the facts, above the actions — past, not future. */}

@@ -1247,6 +1247,161 @@ export type Database = {
           },
         ]
       }
+      event_message_send_recipients: {
+        Row: {
+          id: string
+          person_id: string
+          send_id: string
+        }
+        Insert: {
+          id?: string
+          person_id: string
+          send_id: string
+        }
+        Update: {
+          id?: string
+          person_id?: string
+          send_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_message_send_recipients_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_message_send_recipients_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "event_message_send_recipients_send_id_fkey"
+            columns: ["send_id"]
+            isOneToOne: false
+            referencedRelation: "event_message_sends"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_message_sends: {
+        Row: {
+          body: string
+          channel: Database["public"]["Enums"]["event_message_channel"]
+          event_id: string
+          event_message_id: string
+          hours_before: number
+          id: string
+          recipients: Database["public"]["Enums"]["event_message_recipients"]
+          resent_by_person_id: string | null
+          sent_at: string
+          version: number
+        }
+        Insert: {
+          body: string
+          channel: Database["public"]["Enums"]["event_message_channel"]
+          event_id: string
+          event_message_id: string
+          hours_before: number
+          id?: string
+          recipients: Database["public"]["Enums"]["event_message_recipients"]
+          resent_by_person_id?: string | null
+          sent_at?: string
+          version: number
+        }
+        Update: {
+          body?: string
+          channel?: Database["public"]["Enums"]["event_message_channel"]
+          event_id?: string
+          event_message_id?: string
+          hours_before?: number
+          id?: string
+          recipients?: Database["public"]["Enums"]["event_message_recipients"]
+          resent_by_person_id?: string | null
+          sent_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_message_sends_message_fkey"
+            columns: ["event_message_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "event_messages"
+            referencedColumns: ["id", "event_id"]
+          },
+          {
+            foreignKeyName: "event_message_sends_resent_by_person_id_fkey"
+            columns: ["resent_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_message_sends_resent_by_person_id_fkey"
+            columns: ["resent_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      event_messages: {
+        Row: {
+          body: string
+          channel: Database["public"]["Enums"]["event_message_channel"]
+          created_at: string
+          event_id: string
+          from_template: boolean
+          hours_before: number
+          id: string
+          recipients: Database["public"]["Enums"]["event_message_recipients"]
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          channel: Database["public"]["Enums"]["event_message_channel"]
+          created_at?: string
+          event_id: string
+          from_template?: boolean
+          hours_before: number
+          id?: string
+          recipients: Database["public"]["Enums"]["event_message_recipients"]
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          channel?: Database["public"]["Enums"]["event_message_channel"]
+          created_at?: string
+          event_id?: string
+          from_template?: boolean
+          hours_before?: number
+          id?: string
+          recipients?: Database["public"]["Enums"]["event_message_recipients"]
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_messages_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_messages_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+        ]
+      }
       event_messaging_plans: {
         Row: {
           dispatches_immediately: boolean
@@ -1493,6 +1648,47 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_templates"
             referencedColumns: ["id", "event_type"]
+          },
+        ]
+      }
+      event_template_messages: {
+        Row: {
+          body: string
+          channel: Database["public"]["Enums"]["event_message_channel"]
+          created_at: string
+          hours_before: number
+          id: string
+          recipients: Database["public"]["Enums"]["event_message_recipients"]
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          body: string
+          channel: Database["public"]["Enums"]["event_message_channel"]
+          created_at?: string
+          hours_before: number
+          id?: string
+          recipients: Database["public"]["Enums"]["event_message_recipients"]
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          body?: string
+          channel?: Database["public"]["Enums"]["event_message_channel"]
+          created_at?: string
+          hours_before?: number
+          id?: string
+          recipients?: Database["public"]["Enums"]["event_message_recipients"]
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_template_messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -5838,6 +6034,8 @@ export type Database = {
       delivery_outcome: "delivered" | "failed" | "rejected" | "manual"
       eligibility_status: "pending" | "eligible" | "ineligible" | "expired"
       event_delivery_mode: "in_person" | "online"
+      event_message_channel: "whatsapp" | "email" | "both"
+      event_message_recipients: "everyone" | "yes"
       event_origin:
         | "club_controlled"
         | "externally_assigned"
@@ -6145,6 +6343,8 @@ export const Constants = {
       delivery_outcome: ["delivered", "failed", "rejected", "manual"],
       eligibility_status: ["pending", "eligible", "ineligible", "expired"],
       event_delivery_mode: ["in_person", "online"],
+      event_message_channel: ["whatsapp", "email", "both"],
+      event_message_recipients: ["everyone", "yes"],
       event_origin: [
         "club_controlled",
         "externally_assigned",

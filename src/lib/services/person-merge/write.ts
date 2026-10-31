@@ -216,6 +216,19 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
       "answer already follows (raisePersonFactDisputeIn's own upsert); never auto-resolved, " +
       "since resolving is a four-role decision this merge does not make on anybody's behalf",
   },
+  // LAN-508. Both tables are granted select and insert only, so the server
+  // role could not re-point them; the resend's recipient query resolves the
+  // survivor instead (`event-messages/store.ts`).
+  {
+    table: "event_message_send_recipients",
+    column: "person_id",
+    reason: "append-only history; resolved through merged_into_person_id at read time",
+  },
+  {
+    table: "event_message_sends",
+    column: "resent_by_person_id",
+    reason: "append-only history; resolved through merged_into_person_id at read time",
+  },
   {
     table: "season_memberships",
     column: "person_id",

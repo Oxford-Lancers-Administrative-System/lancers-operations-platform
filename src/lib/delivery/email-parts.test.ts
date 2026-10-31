@@ -96,6 +96,11 @@ export const FIXTURE_MESSAGE: OutboundMessage = {
   formUrl: "https://app.oxfordlancers.example/signup/form-token",
   stopUrl: "https://app.oxfordlancers.example/stop/stop-token",
   attendanceUrl: "https://app.oxfordlancers.example/operate/events/event-id/attendance",
+  // LAN-508. Every format the toolbar writes, and a line of markup that must stay text.
+  brief:
+    "# GAMEDAY vs Cambridge\n## Attire\nShirt and tie. **BLUES BLAZERS!**\n\n" +
+    "## Itinerary\n- 8:30 AM Bus leaves\n- 14:00 Kick-off\n\n## Bring\n- Helmet\n" +
+    "<script>alert(1)</script>",
   // LAN-514: a message written on the Messages page.
   subject: "Special teams playbook",
   bodyText: "Hello all,\n\nThe playbook is attached.",
@@ -147,7 +152,23 @@ describe("the HTML part", () => {
     expect(html).toBe(fixture(kind, "html", html));
   });
 
-  it.each(MESSAGE_KINDS)("carries every body line of %s escaped in its own paragraph", (kind) => {
+  // LAN-508: the brief is its own markup, asserted in its own block below.
+  const LINE_KINDS = MESSAGE_KINDS.filter((kind) => kind !== "event_brief");
+
+  it("renders the event brief's formats into the shell, its text escaped", () => {
+    const { text, html } = renderedParts("event_brief");
+    expect(html).toContain(
+      '<p style="margin:0 0 16px 0;">Hello Jamie, your brief for Michaelmas week 3 on Wednesday 14 October, 20:00.</p>',
+    );
+    expect(html).toContain(">GAMEDAY vs Cambridge</h2>");
+    expect(html).toContain("<strong>BLUES BLAZERS!</strong>");
+    expect(html).toContain(">8:30 AM</td>");
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(text).toContain("8:30 AM  Bus leaves");
+  });
+
+  it.each(LINE_KINDS)("carries every body line of %s escaped in its own paragraph", (kind) => {
     const { text, html } = renderedParts(kind);
     for (const line of text.split("\n\n")) {
       // The Stop line is the one that moves, into the signature block, where it

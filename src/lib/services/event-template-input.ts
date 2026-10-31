@@ -4,6 +4,7 @@
 
 import { EVENT_DELIVERY_MODES, optional, trimmed, type EventDeliveryMode } from "./event-input";
 import type { RawEventQuestion } from "./event-questions-input";
+import type { RawEventMessage } from "./event-messages-input";
 
 // Here, not event-templates.ts (server-only) — readEventFormDefaults builds these.
 export interface EventTypeFormDefaults {
@@ -17,6 +18,8 @@ export interface EventTypeFormDefaults {
   attendance: "mandatory" | "optional";
   durationMinutes: number | null;
   questions: RawEventQuestion[];
+  /** LAN-508. The template's event messages, as cards; absent where a caller has none to say. */
+  eventMessages?: RawEventMessage[];
 }
 
 // LAN-265: every new template picks "Practice" — nothing on screen offers a choice (D15).

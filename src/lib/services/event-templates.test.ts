@@ -681,6 +681,8 @@ describe("a new event arrives carrying its type's template (D40-D42, D47)", () =
       "deliveryMode",
       "description",
       "durationMinutes",
+      // LAN-508: the template's event messages, the skeleton a new event starts with.
+      "eventMessages",
       "eventType",
       "id",
       "name",

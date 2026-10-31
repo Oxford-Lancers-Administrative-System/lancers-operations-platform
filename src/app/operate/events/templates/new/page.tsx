@@ -54,6 +54,7 @@ export default async function NewEventTemplatePage() {
         eventTypeLabel={NEW_TEMPLATE_HEADLINE}
         initial={initial}
         initialQuestions={[]}
+        initialEventMessages={[]}
         categories={audienceCategoriesForEventType(DEFAULT_TEMPLATE_CLASS, { templateOnly: true })}
         candidates={candidates}
         eventCount={0}

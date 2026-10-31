@@ -36,6 +36,8 @@ import {
 } from "./actions";
 import { EMPTY_TEMPLATE_FORM_STATE } from "./form-state";
 import { ChangePlan } from "./template-change-plan";
+import EventMessageEditor from "../event-message-editor";
+import type { RawEventMessage } from "@/lib/services/event-messages-input";
 import { issueFor, TemplateEventFields } from "./template-form-fields";
 import {
   confirmSaveAction,
@@ -66,6 +68,8 @@ export interface TemplateEditorProps {
   eventTypeLabel: string;
   initial: RawEventTemplate;
   initialQuestions: RawEventQuestion[];
+  /** LAN-508. The template's event messages — the skeleton each new event starts with. */
+  initialEventMessages?: RawEventMessage[];
   /** LAN-414: the whole catalogue by category, the same one the event form shows. */
   categories: readonly AudienceCategorySection[];
   /**
@@ -84,6 +88,7 @@ export default function TemplateEditor({
   eventTypeLabel,
   initial,
   initialQuestions,
+  initialEventMessages = [],
   categories,
   candidates,
   eventCount,
@@ -123,6 +128,9 @@ export default function TemplateEditor({
     ...((initial.audienceGroups ?? []) as string[]),
   ]);
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
+  const [eventMessages, setEventMessages] = useState<RawEventMessage[]>(() => [
+    ...initialEventMessages,
+  ]);
   const [name, setName] = useState(text("name"));
   const [colourKey, setColourKey] = useState(text("colourKey"));
   const [deleting, setDeleting] = useState(false);
@@ -211,6 +219,22 @@ export default function TemplateEditor({
             value={question.required === "required" ? "required" : "optional"}
           />
           <input type="hidden" name="questionChoices" value={question.choices ?? ""} />
+        </Box>
+      ))}
+      {/* LAN-508: the confirmation re-posts the event messages too. */}
+      <input type="hidden" name="eventMessagesPresent" value="1" />
+      {eventMessages.map((message, index) => (
+        <Box component="span" key={`message-${index}`}>
+          <input type="hidden" name="eventMessageId" value="" />
+          <input type="hidden" name="eventMessageHoursBefore" value={message.hoursBefore ?? ""} />
+          <input type="hidden" name="eventMessageChannel" value={message.channel || "both"} />
+          <input
+            type="hidden"
+            name="eventMessageRecipients"
+            value={message.recipients || "everyone"}
+          />
+          <input type="hidden" name="eventMessageBody" value={message.body ?? ""} />
+          <input type="hidden" name="eventMessageFromTemplate" value="false" />
         </Box>
       ))}
     </>
@@ -346,6 +370,14 @@ export default function TemplateEditor({
             disabled={busy}
             headline={TEMPLATE_QUESTIONS_HEADLINE}
             detail=""
+          />
+
+          {/* LAN-508: the event messages every new event of this template starts with. */}
+          <EventMessageEditor
+            messages={eventMessages}
+            onChange={setEventMessages}
+            issues={state.eventMessageIssues ?? []}
+            disabled={busy}
           />
 
           <ActionBar

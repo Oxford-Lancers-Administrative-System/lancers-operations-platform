@@ -82,6 +82,8 @@ const MESSAGE_KINDS = Object.freeze([
   "attendance_sheet",
   // LAN-459. The details request to an operator the club has only a phone number for.
   "operator_details",
+  // LAN-508. One recipient's copy of an event message (the game day brief).
+  "event_message",
   // LAN-514. A message written on the Messages page.
   "club_message",
   "other",
@@ -102,6 +104,7 @@ export const KIND_FAMILIES = Object.freeze({
   ],
   onboarding: ["onboarding_welcome", "onboarding_chase", "onboarding_nudge", "operator_details"],
   attendance: ["attendance_sheet"],
+  event_message: ["event_message"],
   messages: ["club_message"],
 } as const satisfies Record<string, readonly MessageKind[]>);
 export type KindFamily = keyof typeof KIND_FAMILIES;
