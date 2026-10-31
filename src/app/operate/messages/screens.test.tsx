@@ -8,7 +8,7 @@ vi.mock("server-only", () => ({}));
 
 const { readClubMessage, audience } = vi.hoisted(() => ({
   readClubMessage: vi.fn(),
-  audience: { keys: [] as string[] },
+  audience: { keys: [] as string[], chooserProps: null as Record<string, unknown> | null },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -22,7 +22,10 @@ vi.mock("@/app/operate/gate", () => ({
 vi.mock("@/lib/services/club-messages", () => ({ readClubMessage }));
 // The chooser is the event builder's own and tested there; here it only supplies a choice.
 vi.mock("@/app/operate/events/audience-chooser", () => ({
-  AudienceChooser: () => null,
+  AudienceChooser: (props: Record<string, unknown>) => {
+    audience.chooserProps = props;
+    return null;
+  },
   useAudienceChoice: () => ({
     selected: new Set(audience.keys),
     setSelected: vi.fn(),
@@ -86,6 +89,12 @@ describe("composing a message", () => {
     // Inside the field's outline: the same input root holds the text and the files.
     const root = box.querySelector(".MuiInputBase-root")!;
     expect(root.contains(screen.getByTestId("compose-attachments"))).toBe(true);
+  });
+
+  // LAN-514, Brian's second walk: the people picker starts closed too.
+  it("asks the audience chooser to start closed", () => {
+    compose();
+    expect(audience.chooserProps?.collapsed).toBe(true);
   });
 
   it("closes the recipients on arrival, the counts in the header", () => {

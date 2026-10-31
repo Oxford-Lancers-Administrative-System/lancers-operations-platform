@@ -6,6 +6,7 @@ import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { ControlledSection } from "@/components/controlled-section";
 import { EmptyState } from "@/components/empty-state";
 import { CheckField, Field, SelectField } from "@/components/field";
 import {
@@ -22,6 +23,9 @@ import { AudiencePicker } from "./audience-picker";
 import { describeAudienceRow } from "./presentation";
 
 const UNITS = ["Both", "Offence", "Defence", "Special teams"] as const;
+
+/** The folded tick list's heading on Messages (LAN-514). */
+export const PEOPLE_HEADING = "People";
 
 /** The chooser's state — the people's keys and the groups that were ticked — owned by the form that submits it. */
 export function useAudienceChoice(
@@ -43,7 +47,10 @@ export type AudienceChoiceState = ReturnType<typeof useAudienceChoice>;
  * one-row-per-person tick list — shared by the event audience builder and,
  * since LAN-514, the Messages page. It owns no submission: the form around it
  * reads `choice` and posts it. `rowNote` adds a short marker to a person's row
- * (Messages marks who has no email).
+ * (Messages marks who has no email). `collapsed` (Messages, Brian's second
+ * walk on 31 October) starts every group band closed and folds the search,
+ * filters and tick list into one closed section headed by the chosen count;
+ * ticks live in `choice`, so closing and reopening keeps them.
  */
 export function AudienceChooser({
   eventType,
@@ -51,12 +58,14 @@ export function AudienceChooser({
   counts,
   choice,
   rowNote,
+  collapsed = false,
 }: {
   eventType: string;
   candidates: readonly AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
   choice: AudienceChoiceState;
   rowNote?: (person: AudiencePerson) => ReactNode;
+  collapsed?: boolean;
 }) {
   const { selected, setSelected, pressedGroups, setPressedGroups } = choice;
   // LAN-414 — the catalogue by category, one read shared by every surface that chooses.
@@ -64,6 +73,7 @@ export function AudienceChooser({
   const [search, setSearch] = useState("");
   const [capacity, setCapacity] = useState<"all" | AudienceCapacity>("all");
   const [unit, setUnit] = useState<string>("all");
+  const [peopleOpen, setPeopleOpen] = useState(!collapsed);
 
   const keys = useMemo(() => [...selected], [selected]);
   const resolution = useMemo(() => resolveSelection(candidates, keys), [candidates, keys]);
@@ -134,25 +144,9 @@ export function AudienceChooser({
     });
   }
 
-  return (
-    <Stack spacing={3}>
-      <Box>
-        <Typography variant="overline" color="text.secondary" component="p">
-          Add a group
-        </Typography>
-        <AudiencePicker
-          categories={categories}
-          counts={groupCounts}
-          selectedGroups={pressedGroups}
-          onToggleGroup={pressGroup}
-          people={people}
-          onClear={() => {
-            setSelected(new Set());
-            setPressedGroups(new Set());
-          }}
-        />
-      </Box>
-
+  const chosenCount = roster.filter(isChosen).length;
+  const peoplePart = (
+    <Stack spacing={3} data-testid="audience-people">
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Field
           label="Search name, role or contact"
@@ -236,6 +230,43 @@ export function AudienceChooser({
             </Box>
           ))}
         </Stack>
+      )}
+    </Stack>
+  );
+
+  return (
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="overline" color="text.secondary" component="p">
+          Add a group
+        </Typography>
+        <AudiencePicker
+          categories={categories}
+          counts={groupCounts}
+          selectedGroups={pressedGroups}
+          onToggleGroup={pressGroup}
+          people={people}
+          startClosed={collapsed}
+          onClear={() => {
+            setSelected(new Set());
+            setPressedGroups(new Set());
+          }}
+        />
+      </Box>
+
+      {collapsed ? (
+        <ControlledSection
+          title={PEOPLE_HEADING}
+          description={`${chosenCount} of ${roster.length} chosen`}
+          open={peopleOpen}
+          onToggle={() => setPeopleOpen((value) => !value)}
+          panelId="audience-people-panel"
+          toggleTestId="audience-people-toggle"
+        >
+          {peoplePart}
+        </ControlledSection>
+      ) : (
+        peoplePart
       )}
     </Stack>
   );

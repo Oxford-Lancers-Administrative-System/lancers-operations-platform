@@ -234,6 +234,7 @@ export function ComposeForm({
             candidates={candidates}
             counts={counts}
             choice={choice}
+            collapsed
             rowNote={(person) =>
               unreachable[person.personId] ? (
                 <Typography variant="body2" color="warning.main" data-testid="row-unreachable">

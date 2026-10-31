@@ -915,7 +915,12 @@ the count.
    search, Capacity and Unit, one row per person), its per-person detail
    narrowed to the sender's roster and recruiting grants as the event builder
    narrows it (LAN-423). The send resolves the chosen keys against that same
-   narrowed catalogue, so a key the page did not offer is refused. A person
+   narrowed catalogue, so a key the page did not offer is refused. Here it
+   starts closed (Brian's second walk, 2026-10-31): every group band is shut,
+   each keeping its **N chosen** mark, and the search, Capacity, Unit and the
+   person rows fold into one **People** section, closed on arrival, its header
+   reading **N of M chosen**. Ticks survive closing and reopening. The event
+   audience builder itself is unchanged. A person
    with no current email is marked **Not reachable · No email**, and a recruit
    with no granted season messaging consent **Not reachable · No consent**, as
    their event invitation would be; both marks show only to a seat that reads
