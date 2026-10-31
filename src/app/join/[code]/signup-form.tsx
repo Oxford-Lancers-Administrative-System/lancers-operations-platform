@@ -1,11 +1,12 @@
 "use client";
 
 import { ListField } from "@/components/list-field";
-import { subjectOptions } from "@/components/academic-fields";
+import { letterOptions, subjectOptions } from "@/components/academic-fields";
 import {
   COLLEGE_OPTIONS,
-  DEGREE_LETTER_OPTIONS,
-  isSubjectFor,
+  type DegreePair,
+  pairAfterLetters,
+  pairAfterSubject,
 } from "@/lib/services/oxford-academic";
 import { useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/notice";
@@ -215,6 +216,11 @@ export default function SignupForm({
   function choose(patch: Partial<SignupFieldValues>) {
     setError(null);
     setValues((current) => ({ ...current, ...patch }));
+  }
+
+  const degreePair = { letters: values.degreeType, subject: values.degreeField };
+  function chooseDegree(pair: DegreePair) {
+    choose({ degreeType: pair.letters, degreeField: pair.subject });
   }
 
   function field(name: keyof SignupFieldValues) {
@@ -501,23 +507,16 @@ export default function SignupForm({
         <ListField
           name="degreeType"
           label="Degree"
-          options={DEGREE_LETTER_OPTIONS}
+          options={letterOptions(values.degreeField)}
           value={values.degreeType}
-          onChange={(next) =>
-            choose({
-              degreeType: next,
-              ...(values.degreeField !== "" && !isSubjectFor(next, values.degreeField)
-                ? { degreeField: "" }
-                : {}),
-            })
-          }
+          onChange={(next) => chooseDegree(pairAfterLetters(degreePair, next))}
         />
         <ListField
           name="degreeField"
           label="Subject"
           options={subjectOptions(values.degreeType)}
           value={values.degreeField}
-          onChange={(next) => choose({ degreeField: next })}
+          onChange={(next) => chooseDegree(pairAfterSubject(degreePair, next))}
         />
 
         <CheckField

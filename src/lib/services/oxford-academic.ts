@@ -103,6 +103,49 @@ export function isSubjectFor(letters: string, subject: string): boolean {
   return subjectsForLetters(letters).includes(subject);
 }
 
+/**
+ * The letters that offer this subject, in the list's order (LAN-512, Brian's
+ * second walk, 31 October). With no subject, or one no letters offer (a
+ * legacy value on file), every letter, so the Degree can still be chosen.
+ */
+export function lettersForSubject(subject: string): readonly AcademicOption[] {
+  if (subject === "") return DEGREE_LETTER_OPTIONS;
+  const offering = DEGREE_LETTER_OPTIONS.filter((option) =>
+    (SUBJECTS_BY_LETTERS[option.value] ?? []).includes(subject),
+  );
+  return offering.length > 0 ? offering : DEGREE_LETTER_OPTIONS;
+}
+
+/** A degree as its two choices. */
+export interface DegreePair {
+  readonly letters: string;
+  readonly subject: string;
+}
+
+/**
+ * The pair after the Degree changes (LAN-512, 31 October). A Degree that does
+ * not offer the subject clears it (clearing the Degree keeps it); a Degree
+ * that offers exactly one subject fills it in. Nothing else is filled in.
+ */
+export function pairAfterLetters(current: DegreePair, letters: string): DegreePair {
+  const keep = letters === "" || isSubjectFor(letters, current.subject);
+  const subject = keep ? current.subject : "";
+  const offered = letters === "" ? [] : subjectsForLetters(letters);
+  return { letters, subject: subject === "" && offered.length === 1 ? offered[0] : subject };
+}
+
+/**
+ * The pair after the Subject changes (LAN-512, 31 October). With no Degree
+ * chosen, a subject only one Degree offers fills that Degree in; a subject
+ * several offer fills nothing. Clearing the Subject clears nothing else.
+ */
+export function pairAfterSubject(current: DegreePair, subject: string): DegreePair {
+  if (current.letters !== "" || subject === "") return { letters: current.letters, subject };
+  const offering = lettersForSubject(subject);
+  const only = offering.length === 1 ? offering[0].value : "";
+  return { letters: only, subject };
+}
+
 /** What the record shows for the letters: the label for a listed one, the stored text otherwise. */
 export function degreeLettersDisplay(value: string | null | undefined): string | null {
   if (value === null || value === undefined || value.trim() === "") return null;

@@ -1100,6 +1100,19 @@ describe("LAN-512 — the subject with no degree chosen (Brian's walk, 31 Octobe
         .map((option) => option.textContent),
     ).toEqual(["Business Administration"]);
   });
+
+  // LAN-512, Brian's second walk: the two lists filter each other.
+  it("fills in the Degree when only one offers the subject chosen first", async () => {
+    givenValid();
+    const { container } = await renderPage({ step: "details" });
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("combobox", { name: /^Subject/ }), "Business Administration");
+    await user.click(screen.getByRole("option", { name: "Business Administration" }));
+    expect(
+      (container.querySelector('input[type="hidden"][name="degree_type"]') as HTMLInputElement)
+        .value,
+    ).toBe("MBA");
+  });
 });
 
 describe("LAN-413 — a refused save is shown on the step", () => {

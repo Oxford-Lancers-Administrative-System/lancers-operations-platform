@@ -6,11 +6,12 @@ import { Field, CheckField, ChoiceField, DateField } from "@/components/field";
 import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
 import { PhoneField } from "@/components/phone-field";
 import { ListField, type ListOption } from "@/components/list-field";
-import { subjectOptions } from "@/components/academic-fields";
+import { letterOptions, subjectOptions } from "@/components/academic-fields";
 import {
   COLLEGE_OPTIONS,
-  DEGREE_LETTER_OPTIONS,
-  isSubjectFor,
+  type DegreePair,
+  pairAfterLetters,
+  pairAfterSubject,
 } from "@/lib/services/oxford-academic";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
@@ -118,6 +119,11 @@ export function DetailsForm({
   const [college, setCollege] = useState(initialValues.college);
   const [degreeType, setDegreeType] = useState(initialValues.degree_type);
   const [degreeField, setDegreeField] = useState(initialValues.degree_field);
+  const degreePair = { letters: degreeType, subject: degreeField };
+  const chooseDegree = (pair: DegreePair) => {
+    setDegreeType(pair.letters);
+    setDegreeField(pair.subject);
+  };
   const firstInvalid = firstInvalidDetailsField(errors);
   const focusTarget = useRef<HTMLInputElement | null>(null);
 
@@ -257,14 +263,9 @@ export function DetailsForm({
             })}
             {field("degree_type", FIELD_DEGREE_TYPE, {
               list: {
-                options: DEGREE_LETTER_OPTIONS,
+                options: letterOptions(degreeField),
                 value: degreeType,
-                onChange: (next) => {
-                  setDegreeType(next);
-                  if (degreeField !== "" && !isSubjectFor(next, degreeField)) {
-                    setDegreeField("");
-                  }
-                },
+                onChange: (next) => chooseDegree(pairAfterLetters(degreePair, next)),
               },
             })}
             {field("degree_field", FIELD_DEGREE_FIELD, {
@@ -272,7 +273,7 @@ export function DetailsForm({
               list: {
                 options: subjectOptions(degreeType),
                 value: degreeField,
-                onChange: setDegreeField,
+                onChange: (next) => chooseDegree(pairAfterSubject(degreePair, next)),
               },
             })}
           </Stack>

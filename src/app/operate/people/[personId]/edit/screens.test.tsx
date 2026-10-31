@@ -286,19 +286,58 @@ describe("a four-role operator", () => {
       await user.click(screen.getByRole("option", { name: "Geography" }));
 
       const letters = within(student).getByRole("combobox", { name: "Degree" });
-      await user.type(letters, "Business");
-      await user.click(screen.getByRole("option", { name: /^MBA —/ }));
-      // MBA offers no Geography: the subject is cleared and the list narrows.
-      expect(
-        (student.querySelector('input[type="hidden"][name="degreeField"]') as HTMLInputElement)
-          .value,
-      ).toBe("");
-      await user.click(within(student).getByRole("combobox", { name: "Subject" }));
+      // LAN-512, second walk: Geography narrows the Degree to the two that offer it.
+      await user.click(letters);
       expect(
         within(screen.getByRole("listbox"))
           .getAllByRole("option")
           .map((option) => option.textContent),
-      ).toEqual(["Business Administration"]);
+      ).toEqual(["BA — Bachelor of Arts", "PGCE — Postgraduate Certificate in Education"]);
+      await user.click(screen.getByRole("option", { name: /^BA —/ }));
+      await user.click(within(student).getByRole("combobox", { name: "Subject" }));
+      expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(
+        subjectsForLetters("BA").length,
+      );
+    });
+
+    // LAN-512, second walk: a filled-in value is a change like a typed one.
+    it("asks for a reason when a filled-in Degree or Subject differs from the record", async () => {
+      signedInAs(["secretary"]);
+      vi.mocked(personVersion).mockResolvedValue(null);
+      vi.mocked(readCurrentSeason).mockResolvedValue({ id: "s", label: "2026-27" } as never);
+      const record = populatedRecord() as unknown as Record<string, unknown>;
+      vi.mocked(readPersonRecord).mockResolvedValue({
+        ...record,
+        degreeType: "BA",
+        degreeField: "Geography",
+      } as never);
+
+      const user = userEvent.setup();
+      render(await EditPersonPage(pageProps()));
+      const student = screen.getByTestId("section-student-information");
+      const posted = (name: string) =>
+        (student.querySelector(`input[type="hidden"][name="${name}"]`) as HTMLInputElement).value;
+      const reason = (name: string) => student.querySelector(`input[name="${name}"]`);
+      const letters = within(student).getByRole("combobox", { name: "Degree" });
+      const subject = within(student).getByRole("combobox", { name: "Subject" });
+
+      // Subject filled in from the Degree: Chemistry differs from Geography.
+      await user.clear(subject);
+      await user.type(letters, "{Control>}a{/Control}MChem");
+      await user.click(screen.getByRole("option", { name: /^MChem —/ }));
+      expect(posted("degreeType")).toBe("MChem");
+      expect(posted("degreeField")).toBe("Chemistry");
+      expect(reason("degreeTypeReason")).not.toBeNull();
+      expect(reason("degreeFieldReason")).not.toBeNull();
+
+      // Degree filled in from the Subject: MBA differs from BA.
+      await user.clear(subject);
+      await user.clear(letters);
+      await user.type(subject, "Business Administration");
+      await user.click(screen.getByRole("option", { name: "Business Administration" }));
+      expect(posted("degreeType")).toBe("MBA");
+      expect(reason("degreeTypeReason")).not.toBeNull();
+      expect(reason("degreeFieldReason")).not.toBeNull();
     });
 
     it("is present but closed for a coach who has never played, so a BAFA number can still be entered", async () => {

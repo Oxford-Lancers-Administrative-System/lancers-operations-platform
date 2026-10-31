@@ -20,13 +20,15 @@ import {
   COLLEGE_LABEL,
   DEGREE_LETTERS_LABEL,
   DEGREE_SUBJECT_LABEL,
+  letterOptions,
   subjectOptions,
 } from "@/components/academic-fields";
 import { ListField, type ListOption } from "@/components/list-field";
 import {
   COLLEGE_OPTIONS,
-  DEGREE_LETTER_OPTIONS,
-  isSubjectFor,
+  type DegreePair,
+  pairAfterLetters,
+  pairAfterSubject,
 } from "@/lib/services/oxford-academic";
 import { DIETARY_PREFERENCE_OPTIONS } from "@/lib/services/person-dietary";
 import { PhoneField } from "@/components/phone-field";
@@ -135,6 +137,11 @@ export default function EditPersonForm({
   // the subject chosen clear it.
   const [degreeType, setDegreeType] = useState(record.degreeType ?? "");
   const [degreeField, setDegreeField] = useState(record.degreeField ?? "");
+  const degreePair = { letters: degreeType, subject: degreeField };
+  const chooseDegree = (pair: DegreePair) => {
+    setDegreeType(pair.letters);
+    setDegreeField(pair.subject);
+  };
 
   return (
     <Box
@@ -318,16 +325,11 @@ export default function EditPersonForm({
                   name="degreeType"
                   reasonName="degreeTypeReason"
                   label={DEGREE_LETTERS_LABEL}
-                  listOptions={DEGREE_LETTER_OPTIONS}
+                  listOptions={letterOptions(degreeField)}
                   original={record.degreeType ?? ""}
                   error={state.errors.degreeType}
                   value={degreeType}
-                  onValueChange={(next) => {
-                    setDegreeType(next);
-                    if (degreeField !== "" && !isSubjectFor(next, degreeField)) {
-                      setDegreeField("");
-                    }
-                  }}
+                  onValueChange={(next) => chooseDegree(pairAfterLetters(degreePair, next))}
                 />
                 <CorrectableField
                   name="degreeField"
@@ -337,7 +339,7 @@ export default function EditPersonForm({
                   original={record.degreeField ?? ""}
                   error={state.errors.degreeField}
                   value={degreeField}
-                  onValueChange={setDegreeField}
+                  onValueChange={(next) => chooseDegree(pairAfterSubject(degreePair, next))}
                 />
                 {/* LAN-365: BAFA is last because the club fills it in — a
                     student never knows their own registration number, so it is

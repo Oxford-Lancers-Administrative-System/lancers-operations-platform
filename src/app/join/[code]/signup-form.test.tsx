@@ -9,7 +9,8 @@
  * disabled — the same mechanism a malformed number already uses here.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import SignupForm, { PARTIAL_SAVE_DELAY_MS, type SignupFieldValues } from "./signup-form";
 
@@ -326,5 +327,39 @@ describe("the partial save (LAN-425)", () => {
     expect(submit.mock.calls[0][0]).toMatchObject({ partialToken: null });
     // Let the saved screen land, so the state update is inside the test.
     await screen.findByText(/You.re in/);
+  });
+});
+
+describe("LAN-512 — Degree and Subject filter each other (Brian's second walk, 31 October)", () => {
+  const posted = (name: string) =>
+    (document.querySelector(`input[type="hidden"][name="${name}"]`) as HTMLInputElement).value;
+
+  it("fills in the Degree from a subject only it offers, and lists only the degrees that offer one", async () => {
+    renderSignup();
+    const user = userEvent.setup();
+    const subject = screen.getByRole("combobox", { name: /^Subject/ });
+    await user.type(subject, "Business Administration");
+    await user.click(screen.getByRole("option", { name: "Business Administration" }));
+    expect(posted("degreeType")).toBe("MBA");
+
+    await user.clear(subject);
+    await user.clear(screen.getByRole("combobox", { name: /^Degree/ }));
+    await user.type(subject, "Geography");
+    await user.click(screen.getByRole("option", { name: "Geography" }));
+    expect(posted("degreeType")).toBe("");
+    await user.click(screen.getByRole("combobox", { name: /^Degree/ }));
+    expect(
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["BA — Bachelor of Arts", "PGCE — Postgraduate Certificate in Education"]);
+  });
+
+  it("fills in the Subject from a degree that offers only one", async () => {
+    renderSignup();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("combobox", { name: /^Degree/ }), "MChem");
+    await user.click(screen.getByRole("option", { name: /^MChem —/ }));
+    expect(posted("degreeField")).toBe("Chemistry");
   });
 });

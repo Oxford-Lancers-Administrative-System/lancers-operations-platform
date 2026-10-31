@@ -7,9 +7,12 @@ import {
   degreeLettersDisplay,
   isOxfordCollege,
   isSubjectFor,
+  lettersForSubject,
   listedCollegeFor,
   listedLettersFor,
   listedSubjectFor,
+  pairAfterLetters,
+  pairAfterSubject,
   subjectsForLetters,
 } from "./oxford-academic";
 import { SUBJECTS_BY_LETTERS } from "./oxford-academic-data";
@@ -175,5 +178,80 @@ describe("LAN-512 — what a form may save", () => {
     expect(academicProblems({ letters: "MBA", subject: "Geography" })).toEqual({
       subject: "Choose a subject from the list for this degree.",
     });
+  });
+});
+
+describe("LAN-512 — Degree and Subject filter each other (Brian's second walk, 31 October)", () => {
+  const values = (options: readonly { value: string }[]) => options.map((option) => option.value);
+  const none = { letters: "", subject: "" };
+
+  it("lists the degrees that offer a subject; every degree with none, or with a subject none offer", () => {
+    expect(values(lettersForSubject("Geography"))).toEqual(["BA", "PGCE"]);
+    expect(values(lettersForSubject("Business Administration"))).toEqual(["MBA"]);
+    expect(lettersForSubject("")).toBe(DEGREE_LETTER_OPTIONS);
+    expect(lettersForSubject("Biochem")).toBe(DEGREE_LETTER_OPTIONS);
+  });
+
+  it("fills in the Degree when one alone offers a subject chosen first, and nothing when several do", () => {
+    expect(pairAfterSubject(none, "Business Administration")).toEqual({
+      letters: "MBA",
+      subject: "Business Administration",
+    });
+    expect(pairAfterSubject(none, "Geography")).toEqual({ letters: "", subject: "Geography" });
+    expect(pairAfterSubject(none, "Biochem")).toEqual({ letters: "", subject: "Biochem" });
+  });
+
+  it("never changes a Degree already chosen, and clears nothing when the Subject is cleared", () => {
+    expect(pairAfterSubject({ letters: "BA", subject: "" }, "Geography")).toEqual({
+      letters: "BA",
+      subject: "Geography",
+    });
+    expect(pairAfterSubject({ letters: "MBA", subject: "Business Administration" }, "")).toEqual({
+      letters: "MBA",
+      subject: "",
+    });
+  });
+
+  it("fills in the Subject when the Degree offers only one, and nothing when it offers several", () => {
+    expect(pairAfterLetters(none, "MChem")).toEqual({ letters: "MChem", subject: "Chemistry" });
+    expect(pairAfterLetters(none, "BA")).toEqual({ letters: "BA", subject: "" });
+  });
+
+  it("clears only a subject the new Degree does not offer, then fills in its only one", () => {
+    expect(pairAfterLetters({ letters: "", subject: "Geography" }, "BA")).toEqual({
+      letters: "BA",
+      subject: "Geography",
+    });
+    expect(pairAfterLetters({ letters: "", subject: "Geography" }, "DPhil")).toEqual({
+      letters: "DPhil",
+      subject: "",
+    });
+    expect(pairAfterLetters({ letters: "BA", subject: "Geography" }, "MBA")).toEqual({
+      letters: "MBA",
+      subject: "Business Administration",
+    });
+  });
+
+  it("keeps the Subject when the Degree is cleared", () => {
+    expect(pairAfterLetters({ letters: "BA", subject: "Geography" }, "")).toEqual({
+      letters: "",
+      subject: "Geography",
+    });
+    // A legacy value on file, too: clearing never clears it.
+    expect(pairAfterLetters({ letters: "BA", subject: "Biochem" }, "")).toEqual({
+      letters: "",
+      subject: "Biochem",
+    });
+  });
+
+  it("saves every pair the two lists can produce", () => {
+    for (const [letters, subjects] of Object.entries(SUBJECTS_BY_LETTERS)) {
+      for (const subject of subjects) {
+        expect(values(lettersForSubject(subject))).toContain(letters);
+        expect(academicProblems({ letters, subject })).toEqual({});
+        expect(academicProblems(pairAfterSubject(none, subject))).toEqual({});
+      }
+      expect(academicProblems(pairAfterLetters(none, letters))).toEqual({});
+    }
   });
 });

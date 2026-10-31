@@ -331,7 +331,17 @@ filters the list; only a listed entry can be chosen).
   chosen it narrows to what the University offers with them (BA offers its
   undergraduate subjects, MSc its MSc courses, MBA only "Business
   Administration"), and choosing letters clears a subject they do not offer.
-  The same holds in an import. The pair is stored on `people.degree_type` and `people.degree_field`.
+  The same holds in an import.
+- **Degree and Subject filter each other** (Brian's second walk, 2026-10-31).
+  A subject chosen narrows the Degree list to the letters that offer it
+  (Geography: BA and PGCE); a legacy subject no letters offer leaves every
+  letter listed. Where only one option remains the other field fills itself in
+  — a Degree that offers one subject (MChem: Chemistry; MBA: Business
+  Administration), or, with no Degree chosen, a subject only one Degree offers
+  (Business Administration: MBA). With several options nothing is filled in.
+  Clearing either field widens the other list again and clears nothing; on
+  Correct this record a filled-in value that differs from the record needs a
+  reason like any other change. The pair is stored on `people.degree_type` and `people.degree_field`.
   Where the University names a course by the award alone the subject is the
   research's proposal (MPP Public Policy, EMBA Business Administration
   (Executive), BCL Civil Law, MJur Law, DM Medicine, DClinPsych Clinical

@@ -5,8 +5,9 @@ import Stack from "@mui/material/Stack";
 import { ListField, type ListOption } from "@/components/list-field";
 import {
   COLLEGE_OPTIONS,
-  DEGREE_LETTER_OPTIONS,
-  isSubjectFor,
+  lettersForSubject,
+  pairAfterLetters,
+  pairAfterSubject,
   subjectsForLetters,
 } from "@/lib/services/oxford-academic";
 
@@ -17,6 +18,11 @@ export const DEGREE_SUBJECT_LABEL = "Subject";
 /** The subjects offered with these letters, as options; with no letters, every subject (LAN-512). */
 export function subjectOptions(letters: string): ListOption[] {
   return subjectsForLetters(letters).map((subject) => ({ value: subject, label: subject }));
+}
+
+/** The letters that offer this subject, as options; with no subject, every letter (LAN-512, 31 October). */
+export function letterOptions(subject: string): ListOption[] {
+  return [...lettersForSubject(subject)];
 }
 
 /** LAN-512 — the college, from the University's list only. */
@@ -58,10 +64,11 @@ export function CollegeField({
 }
 
 /**
- * LAN-512 — the degree as two choices: the letters and the subject. With no
- * letters the subject lists every subject; once letters are chosen it narrows
- * to what the University offers with them, and choosing letters clears a
- * subject they do not offer (Brian's walk, 31 October).
+ * LAN-512 — the degree as two choices: the letters and the subject, each
+ * narrowing the other (Brian's walks, 31 October). With neither chosen both
+ * list everything; a choice with only one partner fills the partner in; a
+ * Degree that does not offer the subject clears it. The rules live in
+ * `pairAfterLetters` and `pairAfterSubject`, shared by every form.
  */
 export function DegreeFields({
   lettersName = "degreeType",
@@ -82,21 +89,20 @@ export function DegreeFields({
   subjectError?: string;
   onChange?: (letters: string, subject: string) => void;
 }) {
-  const [letters, setLetters] = useState(defaultLetters);
-  const [subject, setSubject] = useState(defaultSubject);
+  const [pair, setPair] = useState({ letters: defaultLetters, subject: defaultSubject });
+  const { letters, subject } = pair;
+  const choose = (next: { letters: string; subject: string }) => {
+    setPair(next);
+    onChange?.(next.letters, next.subject);
+  };
   return (
     <Stack spacing={2}>
       <ListField
         name={lettersName}
         label={DEGREE_LETTERS_LABEL}
-        options={DEGREE_LETTER_OPTIONS}
+        options={letterOptions(subject)}
         value={letters}
-        onChange={(next) => {
-          const keep = subject !== "" && isSubjectFor(next, subject);
-          setLetters(next);
-          if (!keep) setSubject("");
-          onChange?.(next, keep ? subject : "");
-        }}
+        onChange={(next) => choose(pairAfterLetters(pair, next))}
         required={required}
         error={lettersError}
         testId="degree-letters-field"
@@ -106,10 +112,7 @@ export function DegreeFields({
         label={DEGREE_SUBJECT_LABEL}
         options={subjectOptions(letters)}
         value={subject}
-        onChange={(next) => {
-          setSubject(next);
-          onChange?.(letters, next);
-        }}
+        onChange={(next) => choose(pairAfterSubject(pair, next))}
         required={required}
         error={subjectError}
         testId="degree-subject-field"
