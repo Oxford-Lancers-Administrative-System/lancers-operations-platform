@@ -168,13 +168,12 @@ export const QUESTION_NO_ANSWER = "No answer";
 // Filters
 
 export const FILTER_SEARCH_LABEL = "Search name";
-export const FILTER_CAPACITY_LABEL = "As";
-export const FILTER_ANSWER_LABEL = "Answer";
-export const FILTER_ATTENDANCE_LABEL = "Attendance";
-export const FILTER_DELIVERY_LABEL = "Delivery";
-/** LAN-511: the filter bar names the list it filters (Brian and Stewart, 29 October). */
+/** LAN-511: the filter section's accessible name — the list it filters. */
 export const FILTER_HEADING = "Filter Everyone asked";
-export const CLEAR_FILTERS = "Clear filters";
+/** LAN-511: the roster board's chip bar, in its words. */
+export const FILTERED_BY = "Filtered by";
+export const SEARCH_CHIP_LABEL = "Search";
+export const CLEAR_FILTERS = "Clear all";
 
 /** `slice-ux.md` § 9: a filtered-empty table must not read like an empty one. */
 export const NO_MATCHING_PEOPLE = "No one matches these filters.";

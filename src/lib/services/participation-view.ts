@@ -493,6 +493,37 @@ export function participationSortHref(
   );
 }
 
+/** The four filters a column-header funnel or a pinned select writes (LAN-511). */
+export type ParticipationFilterKey = "capacity" | "answer" | "attendance" | "delivery";
+
+/**
+ * LAN-511: the link a filter choice points at — `patch` over the filters in
+ * force, the chosen Group by and the sort carried, empty values dropped. The
+ * same keys `readParticipationFilters` reads back.
+ */
+export function participationFilterHref(
+  basePath: string,
+  filters: ParticipationFilters,
+  groupBy: string | null,
+  patch: Partial<Record<keyof ParticipationFilters, string>>,
+): string {
+  const next = { ...filters, ...patch };
+  const params = new URLSearchParams();
+  const entries: [string, string][] = [
+    [PARTICIPATION_PARAMS.search, next.search],
+    [PARTICIPATION_PARAMS.capacity, next.capacity],
+    [PARTICIPATION_PARAMS.answer, next.answer],
+    [PARTICIPATION_PARAMS.attendance, next.attendance],
+    [PARTICIPATION_PARAMS.delivery, next.delivery],
+    [PARTICIPATION_PARAMS.sort, next.sort],
+    [PARTICIPATION_PARAMS.direction, next.direction],
+    [GROUP_BY_PARAM, groupBy ?? ""],
+  ];
+  for (const [key, value] of entries) if (value !== "") params.set(key, value);
+  const query = params.toString();
+  return query === "" ? basePath : `${basePath}?${query}`;
+}
+
 export function participationSortState(
   filters: ParticipationFilters,
   column: string,

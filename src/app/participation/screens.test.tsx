@@ -463,73 +463,41 @@ describe("the participation table", () => {
 // ---------------------------------------------------------------------------
 
 describe("the filter bar", () => {
-  it("navigates on each filter, carrying the others", () => {
-    render(
-      <ParticipationFilterBar
-        basePath="/operate/events/event-1"
-        filters={filters({ capacity: "player" })}
-        showDelivery
-      />,
-    );
+  /** Opens a pinned select (the phone's) by its label and picks an option. */
+  function pick(label: string, option: string) {
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: label }));
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: option }));
+  }
 
-    for (const [testId, value, key] of [
-      ["filter-answer", "no", "answer=no"],
-      ["filter-attendance", "present", "att=present"],
-      ["filter-delivery", "failed", "delivery=failed"],
-      ["filter-capacity", "coach", "as=coach"],
+  it("navigates on each filter, carrying the others", () => {
+    for (const [label, option, key] of [
+      ["Answer", "No", "answer=no"],
+      ["Attendance", "Present", "att=present"],
+      ["Delivery", "Failed", "delivery=failed"],
+      ["As", "Coach", "as=coach"],
     ] as const) {
       routerPush.mockReset();
-      fireEvent.click(screen.getByTestId(`${testId}-${value}`));
-      expect(routerPush, testId).toHaveBeenCalledTimes(1);
+      const view = render(
+        <ParticipationFilterBar
+          basePath="/operate/events/event-1"
+          filters={filters({ capacity: "player" })}
+          showDelivery
+        />,
+      );
+      pick(label, option);
+      expect(routerPush, label).toHaveBeenCalledTimes(1);
       const href = routerPush.mock.calls[0][0] as string;
-      expect(href, testId).toContain(key);
+      expect(href, label).toContain(key);
+      if (label !== "As") expect(href, label).toContain("as=player");
       // R157C-B2. Brian: "Whenever I add the filter, too, it also jumps me to
       // the top of the page." Revert `{ scroll: false }` on `apply` and this
       // fails — `router.push` is called with no second argument.
-      expect(routerPush.mock.calls[0][1], testId).toEqual({ scroll: false });
+      expect(routerPush.mock.calls[0][1], label).toEqual({ scroll: false });
+      view.unmount();
     }
   });
 
-  it("LAN-511: shows every choice at once as a button, the chosen one pressed", () => {
-    render(
-      <ParticipationFilterBar
-        basePath="/operate/events/event-1"
-        filters={filters({ answer: "yes", delivery: "failed" })}
-        showDelivery
-      />,
-    );
-    expect(screen.queryByRole("combobox", { name: "Answer" })).toBeNull();
-    const answer = within(screen.getByRole("group", { name: "Answer" }));
-    expect(answer.getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Yes",
-      "No",
-      "No answer",
-    ]);
-    expect(answer.getByRole("button", { name: "Yes" }).getAttribute("aria-pressed")).toBe("true");
-    expect(answer.getByRole("button", { name: "No" }).getAttribute("aria-pressed")).toBe("false");
-    expect(
-      within(screen.getByRole("group", { name: "Delivery" }))
-        .getAllByRole("button", { pressed: true })
-        .map((button) => button.textContent),
-    ).toEqual(["Failed"]);
-    expect(screen.getByRole("heading", { name: "Filter Everyone asked" })).toBeTruthy();
-  });
-
-  it("LAN-511: a second tap on the chosen filter clears it and keeps the others", () => {
-    render(
-      <ParticipationFilterBar
-        basePath="/operate/events/event-1"
-        filters={filters({ answer: "yes", attendance: "absent" })}
-        showDelivery
-      />,
-    );
-    fireEvent.click(screen.getByTestId("filter-answer-yes"));
-    const href = routerPush.mock.calls.at(-1)?.[0] as string;
-    expect(href).not.toContain("answer=");
-    expect(href).toContain("att=absent");
-  });
-
-  it("LAN-511: tapping another choice in the same row replaces the first", () => {
+  it("LAN-511: no row of one-tap buttons above the table any more", () => {
     render(
       <ParticipationFilterBar
         basePath="/operate/events/event-1"
@@ -537,13 +505,47 @@ describe("the filter bar", () => {
         showDelivery
       />,
     );
-    fireEvent.click(screen.getByTestId("filter-answer-no"));
-    const href = routerPush.mock.calls.at(-1)?.[0] as string;
-    expect(href).toContain("answer=no");
-    expect(href).not.toContain("answer=yes");
+    expect(document.querySelector('[data-testid^="filter-answer-"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: "Yes" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Filter Everyone asked" })).toBeNull();
+    // The section still names the list it filters.
+    expect(screen.getByRole("region", { name: "Filter Everyone asked" })).toBeTruthy();
   });
 
-  it("LAN-511: the link a tap produces reads back as the same filters", () => {
+  it("LAN-511: the phone's selects, in the table's column order, show the choice in force", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes", delivery: "failed" })}
+        showDelivery
+      />,
+    );
+    const phone = screen.getByTestId("participation-phone-filters");
+    expect(Array.from(phone.querySelectorAll("label"), (label) => label.textContent)).toEqual([
+      "As",
+      "Delivery",
+      "Answer",
+      "Attendance",
+    ]);
+    expect(within(phone).getByRole("combobox", { name: "Delivery" }).textContent).toBe("Failed");
+    expect(within(phone).getByRole("combobox", { name: "Answer" }).textContent).toBe("Yes");
+  });
+
+  it("LAN-511: choosing All in a select clears that filter and keeps the others", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "yes", attendance: "absent" })}
+        showDelivery
+      />,
+    );
+    pick("Answer", "All");
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).not.toContain("answer=");
+    expect(href).toContain("att=absent");
+  });
+
+  it("LAN-511: a chosen filter reads back from its link as the same filters", () => {
     render(
       <ParticipationFilterBar
         basePath="/operate/events/event-1"
@@ -551,20 +553,51 @@ describe("the filter bar", () => {
         showDelivery
       />,
     );
-    fireEvent.click(screen.getByTestId("filter-delivery-attention"));
+    pick("Delivery", "Needs attention");
     const href = routerPush.mock.calls.at(-1)?.[0] as string;
     const query = Object.fromEntries(new URL(href, "http://x").searchParams);
     const read = readParticipationFilters(query, [], "operator");
     expect(read).toMatchObject({ capacity: "player", delivery: "attention", answer: "" });
   });
 
+  it("LAN-511: shows the filters in force as the roster's Filtered by chips", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ search: "sedge", answer: "no", delivery: "attention" })}
+        showDelivery
+      />,
+    );
+    const chips = screen.getByTestId("filter-chips");
+    expect(within(chips).getByText("Filtered by")).toBeTruthy();
+    expect(
+      Array.from(chips.querySelectorAll(".MuiChip-label"), (chip) => chip.textContent),
+    ).toEqual(["Search: sedge", "Delivery: Needs attention", "Answer: No"]);
+  });
+
+  it("LAN-511: removing a chip drops that filter alone", () => {
+    render(
+      <ParticipationFilterBar
+        basePath="/operate/events/event-1"
+        filters={filters({ answer: "no", attendance: "present" })}
+        showDelivery
+      />,
+    );
+    const chip = screen.getByText("Answer:").closest(".MuiChip-root")!;
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon")!);
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).not.toContain("answer=");
+    expect(href).toContain("att=present");
+  });
+
   it("LAN-440: offers the capacities a row can read as, never Committee", () => {
     render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
-    const options = Array.from(
-      screen.getByTestId("filter-capacity").querySelectorAll("button"),
-      (option) => option.textContent,
-    );
-    expect(options).toEqual(["Recruit", "Player", "Coach", "Walk-up"]);
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "As" }));
+    expect(
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["All", "Recruit", "Player", "Coach", "Walk-up"]);
   });
 
   it("R157C-B2: does not scroll to the top when the search box changes", async () => {
@@ -582,7 +615,7 @@ describe("the filter bar", () => {
     render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
     fireEvent.change(screen.getByTestId("filter-search"), { target: { value: "wolver" } });
     routerPush.mockReset();
-    fireEvent.click(screen.getByTestId("filter-answer-yes"));
+    pick("Answer", "Yes");
 
     const href = routerPush.mock.calls[0][0] as string;
     expect(href).toContain("q=wolver");
@@ -604,14 +637,12 @@ describe("the filter bar", () => {
         showDelivery
       />,
     );
-    expect(operator.container.querySelector('[data-testid="filter-delivery"]')).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Delivery" })).not.toBeNull();
     operator.unmount();
 
-    const club = render(
-      <ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />,
-    );
-    expect(club.container.querySelector('[data-testid="filter-delivery"]')).toBeNull();
-    expect(club.container.querySelector('[data-testid="filter-answer"]')).not.toBeNull();
+    render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
+    expect(screen.queryByRole("combobox", { name: "Delivery" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Answer" })).not.toBeNull();
   });
 
   it("offers a way back to the unfiltered table once anything is filtered", () => {
@@ -631,6 +662,123 @@ describe("the filter bar", () => {
     expect(some.container.querySelector('[data-testid="filter-clear"]')!.getAttribute("href")).toBe(
       "/e/token",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-511: the column funnels — the roster board's, on the desktop table
+// ---------------------------------------------------------------------------
+
+describe("the column funnels", () => {
+  function funnelColumns(container: HTMLElement): string[] {
+    return Array.from(container.querySelectorAll('[data-testid^="funnel-"]'))
+      .map((node) => node.getAttribute("data-testid")!)
+      .filter((id) => !id.startsWith("funnel-caption-"));
+  }
+
+  it("puts a funnel on As, Delivery, Answer and Attendance, and nowhere else", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    expect(funnelColumns(container)).toEqual([
+      "funnel-capacity",
+      "funnel-delivery",
+      "funnel-answer",
+      "funnel-attendance",
+    ]);
+    // Each sits in its own column's heading, beside the sort link.
+    for (const column of ["capacity", "delivery", "answer", "attendance"]) {
+      const heading = container.querySelector(`a[data-sort="${column}"]`)!.closest("th")!;
+      expect(heading.querySelector(`[data-testid="funnel-${column}"]`), column).not.toBeNull();
+    }
+  });
+
+  it("offers no Delivery funnel at the club-link tier", () => {
+    const { container } = render(
+      <ParticipationTable basePath="/e/token" participation={CLUB} filters={filters()} />,
+    );
+    expect(funnelColumns(container)).toEqual([
+      "funnel-capacity",
+      "funnel-answer",
+      "funnel-attendance",
+    ]);
+  });
+
+  it("opens the roster's menu: All, then the column's choices", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Filter Answer" }));
+    expect(
+      within(screen.getByRole("menu"))
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["All", "Yes", "No", "No answer"]);
+  });
+
+  it("navigates on a choice, carrying the other filters, the sort and the Group by", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters({ capacity: "player", sort: "answer", direction: "desc" })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Filter Attendance" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Present" }));
+    expect(routerPush).toHaveBeenCalledTimes(1);
+    const href = routerPush.mock.calls[0][0] as string;
+    expect(routerPush.mock.calls[0][1]).toEqual({ scroll: false });
+    const query = Object.fromEntries(new URL(href, "http://x").searchParams);
+    expect(readParticipationFilters(query, [], "operator")).toMatchObject({
+      capacity: "player",
+      attendance: "present",
+      sort: "answer",
+      direction: "desc",
+    });
+  });
+
+  it("marks a filtered column: the funnel pressed, its choice under the heading", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters({ delivery: "attention" })}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Filtering Delivery" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.getByRole("button", { name: "Filter Answer" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+    expect(container.querySelector('[data-testid="funnel-caption-delivery"]')?.textContent).toBe(
+      "Needs attention",
+    );
+    expect(container.querySelector('[data-testid="funnel-caption-answer"]')).toBeNull();
+  });
+
+  it("clears its own filter on All and keeps the rest", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters({ answer: "yes", attendance: "absent" })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Filtering Answer" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "All" }));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).not.toContain("answer=");
+    expect(href).toContain("att=absent");
   });
 });
 

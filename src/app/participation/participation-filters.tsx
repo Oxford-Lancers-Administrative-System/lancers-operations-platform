@@ -1,123 +1,123 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { ChipBar } from "@/components/chip-bar";
 import { Field } from "@/components/field";
+import { PinnedSelect } from "@/components/pinned-select";
 
 import {
-  ANSWER_FILTERS,
-  ATTENDANCE_FILTERS,
   GROUP_BY_PARAM,
   PARTICIPATION_PARAMS,
+  participationFilterHref,
+  type ParticipationFilterKey,
   type ParticipationFilters,
 } from "@/lib/services/participation-view";
 import type { AttendanceGroupFamily } from "@/lib/services/attendance-group-by";
+import { ColumnFilterMenu, FilterButton } from "../operate/board-filter-controls";
 import { useFilterSearch } from "../operate/filter-search";
 import { useRememberedGroupBy } from "../operate/group-by-memory";
 import { GroupBySelect } from "../operate/group-by-select";
 
 import {
-  ANSWER_NO,
-  ANSWER_NONE,
-  ANSWER_YES,
-  CAPACITY_LABELS,
+  activeParticipationFilters,
+  filterChoiceLabel,
+  participationFilterDimension,
+  participationFilterDimensions,
+} from "./filter-dimensions";
+import {
   CLEAR_FILTERS,
-  DELIVERY_LABELS,
-  DELIVERY_NOT_QUEUED,
-  FILTER_ANSWER_LABEL,
-  FILTER_ATTENDANCE_LABEL,
-  FILTER_CAPACITIES,
-  FILTER_CAPACITY_LABEL,
-  FILTER_DELIVERY_LABEL,
+  FILTERED_BY,
   FILTER_HEADING,
   FILTER_SEARCH_LABEL,
-  NEEDS_ATTENTION_FILTER_LABEL,
-  NOT_DELIVERED,
-  NOT_RECORDED,
-  PRESENCE_LABELS,
-  WALK_UP_LABEL,
+  SEARCH_CHIP_LABEL,
 } from "./presentation";
 
 /**
- * W7's filter bar — by name, capacity, answer, attendance, delivery at the
+ * W7's filters — by name, capacity, answer, attendance, delivery at the
  * operator tier. Brian, 2026-08-21: "I also should have filters to only
  * players, a filter to only yes, a filter to only no." State lives in the URL
  * (filtering done once, server-side, one pure function for both tiers).
  *
- * LAN-511 (Brian and Stewart, 29 October): one-tap buttons in the calendar's
- * idiom (its period and term buttons) instead of dropdowns — every choice
- * visible, the chosen one filled, a second tap on it clears that filter. One
- * choice per row, as before, and the same URL parameters, so links still
- * work. `showDelivery` is the tier; those rows carry no delivery state.
+ * LAN-511, Brian's walk on 31 October: the one-tap rows above the table are
+ * gone. On a desktop each of As, Delivery, Answer and Attendance is filtered
+ * from a funnel in its own column heading (`ParticipationColumnFunnel`), the
+ * roster board's own funnel and menu. Below the table's width there is no
+ * heading row, so — as the roster does on a phone — each filter is a select
+ * under the search. The "Filtered by" chips are the roster's too. The URL
+ * parameters are unchanged, so links still work. `showDelivery` is the tier;
+ * the club link carries no delivery state.
  */
-const ANSWER_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  yes: ANSWER_YES,
-  no: ANSWER_NO,
-  none: ANSWER_NONE,
-});
-
-function FilterButtons({
-  label,
-  testId,
-  value,
-  options,
-  onPick,
+export function ParticipationColumnFunnel({
+  basePath,
+  filters,
+  groupBy = null,
+  filterKey,
 }: {
-  label: string;
-  testId: string;
-  value: string;
-  options: readonly { value: string; label: string }[];
-  onPick: (value: string) => void;
+  basePath: string;
+  filters: ParticipationFilters;
+  groupBy?: string | null;
+  filterKey: ParticipationFilterKey;
 }) {
+  const router = useRouter();
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; column: { key: string } } | null>(null);
+  const dimension = participationFilterDimension(filterKey);
+  const value = filters[filterKey];
   return (
-    <Stack
-      role="group"
-      aria-label={label}
-      data-testid={testId}
-      data-value={value}
-      direction={{ xs: "column", sm: "row" }}
-      sx={{ gap: { xs: 0.5, sm: 1.5 }, alignItems: { sm: "center" } }}
-    >
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ minWidth: { sm: 80 }, fontWeight: 600 }}
-      >
-        {label}
-      </Typography>
-      {/* The calendar's buttons: they wrap at desktop and scroll in one row at 375. */}
-      <Stack
-        direction="row"
-        sx={{
-          gap: 1,
-          flexWrap: { xs: "nowrap", sm: "wrap" },
-          overflowX: { xs: "auto", sm: "visible" },
-          pb: { xs: 0.5, sm: 0 },
-        }}
-      >
-        {options.map((option) => {
-          const chosen = option.value === value;
-          return (
-            <Button
-              key={option.value}
-              size="small"
-              variant={chosen ? "contained" : "outlined"}
-              aria-pressed={chosen}
-              data-testid={`${testId}-${option.value}`}
-              sx={{ minHeight: 44, flexShrink: 0, whiteSpace: "nowrap" }}
-              onClick={() => onPick(chosen ? "" : option.value)}
-            >
-              {option.label}
-            </Button>
-          );
-        })}
-      </Stack>
-    </Stack>
+    <Box component="span" data-testid={`funnel-${filterKey}`} sx={{ display: "inline-flex" }}>
+      <FilterButton
+        label={dimension.label}
+        active={value !== ""}
+        onOpen={(anchor) => setMenu({ anchor, column: { key: filterKey } })}
+      />
+      <ColumnFilterMenu
+        menu={menu}
+        filters={{ [filterKey]: value }}
+        optionsFor={() => dimension.options.map((option) => option.value)}
+        optionLabel={(_, option) => filterChoiceLabel(dimension, option)}
+        // R157C-B2: a filter change re-orders the screen, not a fresh page.
+        onSelect={(_, next) =>
+          router.push(participationFilterHref(basePath, filters, groupBy, { [filterKey]: next }), {
+            scroll: false,
+          })
+        }
+        onClose={() => setMenu(null)}
+      />
+    </Box>
   );
 }
+
+/** The roster board's caption under a filtered heading: the choice in force. */
+export function ParticipationFunnelCaption({
+  filters,
+  filterKey,
+}: {
+  filters: ParticipationFilters;
+  filterKey: ParticipationFilterKey;
+}) {
+  const value = filters[filterKey];
+  if (value === "") return null;
+  return (
+    <Typography
+      variant="caption"
+      data-testid={`funnel-caption-${filterKey}`}
+      sx={{ display: "block", color: "primary.main", fontWeight: 700, lineHeight: 1.3 }}
+    >
+      {filterChoiceLabel(participationFilterDimension(filterKey), value)}
+    </Typography>
+  );
+}
+
+const PARAM_OF: Readonly<Record<ParticipationFilterKey, string>> = Object.freeze({
+  capacity: PARTICIPATION_PARAMS.capacity,
+  answer: PARTICIPATION_PARAMS.answer,
+  attendance: PARTICIPATION_PARAMS.attendance,
+  delivery: PARTICIPATION_PARAMS.delivery,
+});
 
 export function ParticipationFilterBar({
   basePath,
@@ -165,87 +165,84 @@ export function ParticipationFilterBar({
   );
   const remember = useRememberedGroupBy({ storageKey, groupBy, families: groupFamilies, restore });
 
-  const anyFilter =
-    filters.search !== "" ||
-    filters.capacity !== "" ||
-    filters.answer !== "" ||
-    filters.attendance !== "" ||
-    filters.delivery !== "";
+  const dimensions = participationFilterDimensions(showDelivery);
+  const active = activeParticipationFilters(filters, showDelivery);
+  const anyFilter = filters.search !== "" || active.length > 0;
 
   return (
     <Stack
       component="section"
       aria-label={FILTER_HEADING}
-      spacing={1.25}
+      spacing={2}
       data-testid="participation-filters"
     >
-      <Typography variant="subtitle2" component="h3">
-        {FILTER_HEADING}
-      </Typography>
-      <Field
-        label={FILTER_SEARCH_LABEL}
-        value={typed}
-        onChange={(event) => setTyped(event.target.value)}
-        slotProps={{ htmlInput: { "data-testid": "filter-search" } }}
-        sx={{ maxWidth: { sm: 320 } }}
-      />
-      <FilterButtons
-        label={FILTER_CAPACITY_LABEL}
-        testId="filter-capacity"
-        value={filters.capacity}
-        options={[
-          ...FILTER_CAPACITIES.map((value) => ({ value, label: CAPACITY_LABELS[value] })),
-          { value: "walk_up", label: WALK_UP_LABEL },
-        ]}
-        onPick={(value) => apply({ [PARTICIPATION_PARAMS.capacity]: value })}
-      />
-      <FilterButtons
-        label={FILTER_ANSWER_LABEL}
-        testId="filter-answer"
-        value={filters.answer}
-        options={ANSWER_FILTERS.map((value) => ({ value, label: ANSWER_LABELS[value] }))}
-        onPick={(value) => apply({ [PARTICIPATION_PARAMS.answer]: value })}
-      />
-      <FilterButtons
-        label={FILTER_ATTENDANCE_LABEL}
-        testId="filter-attendance"
-        value={filters.attendance}
-        options={ATTENDANCE_FILTERS.map((value) => ({
-          value,
-          label:
-            value === "not_recorded"
-              ? NOT_RECORDED
-              : PRESENCE_LABELS[value as keyof typeof PRESENCE_LABELS],
-        }))}
-        onPick={(value) => apply({ [PARTICIPATION_PARAMS.attendance]: value })}
-      />
-      {showDelivery ? (
-        <FilterButtons
-          label={FILTER_DELIVERY_LABEL}
-          testId="filter-delivery"
-          value={filters.delivery}
-          options={[
-            { value: "attention", label: NEEDS_ATTENTION_FILTER_LABEL },
-            ...Object.entries(DELIVERY_LABELS).map(([value, label]) => ({ value, label })),
-            // LAN-411: one option, over Attempted rather than beside the five.
-            { value: "not_delivered", label: NOT_DELIVERED },
-            { value: "none", label: DELIVERY_NOT_QUEUED },
-          ]}
-          onPick={(value) => apply({ [PARTICIPATION_PARAMS.delivery]: value })}
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        useFlexGap
+        sx={{ gap: 2, alignItems: { md: "center" }, flexWrap: "wrap" }}
+      >
+        <Field
+          label={FILTER_SEARCH_LABEL}
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          slotProps={{ htmlInput: { "data-testid": "filter-search" } }}
+          sx={{ minWidth: { md: 260 }, maxWidth: { md: 320 } }}
         />
-      ) : null}
-      {groupFamilies.length > 0 || anyFilter ? (
-        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}>
-          <GroupBySelect
-            families={groupFamilies}
-            value={groupBy}
-            onChange={(value) => {
-              remember(value);
-              apply({ [GROUP_BY_PARAM]: value });
-            }}
-            sx={{ minWidth: 220 }}
-          />
-          {anyFilter ? (
+        {/* The roster's phone: no heading row to hold a funnel, so one select per filter. */}
+        <Box
+          data-testid="participation-phone-filters"
+          sx={{ display: { xs: "flex", md: "none" }, flexDirection: "column", gap: 2 }}
+        >
+          {dimensions.map((dimension) => (
+            <PinnedSelect
+              key={dimension.key}
+              label={dimension.label}
+              testId={`filter-${dimension.key}`}
+              value={filters[dimension.key]}
+              options={dimension.options.map((option) => option.value)}
+              optionLabel={(value) => filterChoiceLabel(dimension, value)}
+              onChange={(value) => apply({ [PARAM_OF[dimension.key]]: value })}
+            />
+          ))}
+        </Box>
+        <GroupBySelect
+          families={groupFamilies}
+          value={groupBy}
+          onChange={(value) => {
+            remember(value);
+            apply({ [GROUP_BY_PARAM]: value });
+          }}
+          sx={{ minWidth: 220 }}
+        />
+      </Stack>
+      {anyFilter ? (
+        <ChipBar
+          caption={FILTERED_BY}
+          testId="filter-chips"
+          chips={[
+            ...(filters.search !== ""
+              ? [
+                  {
+                    key: "q",
+                    label: `${SEARCH_CHIP_LABEL}: ${filters.search}`,
+                    onDelete: () => setTyped(""),
+                  },
+                ]
+              : []),
+            ...active.map(({ dimension, value }) => ({
+              key: dimension.key,
+              label: (
+                <>
+                  <Box component="span" sx={{ fontWeight: 700 }}>
+                    {dimension.label}:
+                  </Box>{" "}
+                  {filterChoiceLabel(dimension, value)}
+                </>
+              ),
+              onDelete: () => apply({ [PARAM_OF[dimension.key]]: "" }),
+            })),
+          ]}
+          action={
             <Button
               size="small"
               href={groupBy === null ? basePath : `${basePath}?${GROUP_BY_PARAM}=${groupBy}`}
@@ -253,8 +250,8 @@ export function ParticipationFilterBar({
             >
               {CLEAR_FILTERS}
             </Button>
-          ) : null}
-        </Stack>
+          }
+        />
       ) : null}
     </Stack>
   );

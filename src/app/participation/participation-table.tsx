@@ -24,6 +24,7 @@ import {
   type EventFactsBase,
   type OperatorParticipationPerson,
   type Participation,
+  type ParticipationFilterKey,
   type ParticipationFilters,
   type ParticipationPerson,
   type ParticipationQuestion,
@@ -53,6 +54,7 @@ import {
   WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
 import { ParticipationGroupSection } from "./participation-group-section";
+import { ParticipationColumnFunnel, ParticipationFunnelCaption } from "./participation-filters";
 import { RecordAnswerControl } from "./record-answer";
 
 /**
@@ -249,12 +251,15 @@ function SortableHeading({
   column,
   label,
   groupBy,
+  filterKey,
 }: {
   basePath: string;
   filters: ParticipationFilters;
   column: string;
   label: string;
   groupBy: string | null;
+  /** LAN-511: this column filters from a funnel in its heading, as the roster board's do. */
+  filterKey?: ParticipationFilterKey;
 }) {
   const { active, direction } = participationSortState(filters, column);
   return (
@@ -264,6 +269,21 @@ function SortableHeading({
       href={participationSortHref(basePath, filters, column, groupBy)}
       active={active}
       direction={direction}
+      trailing={
+        filterKey ? (
+          <ParticipationColumnFunnel
+            basePath={basePath}
+            filters={filters}
+            groupBy={groupBy}
+            filterKey={filterKey}
+          />
+        ) : undefined
+      }
+      caption={
+        filterKey ? (
+          <ParticipationFunnelCaption filters={filters} filterKey={filterKey} />
+        ) : undefined
+      }
     />
   );
 }
@@ -473,6 +493,7 @@ export function ParticipationTable({
                   groupBy={groupBy}
                   column="capacity"
                   label={TABLE_HEADINGS.capacity}
+                  filterKey="capacity"
                 />
                 <SortableHeading
                   basePath={basePath}
@@ -488,6 +509,7 @@ export function ParticipationTable({
                     groupBy={groupBy}
                     column="delivery"
                     label={TABLE_HEADINGS.delivery}
+                    filterKey="delivery"
                   />
                 ) : null}
                 <SortableHeading
@@ -496,6 +518,7 @@ export function ParticipationTable({
                   groupBy={groupBy}
                   column="answer"
                   label={TABLE_HEADINGS.answer}
+                  filterKey="answer"
                 />
                 <SortableHeading
                   basePath={basePath}
@@ -510,6 +533,7 @@ export function ParticipationTable({
                   groupBy={groupBy}
                   column="attendance"
                   label={TABLE_HEADINGS.attendance}
+                  filterKey="attendance"
                 />
                 {questions.map((question) => (
                   <SortableHeading

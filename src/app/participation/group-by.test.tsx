@@ -231,21 +231,14 @@ describe("the Group by select in the filter bar", () => {
     expect(screen.queryByTestId("attendance-group-by")).toBeNull();
   });
 
-  it("follows Answer, Attendance and Delivery", () => {
+  it("LAN-511: follows the search and, on a phone, the filter selects", () => {
     bar(["offensive"]);
     const order = [...document.querySelectorAll("[data-testid]")]
       .map((node) => node.getAttribute("data-testid"))
       .filter((id) =>
-        ["filter-answer", "filter-attendance", "filter-delivery", "attendance-group-by"].includes(
-          id ?? "",
-        ),
+        ["filter-search", "participation-phone-filters", "attendance-group-by"].includes(id ?? ""),
       );
-    expect(order).toEqual([
-      "filter-answer",
-      "filter-attendance",
-      "filter-delivery",
-      "attendance-group-by",
-    ]);
+    expect(order).toEqual(["filter-search", "participation-phone-filters", "attendance-group-by"]);
   });
 
   it("offers None and only the families the viewer may see", () => {
@@ -286,11 +279,22 @@ describe("the Group by select in the filter bar", () => {
     expect(routerReplace).not.toHaveBeenCalled();
   });
 
-  it("LAN-511: a filter button keeps the chosen Group by in the link", () => {
+  it("LAN-511: a phone filter select keeps the chosen Group by in the link", () => {
     bar(["offensive", "warmup"], "warmup");
-    fireEvent.click(screen.getByTestId("filter-attendance-present"));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Attendance" }));
+    fireEvent.click(screen.getByRole("option", { name: "Present" }));
     const href = routerPush.mock.calls.at(-1)?.[0] as string;
     expect(href).toContain("by=warmup");
+    expect(href).toContain("att=present");
+  });
+
+  it("LAN-511: a column funnel keeps the chosen Group by in the link", () => {
+    table({ groupBy: "offensive" });
+    // One table per section, each with its own headings: any funnel will do.
+    fireEvent.click(screen.getAllByRole("button", { name: "Filter Attendance" })[0]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Present" }));
+    const href = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(href).toContain("by=offensive");
     expect(href).toContain("att=present");
   });
 
