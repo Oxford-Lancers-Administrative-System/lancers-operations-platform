@@ -40,7 +40,7 @@ export const NOT_SAVED_HEADING = "Not saved";
 export const RETRY = "Retry";
 export const ANSWER_LABEL = "Answer";
 export const ATTENDING = "Attending";
-export const NOT_ATTENDING = "Not attending";
+const NOT_ATTENDING = "Not attending";
 
 export function answerValue(answer: "yes" | "no"): string {
   return answer === "yes" ? ATTENDING : NOT_ATTENDING;
