@@ -5,7 +5,7 @@
  * `/run-mission` deliberately stops short of this, for the same reason
  * `/start-issue` does: while work is in flight, a worktree is not debris, and an
  * agent must never delete a dirty or unmerged one. But once a package has
- * merged, its worktree, branch and attachment to the mission stack are debris,
+ * reached main, its worktree, branch and attachment to the mission stack are debris,
  * and nothing reclaimed them — the first live mission left both database slots
  * held and its worktrees on disk.
  *
@@ -15,12 +15,12 @@
  * and has nothing left to run an exit step.
  *
  * Reclamation is per package and does not wait for the mission — a package's
- * worktree goes the moment its pull request merges. The mission-owned stack is
+ * worktree goes the moment its head is on origin/main. The mission-owned stack is
  * retired only by whoever detaches last, because several workers share it.
  *
- * It takes no action this harness forbids: it never merges, un-drafts, deploys,
+ * It takes no action this harness forbids: it never pushes, deploys,
  * touches hosted Supabase, or writes to production. It runs strictly after a
- * merge that it proves from the repository.
+ * push to main that it proves from the repository.
  */
 import path from "node:path";
 import fs from "node:fs";
@@ -60,14 +60,6 @@ function git(args, cwd = repoPath) {
 
 /** The real repository, behind the seam the proof is tested against. */
 const io = {
-  pullRequest(number) {
-    const raw = execFileSync("gh", ["pr", "view", String(number), "--json", "state,mergeCommit"], {
-      cwd: repoPath,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return JSON.parse(raw);
-  },
   isAncestor(sha, ref) {
     try {
       execFileSync("git", ["merge-base", "--is-ancestor", sha, ref], {
@@ -99,16 +91,7 @@ const io = {
   },
   status: (worktree) => git(["status", "--porcelain"], worktree),
   stashList: (worktree) => git(["stash", "list"], worktree),
-  hasRemoteBranch(worktree, branch) {
-    try {
-      git(["rev-parse", "--verify", `refs/remotes/origin/${branch}`], worktree);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  unpushed: (worktree, branch) =>
-    git(["log", "--oneline", `origin/${branch}..${branch}`], worktree),
+  unpushed: (worktree, branch) => git(["log", "--oneline", branch, "--not", "--remotes"], worktree),
 };
 
 try {
@@ -119,11 +102,11 @@ try {
   }
   if (!leadId) fail("LANCERS_MISSION_LEAD_ID must hold this session's stable UUID.");
 
-  // A stale origin/main reports merged work as unmerged and reclaims nothing.
+  // A stale origin/main reports landed work as unlanded and reclaims nothing.
   try {
     execFileSync("git", ["fetch", "origin", "main", "--quiet"], { cwd: repoPath, stdio: "ignore" });
   } catch {
-    console.warn("Could not fetch origin/main; proving merges against the local view.");
+    console.warn("Could not fetch origin/main; proving pushes against the local view.");
   }
 
   const state = replayState(repoPath, missionId);
@@ -153,7 +136,7 @@ try {
   for (const pkg of live) {
     if (state.reclaimed.includes(pkg.id)) continue;
     if (pkg.status !== "merged") {
-      if (!abandoning) blocked.push(`${pkg.id} is ${pkg.status}, not merged`);
+      if (!abandoning) blocked.push(`${pkg.id} is ${pkg.status}, not on main`);
       continue;
     }
     if (state.activeWorkers.some((worker) => worker.package_id === pkg.id)) {
@@ -235,7 +218,7 @@ try {
     const preserved = flag("--preserved");
     if (!reason || !preserved) {
       fail(
-        "Abandoning records --reason <why it is unfinished> and --preserved <what was deliberately kept: pushed branches, open pull requests, the journal>.",
+        "Abandoning records --reason <why it is unfinished> and --preserved <what was deliberately kept: pushed branches, the journal>.",
       );
     }
     await appendEvent(repoPath, missionId, {

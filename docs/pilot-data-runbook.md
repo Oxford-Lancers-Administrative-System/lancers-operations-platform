@@ -8,13 +8,13 @@ touch it. Everything below follows from that, and from
 [ADR 0016](adr/0016-controlled-production-pilot-data.md), which records the
 decision this runbook implements.
 
-| Question                                         | Answer, in one line                                                            |
-| ------------------------------------------------ | ------------------------------------------------------------------------------ |
-| May production hold data before staging exists?  | **Yes** — approved pilot identities and clearly synthetic scenarios, only      |
-| May it hold the real roster, or real operations? | **No.** Still gated on LAN-83, LAN-84 and LAN-86                               |
-| Who runs a pilot script against hosted Supabase? | **Brian, by hand.** Never an agent, never CI, never a deploy                   |
-| Is pilot data cleaned up after every ticket?     | **No** — it accumulates on purpose. See [Retention](#retention-policy)         |
-| Does a feature pull request have to say so?      | **Yes** — the Production handoff block, every time, even when the answer is No |
+| Question                                         | Answer, in one line                                                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| May production hold data before staging exists?  | **Yes** — approved pilot identities and clearly synthetic scenarios, only                                                                         |
+| May it hold the real roster, or real operations? | **No.** Still gated on LAN-83, LAN-84 and LAN-86                                                                                                  |
+| Who runs a pilot script against hosted Supabase? | **Brian, by hand.** Never an agent, never CI, never a deploy                                                                                      |
+| Is pilot data cleaned up after every ticket?     | **No** — it accumulates on purpose. See [Retention](#retention-policy)                                                                            |
+| Does a feature branch have to say so?            | **Yes** — the Production handoff comment on its Linear issue ([template](production-handoff-template.md)), every time, even when the answer is No |
 
 ## The controlled pilot model
 
@@ -113,12 +113,12 @@ Ask, in this order:
    cannot reproduce the hosted behaviour.
 3. **Does that exercise need rows that are not already there?** If the durable
    pilot identities plus whatever earlier tickets left behind are enough, no new
-   artifacts are needed. Say so in the pull request.
+   artifacts are needed. Say so in the Linear handoff comment.
 
-If all three point to yes, the pull request ships `scripts/pilot/<issue-id>/`
+If all three point to yes, the branch ships `scripts/pilot/<issue-id>/`
 with `setup.sql`, `cleanup.sql` and a `README.md`.
 
-**If you are an agent and you are unsure, say so in the pull request and tell
+**If you are an agent and you are unsure, say so in the Linear handoff comment and tell
 Brian.** Guessing wrong in the direction of "no artifacts needed" leaves him to
 work it out on the day; guessing wrong the other way costs a file nobody runs.
 
@@ -229,7 +229,7 @@ at commit `5bcb5ea0`; a new scenario restores that check alongside itself):
 
 **Adding a scenario to that list is Brian's decision, not a lead's.** It relaxes
 the marker for writes against the one production database, and the reasoning
-belongs in the pull request that adds it. See
+belongs in the branch that adds it. See
 [ADR 0019](adr/0019-application-created-pilot-rows.md).
 
 ### The scenario test checklist
@@ -290,7 +290,7 @@ fails if one starts to.
 
 For a feature that needs hosted testing, in this order:
 
-1. **Merge** the pull request (Brian), and — if it carries a migration — apply
+1. **Land** the branch on `main` and wait for green CI (Brian or an agent under the merge rule), and — if it carries a migration — apply
    it by hand from the deployment clone, following
    [the migration runbook](migration-runbook.md#applying-to-hosted-supabase).
 2. **Confirm the revision is deployed and healthy**: `/api/health` reports
@@ -377,7 +377,7 @@ Run a cleanup early only when the scenario's data is:
 | **Misleading**  | It would be read as real by somebody looking at the database      |
 | **Harmful**     | It breaks or distorts the next feature test                       |
 
-The pull request states which of these applies, or recommends retention. When in
+The Linear handoff comment states which of these applies, or recommends retention. When in
 doubt, retain: a scenario that is still there can be removed later, and one that
 was removed early cannot be recovered without re-running setup.
 
@@ -402,7 +402,7 @@ the schema, and it does not touch the deployed container.
 
 A value-free, repeatable owner procedure. **Every angle-bracketed token is a
 placeholder Brian fills in at execution time.** No real value is committed to
-this repository, ever — including in the manifest, in a pull request, or in a
+this repository, ever — including in the manifest, in a commit message, or in a
 commit message.
 
 Public signup is **not** reopened. Accounts are created by the owner through the
@@ -624,16 +624,16 @@ update public.operator_accounts
 | Runs the scripts against **local** Supabase to prove them | An agent | Against any other target |
 
 An agent that discovers an owner action is required **says so immediately**,
-repeats it in the pull request's Production handoff block, and repeats it in its
+repeats it in the Linear Production handoff comment, and repeats it in its
 final handoff message. Leaving Brian to infer an action from a changed migration
-or SQL file is a defect in the pull request, not a detail.
+or SQL file is a defect in the handoff, not a detail.
 
 Nothing in this runbook authorizes anything by itself. It is the procedure that
 Brian's authorization is applied _to_.
 
 ## Recording what happened
 
-In the pull request, and in the project's Notion operational record. **No secret
+In the Linear handoff comment, and in the project's Notion operational record. **No secret
 value, no password, no personal identifier and no real contact detail — in any
 of it.**
 

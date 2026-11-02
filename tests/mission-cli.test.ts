@@ -142,7 +142,7 @@ describe("mission CLI", () => {
         receipt,
       ).status,
     ).toBe(0);
-    expect(m.run("pr", MISSION, "WP-attendance-export", "41", "a".repeat(40)).status).toBe(0);
+    expect(m.run("head", MISSION, "WP-attendance-export", "a".repeat(40)).status).toBe(0);
     const review = path.join(m.repo, "review.json");
     const reviewReport = path.join(m.repo, "package-gate.md");
     fs.writeFileSync(reviewReport, "No sensitive or visual scope.\n");
@@ -359,7 +359,7 @@ describe("mission CLI", () => {
         }),
       ).status,
     ).toBe(0);
-    expect(m.run("pr", MISSION, "WP-attendance-export", "41", HEAD).status).toBe(0);
+    expect(m.run("head", MISSION, "WP-attendance-export", HEAD).status).toBe(0);
     expect(
       m.run(
         "review",
@@ -396,8 +396,7 @@ describe("mission CLI", () => {
     expect(beforeMerge.status).toBe(1);
     expect(beforeMerge.stderr).toMatch(/has not merged to main/);
     expect(
-      m.run("merge-record", MISSION, "WP-attendance-export", "41", HEAD, "--route", "guarded-auto")
-        .status,
+      m.run("main-record", MISSION, "WP-attendance-export", HEAD, "--route", "agent").status,
     ).toBe(0);
 
     // Epochs are a soft run boundary, not a second CLI permission lattice. The
@@ -536,41 +535,22 @@ describe("mission CLI", () => {
     expect(parsed.next_actions).toEqual(nextActions(replayed));
   });
 
-  // Regression: the validator refuses an owner merge the guarded lane could have
-  // taken unless the reason is recorded, and no CLI path set that field — so
-  // every such merge was unrecordable and its package stayed open in state
-  // forever. The reason has to survive into the journal, not just be accepted.
-  it("carries the owner-route reason into the journal entry", () => {
+  // Who pushed is journaled: an agent push is held to the push conditions, and
+  // Brian's own push is recorded as his without any qualification.
+  it("records who pushed to main", () => {
     const m = fixture();
     readyMission(m);
     const sha = "c".repeat(40);
-    expect(
-      m.run("merge-record", MISSION, "WP-events-filter", "12", sha, "--route", "owner").status,
-    ).toBe(0);
-    const withoutReason = readJournal(missionPaths(m.repo, MISSION, m.env).journal).filter(
-      (event) => event.type === "merge-recorded",
+    expect(m.run("main-record", MISSION, "WP-events-filter", sha, "--route", "owner").status).toBe(
+      0,
     );
-    expect(withoutReason.at(-1)?.owner_route_reason).toBeUndefined();
-
-    expect(
-      m.run(
-        "merge-record",
-        MISSION,
-        "WP-events-filter",
-        "12",
-        sha,
-        "--route",
-        "owner",
-        "--reason",
-        "Its pull request also carried a prohibited path.",
-      ).status,
-    ).toBe(0);
     const recorded = readJournal(missionPaths(m.repo, MISSION, m.env).journal).filter(
-      (event) => event.type === "merge-recorded",
+      (event) => event.type === "main-pushed",
     );
-    expect(recorded.at(-1)?.owner_route_reason).toBe(
-      "Its pull request also carried a prohibited path.",
-    );
+    expect(recorded.at(-1)).toMatchObject({ package_id: "WP-events-filter", sha, route: "owner" });
+    expect(
+      m.run("main-record", MISSION, "WP-events-filter", sha, "--route", "guarded-auto").status,
+    ).toBe(1);
   });
 
   // Regression: finish-mission.mjs used mergeProof and worktreeDefects without

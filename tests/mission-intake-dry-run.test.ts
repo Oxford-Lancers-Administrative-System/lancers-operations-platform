@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { validatePacket } from "../scripts/mission/lib/packet.mjs";
-import { validateFinalPrPaths } from "../scripts/intake/lib/pr.mjs";
+import { validateFinalBranchPaths } from "../scripts/intake/lib/branch.mjs";
 import {
   createSyntheticLedger,
   removeLedger,
@@ -142,9 +142,9 @@ describe("synthetic mission intake", () => {
       `missions/packets/${missionId}/packet.json`,
       `missions/packets/${missionId}/README.md`,
     ];
-    expect(validateFinalPrPaths(missionId, finalDiff)).toEqual([]);
+    expect(validateFinalBranchPaths(missionId, finalDiff)).toEqual([]);
     expect(
-      validateFinalPrPaths(missionId, [...finalDiff, "scripts/intake/cli.mjs"]).join("\n"),
+      validateFinalBranchPaths(missionId, [...finalDiff, "scripts/intake/cli.mjs"]).join("\n"),
     ).toMatch(/scripts\/intake\/cli.mjs is not an intake artifact/);
 
     fs.writeFileSync(

@@ -15,11 +15,11 @@
 {"at":"2026-08-25T09:15:00.000Z","type":"worker-dispatched","package_id":"WP-events-filter","worker_id":"worker-1","worktree":".claude/worktrees/wp-events","branch":"feat/wp-events"}
 {"at":"2026-08-25T09:16:00.000Z","type":"lead-heartbeat","lead_id":"lead-mission-4","pid":71234}
 {"at":"2026-08-25T09:17:00.000Z","type":"worker-receipt","package_id":"WP-events-filter","worker_id":"worker-1","receipt":{"branch":"feat/wp-events","worktree":".claude/worktrees/wp-events","surfaces":["src/app/events/page.tsx"],"acceptance_criteria":["The event filter works."],"verification":"npm run verify observed to pass","ci_state":"green","visual_state":"awaiting-owner-review","migration_implications":"none","limitations":"none","ux_sources":{"slice_ux":"docs/ux/slice-ux.md","standards":"docs/ux/standards.md","ticket_contract":"docs/ux/tickets/LAN-900-events-filter.md","wireframes":"docs/ux/wireframes/events-filter-desktop.png, events-filter-375.png"},"result":"completed"}}
-{"at":"2026-08-25T09:18:00.000Z","type":"pr-opened","package_id":"WP-events-filter","pr_number":60,"head_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+{"at":"2026-08-25T09:18:00.000Z","type":"head-recorded","package_id":"WP-events-filter","head_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
 {"at":"2026-08-25T09:19:00.000Z","type":"lead-heartbeat","lead_id":"lead-mission-4","pid":71234}
 {"at":"2026-08-25T09:20:00.000Z","type":"review-receipt","package_id":"WP-events-filter","receipt":{"review_mode":"full","full_review_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","reviewed_head_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","round":1,"result":"clear","ci_state":"green","ux_conformance":{"mockup_states":["events filter — desktop","events filter — measured 375px"],"comparison_method":"Rendered both live states and compared structure and copy.","result":"clear"}}}
 {"at":"2026-08-25T09:21:00.000Z","type":"visual-approval","package_id":"WP-events-filter","approved_by":"Brian","evidence":"live review at the prepared environment"}
-{"at":"2026-08-25T09:22:00.000Z","type":"merge-recorded","package_id":"WP-events-filter","pr_number":60,"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","route":"guarded-auto"}
+{"at":"2026-08-25T09:22:00.000Z","type":"main-pushed","package_id":"WP-events-filter","sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","route":"guarded-auto"}
 {"at":"2026-08-25T09:23:00.000Z","type":"package-reclaimed","package_id":"WP-events-filter","merge_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
 {"at":"2026-08-25T09:24:00.000Z","type":"lead-heartbeat","lead_id":"lead-mission-4","pid":71234}
 {"at":"2026-08-25T09:25:00.000Z","type":"lead-heartbeat","lead_id":"lead-mission-4","pid":71234}

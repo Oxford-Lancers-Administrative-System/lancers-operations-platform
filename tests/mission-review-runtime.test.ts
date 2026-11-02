@@ -158,7 +158,7 @@ async function built(m: ReturnType<typeof fixture>, packageId: string, head = SH
     worker_id: `worker-${packageId}`,
     receipt: workerReceipt(),
   });
-  await m.raw({ type: "pr-opened", package_id: packageId, pr_number: 42, head_sha: head });
+  await m.raw({ type: "head-recorded", package_id: packageId, head_sha: head });
 }
 
 const SERVICE_DIFF = [{ status: "M", path: "src/lib/services/events.ts" }];
@@ -649,7 +649,7 @@ describe("who may file the evidence", () => {
         ],
       },
     });
-    await m.raw({ type: "pr-opened", package_id: packageId, pr_number: 42, head_sha: OTHER_SHA });
+    await m.raw({ type: "head-recorded", package_id: packageId, head_sha: OTHER_SHA });
 
     // The same reviewer identity cannot take the correction round.
     await expect(
@@ -918,7 +918,7 @@ describe("the walker's complete job set", () => {
     const m = fixture();
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.raw({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.raw({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     await expect(
       m.raw({
@@ -937,7 +937,7 @@ describe("the walker's complete job set", () => {
     const m = fixture();
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.raw({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.raw({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     const state = replay(m);
     const contract = buildWalkerContract({ state, headSha: SHA });
@@ -987,7 +987,7 @@ describe("the walker's complete job set", () => {
     await readyMission(m);
     for (const pkg of plan.packages) {
       await built(m, pkg.id);
-      await m.raw({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.raw({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     const state = replay(m);
     const contract = buildWalkerContract({ state, headSha: SHA });
@@ -1389,7 +1389,7 @@ describe("finalizing a mission that still holds a runtime", () => {
   async function merged(m: ReturnType<typeof fixture>) {
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.raw({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.raw({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
       await m.raw({ type: "package-reclaimed", package_id: pkg.id, merge_sha: SHA });
     }
   }
@@ -1400,7 +1400,6 @@ describe("finalizing a mission that still holds a runtime", () => {
     notion_record: "notion://synthetic/mission-record",
     shipped: plan.packages.map((pkg: { id: string }) => ({
       linear_issue_id: `LAN-${pkg.id}`,
-      pr_number: 42,
       sha: SHA,
     })),
     owner_actions: "none",

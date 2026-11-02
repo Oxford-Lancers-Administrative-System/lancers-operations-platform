@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   // LAN-300: the dead-export finder. `npm run knip` runs clean and is part of `npm run verify`.
-  // Excluded trees are either prohibited merge paths (.github/merge-rules.json), trust
+  // Excluded trees are either review-required paths (.github/merge-rules.json), trust
   // boundaries this tool must never drive a change to, or the LAN-285 delivery carve-out.
   "ignore": [
     "scripts/mission/**",

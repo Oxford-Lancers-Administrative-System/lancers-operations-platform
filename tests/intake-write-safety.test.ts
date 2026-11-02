@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { findTargets, replaceExact } from "../scripts/intake/lib/edit.mjs";
-import { validateFinalPrPaths } from "../scripts/intake/lib/pr.mjs";
+import { validateFinalBranchPaths } from "../scripts/intake/lib/branch.mjs";
 import {
   createSyntheticLedger,
   removeLedger,
@@ -127,7 +127,7 @@ describe("scripted intake edits", () => {
   });
 });
 
-describe("the final intake pull request", () => {
+describe("the final intake branch", () => {
   const missionId = "M-SYNTHETIC-INTAKE";
   const ledgerAndPacket = [
     `missions/intake/${missionId}/state.json`,
@@ -136,25 +136,25 @@ describe("the final intake pull request", () => {
   ];
 
   it("permits exactly the mission's ledger and packet directories", () => {
-    expect(validateFinalPrPaths(missionId, ledgerAndPacket)).toEqual([]);
+    expect(validateFinalBranchPaths(missionId, ledgerAndPacket)).toEqual([]);
   });
 
   it("refuses application code, another mission's artifacts, and a half-landed intake", () => {
     expect(
-      validateFinalPrPaths(missionId, [...ledgerAndPacket, "src/app/page.tsx"]).join("\n"),
+      validateFinalBranchPaths(missionId, [...ledgerAndPacket, "src/app/page.tsx"]).join("\n"),
     ).toMatch(/src\/app\/page.tsx is not an intake artifact/);
     expect(
-      validateFinalPrPaths(missionId, [
+      validateFinalBranchPaths(missionId, [
         ...ledgerAndPacket,
         "missions/packets/M-OTHER/packet.json",
       ]).join("\n"),
     ).toMatch(/missions\/packets\/M-OTHER\/packet.json is not an intake artifact/);
     expect(
-      validateFinalPrPaths(missionId, [`missions/packets/${missionId}/packet.json`]).join("\n"),
+      validateFinalBranchPaths(missionId, [`missions/packets/${missionId}/packet.json`]).join("\n"),
     ).toMatch(/must land missions\/intake\/M-SYNTHETIC-INTAKE\/\*\*/);
     expect(
-      validateFinalPrPaths(missionId, [`missions/intake/${missionId}/state.json`]).join("\n"),
+      validateFinalBranchPaths(missionId, [`missions/intake/${missionId}/state.json`]).join("\n"),
     ).toMatch(/must land missions\/packets\/M-SYNTHETIC-INTAKE\/\*\*/);
-    expect(validateFinalPrPaths(missionId, []).join("\n")).toMatch(/must not be empty/);
+    expect(validateFinalBranchPaths(missionId, []).join("\n")).toMatch(/must not be empty/);
   });
 });

@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { appendEvent, nextActions, replayState } from "../scripts/mission/lib/state.mjs";
-import { evaluateDraftLift, journalConjuncts, loadRules } from "../scripts/mission/merge-gate.mjs";
+import { evaluatePush, journalConjuncts, loadRules } from "../scripts/mission/merge-gate.mjs";
 import { withReviewInvocations } from "./helpers/mission-invocations";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
@@ -120,7 +120,7 @@ async function implementedAt(m: ReturnType<typeof mission>, head: string) {
       result: "completed",
     },
   });
-  await m.append({ type: "pr-opened", package_id: PACKAGE, pr_number: 60, head_sha: head });
+  await m.append({ type: "head-recorded", package_id: PACKAGE, head_sha: head });
 }
 
 async function reviewedAndApproved(m: ReturnType<typeof mission>, head: string, round = 1) {
@@ -145,46 +145,27 @@ async function reviewedAndApproved(m: ReturnType<typeof mission>, head: string, 
   });
 }
 
-const checks = (head: string) =>
-  rules.requiredChecks.map((name: string) => ({
-    name,
-    status: "completed",
-    conclusion: "success",
-    head_sha: head,
-  }));
-
-const pullRequest = (head: string) => ({
-  state: "OPEN",
-  baseRefName: "main",
-  isCrossRepository: false,
-  isDraft: true,
-  headRefOid: head,
-  title: "Synthetic mission package.",
-});
-
 describe("representative mission rehearsals", () => {
-  it("takes one package from approved packet to a liftable draft and a merge", async () => {
+  it("takes one package from approved packet to a passing push gate and a push to main", async () => {
     const m = mission();
     await synced(m);
     await implementedAt(m, HEAD);
     await reviewedAndApproved(m, HEAD);
     const state = replayState(m.repo, MISSION, m.env);
     expect(journalConjuncts(state, PACKAGE, HEAD)).toEqual([]);
-    const gate = evaluateDraftLift({
+    const gate = evaluatePush({
       state,
       packageId: PACKAGE,
-      pullRequest: pullRequest(HEAD),
-      checkRuns: checks(HEAD),
+      headSha: HEAD,
       files: [{ status: "M", path: "src/app/events/page.tsx" }],
       rules,
     });
-    expect(gate).toMatchObject({ lift: true, journal_reasons: [], evidence_reasons: [] });
+    expect(gate).toMatchObject({ push: true, journal_reasons: [], evidence_reasons: [] });
     const merged = await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: PACKAGE,
-      pr_number: 60,
       sha: HEAD,
-      route: "guarded-auto",
+      route: "agent",
     });
     expect(merged.packages[PACKAGE].status).toBe("merged");
   });
@@ -213,9 +194,8 @@ describe("representative mission rehearsals", () => {
       "comment",
     );
     const carried = await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: PACKAGE,
-      pr_number: 60,
       head_sha: comment,
     });
     await m.append({
@@ -233,14 +213,13 @@ describe("representative mission rehearsals", () => {
     });
     expect(carried.packages[PACKAGE].visual_approved).toBe(true);
     expect(
-      evaluateDraftLift({
+      evaluatePush({
         state: replayState(m.repo, MISSION, m.env),
         packageId: PACKAGE,
-        pullRequest: pullRequest(comment),
-        checkRuns: checks(comment),
+        headSha: comment,
         files: [{ status: "M", path: "src/lib/events/service.ts" }],
         rules,
-      }).lift,
+      }).push,
     ).toBe(true);
 
     const presentation = commit(
@@ -250,9 +229,8 @@ describe("representative mission rehearsals", () => {
       "presentation",
     );
     const voided = await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: PACKAGE,
-      pr_number: 60,
       head_sha: presentation,
     });
     expect(voided.packages[PACKAGE].visual_approved).toBe(false);

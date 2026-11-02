@@ -28,22 +28,26 @@ local migration development  (DEVELOPMENT clone)
         │   npm run types:generate
         │   npm run check:rls && npm run test
         ▼
-feature branch and pull request
-        │
+side branch (no pull request) — every step above has passed locally
+        │   one fast-forward push to `main` (ADR 0041)
         ▼
-CI (.github/workflows/ci.yml)
+CI on `main` (.github/workflows/ci.yml)
         │   rebuild from EMPTY · RLS gate · type-drift gate
         │   constraint, lifecycle and security tests · seed loads
         ▼
-reviewed merge to `main`
-        │   CI green is a hard gate; human approvals are zero (ADR 0006)
+`main` is GREEN at the commit that carries the migration
+        │   a written rule, not an enforced one: never `db push` earlier
         ▼
 explicitly authorized application to hosted Supabase  (DEPLOYMENT clone)
             a deliberate human action, never the pipeline
 ```
 
-**Migrations are never applied by the deployment pipeline.** Merging to `main`
-deploys the application container; it does not touch the database. Application
+**Migrations are never applied by the deployment pipeline.** Pushing to `main`
+deploys nothing, and a deploy ships the application container; neither touches
+the database. **Never run `supabase db push` until CI is green on `main` at the
+commit that carries the migration**: with no pull request, that run is the first
+CI proof that the migration applies from empty, and nothing but this rule stops
+an unproved migration reaching hosted. Application
 code and schema therefore move independently, which is why expand/contract
 matters (below).
 
@@ -335,8 +339,8 @@ has no local stack and never starts one, so the check is unrunnable there.
 
    **Which clone does what here.** Reading state and re-applying happen in the
    **deployment clone**. Authoring the corrective migration and verifying it
-   locally from empty happen in the **development clone**, through a branch, a
-   pull request and a merge like any other change — the deployment clone edits
+   locally from empty happen in the **development clone**, through a branch and a
+   push to `main` like any other change — the deployment clone edits
    no file and runs no local stack, so "correct the SQL" and "verify locally"
    are never done there.
 
@@ -350,8 +354,8 @@ has no local stack and never starts one, so the check is unrunnable there.
 
 ## Deployment traceability
 
-Every hosted application is recorded — in the pull request that introduced the
-migration, and in the project's Notion operational record. No secret value, ever.
+Every hosted application is recorded — in the Linear handoff comment for the
+issue that introduced the migration, and in the project's Notion operational record. No secret value, ever.
 
 | Field                        | Example                                                          |
 | ---------------------------- | ---------------------------------------------------------------- |
@@ -408,13 +412,13 @@ an agent, and none of it is performed by the deployment pipeline.
 
 ## Ownership
 
-| Responsibility                            | Holder                                                         |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| Authorizes application to hosted Supabase | Brian Schuster                                                 |
-| Performs the application                  | Brian Schuster                                                 |
-| Verifies the result                       | Brian Schuster                                                 |
-| Decides forward-fix versus restore        | Brian Schuster                                                 |
-| Where the operational record is kept      | The pull request, plus the project's Notion operational record |
+| Responsibility                            | Holder                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| Authorizes application to hosted Supabase | Brian Schuster                                                           |
+| Performs the application                  | Brian Schuster                                                           |
+| Verifies the result                       | Brian Schuster                                                           |
+| Decides forward-fix versus restore        | Brian Schuster                                                           |
+| Where the operational record is kept      | The Linear handoff comment, plus the project's Notion operational record |
 
 This concentration is a known gap, not a design: locked **Requirement 14**
 demands two named durable club administrators per production service and is

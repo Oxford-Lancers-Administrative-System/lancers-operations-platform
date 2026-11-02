@@ -1,37 +1,35 @@
 #!/usr/bin/env bash
 #
-# Owner-run. Puts the merge rules into GitHub itself, so no workflow in this
-# repository — ours included — can merge work before it is ready.
+# Owner-run. Agents never run this. Sets the ruleset on `main` for the delivery
+# process in docs/adr/0041-push-to-main-without-pull-requests.md (LAN-523).
 #
-# The model, in one line: DRAFT MEANS NOT READY. GitHub refuses to merge a
-# draft natively, and its auto-merge waits for the draft to be lifted. So the
-# act of taking a pull request out of draft is the authorization to merge it,
-# and nothing else needs to be.
+# The model, in one line: a branch passes every check on the author's machine,
+# reaches `main` in one fast-forward push, and CI runs once, on main. Deploy
+# (`deploy.yml`) refuses any commit whose required checks are not green, so that
+# refusal — not a merge gate — is what stands between a red main and production.
 #
 # What this sets:
 #
-#   1. A ruleset on `main`: a pull request is required, both CI jobs must be
-#      green at an up-to-date head, main cannot be force-pushed or deleted,
-#      and squash is the only merge method.
+#   1. A ruleset on `main` that BLOCKS FORCE PUSHES and BLOCKS DELETION, and
+#      nothing else. In particular it has:
+#        - no "require a pull request",
+#        - no required status checks,
+#        - no "require branches to be up to date".
+#      A direct push is the intended path, so none of those can stay.
 #
-#   2. ZERO required approving reviews. Deliberate. Brian is the only human
-#      here; a required approval he cannot give himself would lock him out of
-#      his own work, and GitHub reviews are not how this repository decides
-#      anything. Readiness is the draft bit, not an approval.
+#   2. No bypass actors, and none are needed: with no pull-request rule,
+#      nobody needs to bypass anything to push.
 #
-#   3. No bypass actors — and none are needed, because nothing here requires
-#      an approval to satisfy. Brian merges his own work through the same
-#      rules everyone else does: green checks, not a draft.
+#   3. Repository auto-merge and delete-branch-on-merge switched OFF. Nothing
+#      here asks for an auto-merge any more. (Dependabot version updates are
+#      already off; its security updates can still open a pull request, which
+#      Brian merges by hand in the GitHub UI. That is the one place a pull
+#      request survives.)
 #
-#   4. Repository auto-merge enabled, so a workflow can ASK for a merge
-#      (`gh pr merge --auto`) rather than perform one. GitHub then merges if
-#      and only if the pull request is out of draft and every required check
-#      is green. Protected-path work is simply never asked for, so it waits
-#      for Brian's own hand on the merge button.
-#
-#   5. GitHub Actions may not create or approve pull requests. Belt and
-#      braces at zero approvals, but it stops the requirement being quietly
-#      satisfiable by a token if approvals are ever turned back on.
+# It also removes the old "main — merge readiness" ruleset, because that ruleset
+# is exactly what this replaces. Classic branch protection on `main`, if it
+# exists, would override a ruleset where they overlap: the dry run shows it, and
+# you delete it in Settings > Branches.
 #
 # Dry run by default. Pass --apply to write.
 #
@@ -42,9 +40,8 @@ set -euo pipefail
 
 REPO="Oxford-Lancers-Administrative-System/lancers-operations-platform"
 BRANCH="main"
-RULESET_NAME="main — merge readiness"
-CHECK_ONE="Format, lint, typecheck, test, build"
-CHECK_TWO="Container builds and serves"
+RULESET_NAME="main — no force push, no deletion"
+OLD_RULESET_NAME="main — merge readiness"
 
 APPLY=false
 [ "${1:-}" = "--apply" ] && APPLY=true
@@ -65,36 +62,26 @@ note "Classic branch protection on $BRANCH:"
 if gh api "repos/$REPO/branches/$BRANCH/protection" > /tmp/prot.json 2>/dev/null; then
   jq -r '
     "    required approvals: \(.required_pull_request_reviews.required_approving_review_count // "none")",
-    "    code owner review:  \(.required_pull_request_reviews.require_code_owner_reviews // false)",
     "    required checks:    \((.required_status_checks.contexts // []) | join(", ") | if . == "" then "none" else . end)"
   ' /tmp/prot.json
+  note "    DELETE THIS in Settings > Branches: it overrides the ruleset below."
 else
   note "    (none)"
 fi
 
 note "Repository settings:"
 gh api "repos/$REPO" --jq '"    allow_auto_merge: \(.allow_auto_merge)   delete_branch_on_merge: \(.delete_branch_on_merge)"'
-gh api "repos/$REPO/actions/permissions/workflow" \
-  --jq '"    actions may approve PRs: \(.can_approve_pull_request_reviews)"' 2>/dev/null \
-  || note "    (cannot read; organisation policy may govern it)"
 
 if [ "$APPLY" = false ]; then
   say "Dry run. Re-run with --apply to write the rules below."
   cat <<'PLAN'
-  1. Create or replace the ruleset "main — merge readiness" on main:
-       - require a pull request before merging
-       - 0 required approving reviews
-       - require both CI checks green, branch up to date
-       - squash only
-       - block force pushes and deletion of main
+  1. Delete the ruleset "main — merge readiness" if it exists.
+  2. Create or replace the ruleset "main — no force push, no deletion" on main:
+       - block force pushes (non_fast_forward)
+       - block deletion of main
+       - no pull-request rule, no required status checks, no up-to-date rule
        - no bypass actors
-  2. Enable repository auto-merge and delete-branch-on-merge.
-  3. Forbid GitHub Actions from creating or approving pull requests.
-
-  NOTE: classic branch protection, if present above, takes precedence over a
-  ruleset where they overlap. If the "current state" section shows a classic
-  rule on main, delete it in Settings > Branches so this ruleset is the only
-  thing deciding.
+  3. Turn repository auto-merge and delete-branch-on-merge off.
 PLAN
   exit 0
 fi
@@ -110,32 +97,18 @@ RULESET_JSON=$(cat <<JSON
   "conditions": { "ref_name": { "include": ["refs/heads/$BRANCH"], "exclude": [] } },
   "rules": [
     { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    {
-      "type": "pull_request",
-      "parameters": {
-        "required_approving_review_count": 0,
-        "require_code_owner_review": false,
-        "dismiss_stale_reviews_on_push": false,
-        "require_last_push_approval": false,
-        "required_review_thread_resolution": false,
-        "allowed_merge_methods": ["squash"]
-      }
-    },
-    {
-      "type": "required_status_checks",
-      "parameters": {
-        "strict_required_status_checks_policy": true,
-        "required_status_checks": [
-          { "context": "$CHECK_ONE" },
-          { "context": "$CHECK_TWO" }
-        ]
-      }
-    }
+    { "type": "non_fast_forward" }
   ]
 }
 JSON
 )
+
+OLD=$(gh api "repos/$REPO/rulesets" --jq \
+  ".[] | select(.name == \"$OLD_RULESET_NAME\") | .id" 2>/dev/null | head -1 || true)
+if [ -n "$OLD" ]; then
+  note "Deleting the old ruleset #$OLD ($OLD_RULESET_NAME)"
+  gh api --method DELETE "repos/$REPO/rulesets/$OLD" > /dev/null
+fi
 
 EXISTING=$(gh api "repos/$REPO/rulesets" --jq \
   ".[] | select(.name == \"$RULESET_NAME\") | .id" 2>/dev/null | head -1 || true)
@@ -148,14 +121,9 @@ else
   printf '%s' "$RULESET_JSON" | gh api --method POST "repos/$REPO/rulesets" --input - > /dev/null
 fi
 
-note "Enabling auto-merge and delete-branch-on-merge"
+note "Turning auto-merge and delete-branch-on-merge off"
 gh api --method PATCH "repos/$REPO" \
-  -F allow_auto_merge=true -F delete_branch_on_merge=true > /dev/null
-
-note "Forbidding Actions from creating or approving pull requests"
-gh api --method PUT "repos/$REPO/actions/permissions/workflow" \
-  -F can_approve_pull_request_reviews=false > /dev/null 2>&1 \
-  || note "  (refused — governed by the organisation's Actions settings)"
+  -F allow_auto_merge=false -F delete_branch_on_merge=false > /dev/null
 
 say "Done"
 note "Re-run without --apply to verify."

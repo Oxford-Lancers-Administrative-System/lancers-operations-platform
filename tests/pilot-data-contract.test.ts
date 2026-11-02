@@ -1,7 +1,7 @@
 // @vitest-environment node
 /**
  * The pilot-data contract (LAN-93 / ADR 0016) is documentation and a
- * pull-request template. Nothing else in the repository fails if the
+ * Production handoff comment template. Nothing else in the repository fails if the
  * real-roster prohibition is quietly softened, if the Production handoff block
  * loses the line about migrations, if a workflow starts running a pilot script,
  * or if somebody commits a real email address into a public repository.
@@ -36,7 +36,7 @@ const read = (relative: string): string => readFileSync(path.join(repoRoot, rela
 const PILOT_RUNBOOK = "docs/pilot-data-runbook.md";
 const PILOT_MANIFEST = "docs/pilot-data-manifest.md";
 const MIGRATION_RUNBOOK = "docs/migration-runbook.md";
-const PR_TEMPLATE = ".github/PULL_REQUEST_TEMPLATE.md";
+const PR_TEMPLATE = "docs/production-handoff-template.md";
 
 /** Every file under a directory, recursively, as repo-relative paths. */
 function filesUnder(relativeDir: string): string[] {
@@ -205,7 +205,7 @@ describe("the pilot artifacts are value-free", () => {
    * Everything a value-free check may ignore, removed.
    *
    * A file inside `scripts/pilot/<issue>/` is held to that issue's block alone.
-   * The runbook, the manifest and the pull-request template belong to no single
+   * The runbook, the manifest and the handoff comment template belong to no single
    * scenario and legitimately quote several, so they may use any reserved
    * block — and still nothing else.
    */
@@ -296,10 +296,10 @@ describe("the pilot artifacts are value-free", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Matrix row 9 — the pull-request template forces disclosure
+// Matrix row 9 — the Production handoff comment template forces disclosure
 // ---------------------------------------------------------------------------
 
-describe("the pull-request template", () => {
+describe("the Production handoff comment template", () => {
   const template = read(PR_TEMPLATE);
 
   it("exists and carries the Production handoff block", () => {

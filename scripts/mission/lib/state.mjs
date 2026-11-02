@@ -70,7 +70,7 @@ export const EVENT_TYPES = [
   "worker-receipt",
   "worker-abandoned",
   "correction-dispatched",
-  "pr-opened",
+  "head-recorded",
   "review-receipt",
   "integrated-review",
   "visual-approval",
@@ -80,7 +80,7 @@ export const EVENT_TYPES = [
   "journal-annotation",
   "package-gate-passed",
   "package-gate-invalidated",
-  "merge-recorded",
+  "main-pushed",
   "checkpoint",
   "scope-drift",
   "packet-revised",
@@ -621,52 +621,39 @@ function schedulingRefusals(state, pkg, packageId, { correction = false } = {}) 
 }
 
 /**
- * Why this package's draft may not be lifted, from mission state alone.
+ * Why this package may not be pushed to main, from mission state alone.
  *
- * LAN-209 gave the one act that authorizes a merge a single owner: the Lead
- * lifts the draft, exactly once, as the last act of the work. "Route
- * guarded-auto" therefore now means GitHub's own auto-merge took it after that
- * act, and "route owner" means the draft stayed and Brian merged it. These are
- * the mission-state conditions for the first of those.
+ * LAN-523: there are no pull requests. The one act that puts work on main is
+ * `git push origin HEAD:main`. Route "agent" means the Lead took that act under
+ * these conditions; route "owner" means Brian pushed it himself, which needs no
+ * qualification here. Migrations and every `reviewRequired` path are ordinary
+ * work now: they need the clear review the conditions already demand.
  *
- * LAN-148 §F separates three things the harness used to conflate. Review grade
- * says how rigorously a change is reviewed. Merge route is decided by the
- * protected surface the diff actually touches plus the evidence — which the
- * merge workflow re-derives from the real diff, and which nothing written in a
- * pull request can talk its way past. Dispatch state is a third thing again.
- *
- * The blanket "highest risk never auto-merges" made the checkpoint-approval
- * tier unreachable for exactly the work it was designed for: authorization
- * rules are graded Highest, so the tier Brian approved on 2026-08-18 could
- * never fire. Highest-risk work now leaves draft only when an answered owner
- * checkpoint names the package — he still hears about it before it merges —
- * while migrations, and every path in the prohibited list, stay his.
+ * Highest-risk work reaches main only when an answered owner checkpoint names
+ * the package, so Brian has heard about it before it lands.
  */
-export function guardedLaneRefusals(state, packageId, sha) {
+export function pushRefusals(state, packageId, sha) {
   const pkg = state.packages[packageId];
   if (!pkg) return [`No planned package ${packageId}.`];
   const refusals = [];
-  if (pkg.migration_owner) {
-    refusals.push("A migration-owning package is owner-merged, never autonomous.");
-  }
   if (pkg.risk_class === "highest" && !answeredQuestionNaming(state, packageId)) {
     refusals.push(
-      `${packageId} is highest risk. It may use the guarded lane only when an answered owner checkpoint names it, so that Brian has heard about it before it merges.`,
+      `${packageId} is highest risk. It may be pushed by an agent only when an answered owner checkpoint names it, so that Brian has heard about it before it lands.`,
     );
   }
   if (!reviewCovers(state, pkg, sha)) {
     refusals.push(
-      `A guarded merge requires a clear review receipt at exactly ${sha ?? "the merged SHA"}, either package-scoped or from the mission-level security tier.`,
+      `A push to main requires a clear review receipt at exactly ${sha ?? "the pushed SHA"}, either package-scoped or from the mission-level security tier.`,
     );
   }
   if (!approvalCovers(state, pkg, sha)) {
-    refusals.push("Visual work merges only after Brian's recorded visual approval.");
+    refusals.push("Visual work reaches main only after Brian's recorded visual approval.");
   }
   for (const question of openQuestionsAffecting(state, packageId)) {
     refusals.push(`Unresolved owner question ${question.id} affects ${packageId}.`);
   }
   if (state.stopped) {
-    refusals.push(`The mission is stopped (${state.stopped.reason}); nothing merges.`);
+    refusals.push(`The mission is stopped (${state.stopped.reason}); nothing is pushed.`);
   }
   return refusals;
 }
@@ -845,7 +832,7 @@ export function validateEvent(event, state) {
         const durable =
           existing.linear_issue_id ||
           existing.worker_id ||
-          existing.pr_number ||
+          existing.head_sha ||
           existing.status !== "planned";
         if (durable) {
           errors.push(
@@ -1140,14 +1127,11 @@ export function validateEvent(event, state) {
       break;
     }
 
-    case "pr-opened": {
+    case "head-recorded": {
       const pkg = state.packages[event.package_id];
       if (!pkg) {
         errors.push(`No planned package ${event.package_id}.`);
         break;
-      }
-      if (!Number.isInteger(event.pr_number) || event.pr_number <= 0) {
-        errors.push("pr_number must be a positive integer.");
       }
       if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "")) {
         errors.push("head_sha must be the full 40-character commit SHA.");
@@ -1161,8 +1145,8 @@ export function validateEvent(event, state) {
         errors.push(`No planned package ${event.package_id}.`);
         break;
       }
-      if (!pkg.pr_number) {
-        errors.push(`${event.package_id} has no recorded pull request to review.`);
+      if (!pkg.head_sha) {
+        errors.push(`${event.package_id} has no recorded branch head to review.`);
       }
       if (pkg.status === "merged") {
         errors.push(
@@ -1406,8 +1390,8 @@ export function validateEvent(event, state) {
           errors.push(`No planned package ${event.package_id}.`);
           break;
         }
-        if (!pkg.pr_number)
-          errors.push(`${event.package_id} has no recorded pull request to review.`);
+        if (!pkg.head_sha)
+          errors.push(`${event.package_id} has no recorded branch head to review.`);
         if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
         if (event.head_sha !== pkg.head_sha) {
           errors.push(
@@ -1749,11 +1733,10 @@ export function validateEvent(event, state) {
       if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "") || event.head_sha !== pkg.head_sha) {
         errors.push("A gate pass records the package's exact current 40-character head SHA.");
       }
-      // LAN-209. A gate pass used to carry a receipt, because a workflow that
-      // could not see this journal had to be told what it said. It is now the
-      // durable record that the Lead may lift this package's draft, and the
-      // conditions are re-derived here rather than restated in the event.
-      errors.push(...guardedLaneRefusals(state, event.package_id, event.head_sha));
+      // A gate pass is the durable record that the Lead may push this package
+      // to main, and the conditions are re-derived here rather than restated in
+      // the event.
+      errors.push(...pushRefusals(state, event.package_id, event.head_sha));
       break;
     }
 
@@ -1772,31 +1755,20 @@ export function validateEvent(event, state) {
       break;
     }
 
-    case "merge-recorded": {
+    case "main-pushed": {
       const pkg = state.packages[event.package_id];
       if (!pkg) {
         errors.push(`No planned package ${event.package_id}.`);
         break;
       }
-      if (!["guarded-auto", "owner"].includes(event.route)) {
-        errors.push('A merge is recorded with route "guarded-auto" or "owner".');
+      if (!["agent", "owner"].includes(event.route)) {
+        errors.push('A push to main is recorded with route "agent" or "owner".');
       }
       if (!/^[0-9a-f]{40}$/.test(event.sha ?? "")) {
-        errors.push("A merge records the exact merged head SHA.");
+        errors.push("A push to main records the exact pushed head SHA.");
       }
-      if (event.route === "guarded-auto") {
-        errors.push(...guardedLaneRefusals(state, event.package_id, event.sha));
-      }
-      // LAN-148 §F: sending work to Brian that the lane could have taken is a
-      // harness defect, not a neutral choice — it is what turned the first live
-      // mission's merges into a queue. It is allowed, and it is recorded.
-      if (event.route === "owner") {
-        const qualified = guardedLaneRefusals(state, event.package_id, event.sha).length === 0;
-        if (qualified && !isNonEmptyString(event.owner_route_reason)) {
-          errors.push(
-            `${event.package_id} qualified to leave draft; routing it to Brian anyway records why, and is counted as a harness defect.`,
-          );
-        }
+      if (event.route === "agent") {
+        errors.push(...pushRefusals(state, event.package_id, event.sha));
       }
       break;
     }
@@ -1846,11 +1818,11 @@ export function validateEvent(event, state) {
         break;
       }
       // Reclaiming is not a judgement call. It follows a terminal state that
-      // the repository can be asked about — the mission-merge lane merges
-      // without a human, so "Brian merged it" is not a state anyone can infer.
+      // the repository can be asked about — whether the head is on origin/main —
+      // not something a receipt can assert.
       if (!["merged", "removed"].includes(pkg.status) && !event.abandoned) {
         errors.push(
-          `${event.package_id} is ${pkg.status}. A package's worktree and branch are reclaimed after it merges, is removed from the plan, or is explicitly abandoned — never on the strength of a receipt.`,
+          `${event.package_id} is ${pkg.status}. A package's worktree and branch are reclaimed after it reaches main, is removed from the plan, or is explicitly abandoned — never on the strength of a receipt.`,
         );
       }
       if (pkg.status === "merged" && !/^[0-9a-f]{40}$/.test(event.merge_sha ?? "")) {
@@ -1919,7 +1891,7 @@ export function validateEvent(event, state) {
       }
       if (!isNonEmptyString(event.preserved)) {
         errors.push(
-          "Abandonment records what was deliberately preserved — pushed branches, open pull requests, the journal itself — so a later reader can tell debris from evidence.",
+          "Abandonment records what was deliberately preserved — pushed branches, the journal itself — so a later reader can tell debris from evidence.",
         );
       }
       if (state.activeWorkers.length > 0) {
@@ -1954,11 +1926,11 @@ export function validateEvent(event, state) {
         errors.push("Closeout lists what shipped.");
       } else {
         for (const entry of event.shipped) {
-          if (!isNonEmptyString(entry?.linear_issue_id) || !Number.isInteger(entry?.pr_number)) {
-            errors.push("Each shipped entry names its Linear issue and pull request.");
+          if (!isNonEmptyString(entry?.linear_issue_id)) {
+            errors.push("Each shipped entry names its Linear issue.");
           }
           if (!/^[0-9a-f]{40}$/.test(entry?.sha ?? "")) {
-            errors.push("Each shipped entry records the exact merged SHA.");
+            errors.push("Each shipped entry records the exact SHA that reached main.");
           }
         }
       }
@@ -2042,7 +2014,6 @@ export function validateEvent(event, state) {
  *   planApproved: { at: string, by: string, evidence: string } | null,
  *   decomposition: Record<string, any> | null,
  *   dispatchDeferrals: Array<Record<string, any>>,
- *   laneBypasses: Array<Record<string, any>>,
  *   integratedReviews: Array<Record<string, any>>,
  *   missionVisualApprovals: Array<Record<string, any>>,
  *   phaseRecycles: string[],
@@ -2085,7 +2056,6 @@ function emptyState() {
     planApproved: null,
     decomposition: null,
     dispatchDeferrals: [],
-    laneBypasses: [],
     integratedReviews: [],
     missionVisualApprovals: [],
     phaseRecycles: [],
@@ -2142,7 +2112,6 @@ export function reduce(events) {
             status: existing?.status ?? "planned",
             worker_id: existing?.worker_id ?? null,
             linear_issue_id: existing?.linear_issue_id ?? null,
-            pr_number: existing?.pr_number ?? null,
             head_sha: existing?.head_sha ?? null,
             receipts: existing?.receipts ?? [],
             review: existing?.review ?? null,
@@ -2202,7 +2171,7 @@ export function reduce(events) {
         pkg.status = "correction";
         pkg.gate_passed = null;
         // A dispatch has no new head to classify. Keep the evidence but mark it
-        // pending so it cannot satisfy a gate until `pr-opened` records and
+        // pending so it cannot satisfy a gate until `head-recorded` records and
         // classifies the actual old-head..new-head delta.
         pkg.visual_evidence_pending = true;
         const active = activeWorkerFor(state, event.package_id);
@@ -2270,7 +2239,7 @@ export function reduce(events) {
         pkg.worker_id = null;
         break;
       }
-      case "pr-opened": {
+      case "head-recorded": {
         const pkg = state.packages[event.package_id];
         const previousHead = pkg.head_sha;
         if (previousHead && previousHead !== event.head_sha) {
@@ -2297,7 +2266,6 @@ export function reduce(events) {
           }
         }
         pkg.visual_evidence_pending = false;
-        pkg.pr_number = event.pr_number;
         pkg.head_sha = event.head_sha;
         if (previousHead !== event.head_sha) pkg.gate_passed = null;
         break;
@@ -2546,17 +2514,10 @@ export function reduce(events) {
       case "package-gate-invalidated":
         state.packages[event.package_id].gate_passed = null;
         break;
-      case "merge-recorded": {
+      case "main-pushed": {
         const pkg = state.packages[event.package_id];
         pkg.status = "merged";
         pkg.merged = { at: event.at, event_index: index, sha: event.sha, route: event.route };
-        if (event.route === "owner" && event.owner_route_reason) {
-          state.laneBypasses.push({
-            at: event.at,
-            package_id: event.package_id,
-            reason: event.owner_route_reason,
-          });
-        }
         break;
       }
       case "checkpoint": {
@@ -2641,7 +2602,7 @@ function prepareJournalEvent(repoPath, event, state) {
       diff_basis: derived.detail,
     };
   }
-  if (event.type !== "pr-opened") return event;
+  if (event.type !== "head-recorded") return event;
   const previousHead = state.packages[event.package_id]?.head_sha;
   if (!previousHead || previousHead === event.head_sha) return event;
 
@@ -2811,7 +2772,7 @@ function ordinaryActions(state) {
     if (
       ["implemented", "reviewed"].includes(pkg.status) &&
       !reviewCovers(state, pkg) &&
-      pkg.pr_number
+      pkg.head_sha
     ) {
       const invocation = Object.values(state.reviewInvocations).find(
         (candidate) =>
@@ -2853,7 +2814,7 @@ function ordinaryActions(state) {
     if (
       ["implemented", "reviewed"].includes(pkg.status) &&
       reviewCovers(state, pkg) &&
-      pkg.pr_number &&
+      pkg.head_sha &&
       pkg.visual !== "nonvisual" &&
       !approvalCovers(state, pkg)
     ) {
@@ -2872,14 +2833,15 @@ function ordinaryActions(state) {
       actions.push(
         pkg.gate_passed?.head_sha === pkg.head_sha
           ? {
-              action: "request-merge",
+              action: "push-main",
               package_id: pkg.id,
-              detail: "Publish the recorded receipt and add the mission-merge label.",
+              detail:
+                "Merge origin/main into the branch (never rebase), rerun `npm run verify` if main moved, take `git push origin HEAD:main`, then record `mission main-record`.",
             }
           : {
-              action: "merge-gate",
+              action: "push-gate",
               package_id: pkg.id,
-              detail: "Evaluate the guarded merge gate.",
+              detail: "Evaluate the push gate.",
             },
       );
     }
@@ -2923,7 +2885,7 @@ function ordinaryActions(state) {
     actions.push({
       action: "mission-smoke-correction",
       detail:
-        "Create one corrective issue/PR cycle for the smoke findings; do not reopen merged packages or their owner approvals. After it merges, re-run only the affected journeys once.",
+        "Create one corrective issue/branch cycle for the smoke findings; do not reopen packages already on main or their owner approvals. After it reaches main, re-run only the affected journeys once.",
     });
   }
   if (
@@ -2952,7 +2914,7 @@ function ordinaryActions(state) {
       actions.push({
         action: "closeout",
         detail:
-          "Write the closeout into the existing Notion mission record: outcome, shipped issues, pull requests and exact SHAs, acceptance and injection evidence, unresolved findings and their dispositions, owner and external actions, elapsed time and cost, and the next action.",
+          "Write the closeout into the existing Notion mission record: outcome, shipped issues and the exact SHAs that reached main, acceptance and injection evidence, unresolved findings and their dispositions, owner and external actions, elapsed time and cost, and the next action.",
       });
     }
   }
@@ -2982,7 +2944,7 @@ function ordinaryActions(state) {
         action: "reclaim",
         package_id: pkg.id,
         detail:
-          "Merged. `npm run mission:finish` proves the merge from the repository, then releases its worktree, branch and attachment to the mission stack. Reclamation does not wait for the mission to end.",
+          "On main. `npm run mission:finish` proves from the repository that the head is on origin/main, then releases its worktree, branch and attachment to the mission stack. Reclamation does not wait for the mission to end.",
       });
     }
   }

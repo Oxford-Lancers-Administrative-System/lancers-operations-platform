@@ -2,8 +2,9 @@
 
 The owner's guide to Mission Harness v1: what Brian does, what the Mission
 Lead does, and how to recover. The decision is
-[`docs/adr/0027-mission-harness.md`](adr/0027-mission-harness.md); the
-machine-readable merge rules are
+[`docs/adr/0027-mission-harness.md`](adr/0027-mission-harness.md), as amended by
+[ADR 0041](adr/0041-push-to-main-without-pull-requests.md) (no pull requests);
+the machine-readable rules for what reaches `main` are
 [`.github/merge-rules.json`](../.github/merge-rules.json).
 If this page and those files disagree, the checked-in rules and tests win.
 
@@ -18,7 +19,7 @@ Exactly one fenced Lead controls a given mission at a time, and that fence
 exists from the moment `mission init` records the packet — not from the first
 heartbeat afterwards.
 Everything else — planning, Linear issues, workers, reviews, corrections,
-qualifying merges, checkpoints — is the Mission Lead's job.
+qualifying pushes to `main`, checkpoints — is the Mission Lead's job.
 
 To start a **new** mission, the approved packet must already be on `main` at
 `missions/packets/M-<id>/packet.json`; the Lead runs
@@ -48,12 +49,12 @@ the dependency DAG, collision domains, migration ownership and two-worker limit
 still determine what is actually dispatchable.
 
 The current epoch is the first planned group not completed at a checkpoint.
-It stays current through implementation, review, correction, merge and
+It stays current through implementation, review, correction, landing on main and
 reclamation. Time, token use, review count and Lead replacement do not change
 it. A replacement Lead resumes the same group from the journal with no epoch
 token or handover protocol.
 
-Once every package in the current group has merged and been reclaimed,
+Once every package in the current group is on main and has been reclaimed,
 `next_actions` says `checkpoint-and-stop`. The Lead records that checkpoint and
 ends the run before starting the next group. The next `/run-mission` invocation
 then sees the next planned group. This is a soft run boundary: epochs describe
@@ -210,30 +211,29 @@ fresh model.
 
 `/run-mission` stops short of closeout, for the reason `/start-issue` does:
 while work is in flight a worktree is not debris, and an agent must never delete
-a dirty or unmerged one. Reclamation is its own invocation —
+a dirty or unlanded one. Reclamation is its own invocation —
 `/finish-mission M-<id>`, or `npm run mission:finish -- M-<id>` — because the
 case that matters most is the one where the Lead is gone and has nothing left to
 run an exit step.
 
 It reclaims **per package**: a package's worktree, branch and attachment to the
-mission stack are released the moment its pull request merges, proved from the
-repository and never from the pull-request body or the Linear state — the
-merge workflow enables GitHub's auto-merge, so nobody may infer that Brian did.
+mission stack are released the moment its pushed head is on `origin/main`,
+proved from the repository and never from the journal's say-so or the Linear
+state.
 
-The proof is the **merge commit**, not the branch head. This repository squash-
-merges, and a squash produces a new commit, so the head is never an ancestor of
-`main` afterwards; proving by ancestry alone would report every merged package
-as unmerged and reclaim nothing. `gh pr view` must report `MERGED` and its merge
-commit must be on `origin/main` (fetched first, so a stale local view cannot
-condemn finished work). A true merge commit leaves the head reachable, and that
-is accepted as an independent proof. `--delete-branch` having removed the remote
-branch is evidence the work landed, not unpushed work.
+The proof is **ancestry of the pushed SHA**. With no pull requests a branch
+reaches `main` as a fast-forward, or as the head of a merge of `origin/main`
+into the branch, so the recorded head is an ancestor of `origin/main` afterwards
+(fetched first, so a stale local view cannot condemn finished work). There is no
+squash commit to look for. A package's commits count as safe once they are on
+any remote, `origin/main` included, because a branch pushed to `main` is usually
+never pushed under its own name.
 
 The mission-owned stack is shared by several workers, so **whoever detaches last
 retires it**. A mission whose acquiring worktree is already gone can still be
 tidied up, and no sibling mission's stack or the standing slot is ever touched.
 
-A mission ends as `mission-finalized` — every live package merged and reclaimed,
+A mission ends as `mission-finalized` — every live package on main and reclaimed,
 no workers running, and the closeout evidence already written into the Notion
 mission record — or as `mission-abandoned`, which records why it is unfinished
 and what was deliberately preserved. A resumed Lead reads that distinction from
@@ -247,22 +247,22 @@ It refuses while another Lead's fence is live, and there is no override.
 
 The packet is the pinned execution contract for one approved mission. The
 Mission Intake Agent drafts it at `missions/packets/<mission-id>/packet.json`
-and opens a **packet-only pull request** — **Brian's merge of that PR is the
-approval**, binding the exact packet version and commit; no field in the
-file substitutes for it, and `missions/**` is prohibited from every
-automatic merge lane. A draft that cannot honestly be completed ships with
+and leaves it on a **packet-only branch** — **Brian's own push of that branch to
+`main` is the approval**, binding the exact packet version and commit; no field
+in the file substitutes for it, and `missions/**/packet.json` is an `ownerOnly`
+path that no agent pushes. A draft that cannot honestly be completed ships with
 `status: "not_ready"` — valid to store, impossible to execute. Check any
 draft with `npm run mission -- validate --packet <file>` (pure; writes no
 state).
 
-Since LAN-149 that pull request is **intake-artifacts-only** rather than
+Since LAN-149 that branch is **intake-artifacts-only** rather than
 packet-only: it carries exactly `missions/intake/<mission-id>/**` and
 `missions/packets/<mission-id>/**`, and nothing else. The completed ledger is
-the packet's provenance, so the one owner-approved merge lands both together —
-`M-EVENTS-CALENDAR-TARGET-STATE` needed a second pull request to put its ledger
+the packet's provenance, so the one owner push lands both together —
+`M-EVENTS-CALENDAR-TARGET-STATE` needed a second push to put its ledger
 on `main` after its packet was already there. Skill, validator and application
-changes still travel their own normal pull requests. Check the diff with
-`npm run intake -- pr-paths <mission-id> --diff main`.
+changes still travel their own normal branches. Check the diff with
+`npm run intake -- branch-paths <mission-id> --diff main`.
 
 The mechanical schema is `scripts/mission/lib/packet.mjs`; the synthetic
 example is `tests/fixtures/mission/approved-packet.json`. A packet records:
@@ -274,7 +274,7 @@ it), `gates`, `merge_envelope` (which can never widen the autonomous classes
 nor drop an owner-gated class), `completion_evidence`, and the `approval`
 record. Notion remains authoritative for product intent; the packet pins
 versions, it does not replace authority. Genuinely new scope requires a
-revised packet — a new version in a new packet PR, never a mutation of the
+revised packet — a new version on a new packet branch, never a mutation of the
 approved one — and drift stops only the affected packages while the rest
 continues.
 
@@ -338,51 +338,54 @@ and measured 375px. Mockups govern structure and copy; application conventions
 govern styling. An empty union launches no reviewer. Only then does Brian open
 the live `review-ready` environment with one URL, the fixed login and zero
 commands. `visual-approve` records the exact package head he checked. At that
-unchanged head no reviewer or worker runs afterwards; the deterministic merge
+unchanged head no reviewer or worker runs afterwards; the deterministic push
 gate is next. A rendered head change repeats the affected evidence, while a
 classifier-proven non-rendered delta carries the owner approval forward.
 
-Each approved issue merges immediately. After all mission issues are on `main`,
-one bounded Sonnet walker smoke-tests the predetermined end-to-end journeys and
-visible hand-offs. That final smoke is not another visual review and does not
-reopen merged issues. Its findings become new corrective issue/PR work; only the
-affected journey repeats once after that correction merges. A second failure
+Each approved issue is pushed to `main` immediately. After all mission issues are
+on `main`, one bounded Sonnet walker smoke-tests the predetermined end-to-end
+journeys and visible hand-offs. That final smoke is not another visual review and
+does not reopen issues already on `main`. Its findings become new corrective
+issue/branch work; only the affected journey repeats once after that correction
+lands. A second failure
 stops automated correction and returns to Brian for adjudication.
 
-## What merges by itself, and what never does
+## What reaches main, and what only Brian pushes
 
-**Draft state is the readiness gate (Brian, 2026-09-01; ADR 0038).** A pull
-request leaves draft exactly once, as the last act of the work, and that act is
-the authorization to merge it. The Mission Lead may lift a package's draft only
-when the diff touches no prohibited path, review is clear at the pull request's
-exact current head, and — for visual work — Brian's visual approval is recorded
-against that same head. Otherwise the draft stays and Brian merges. The Lead
-never merges, and neither does the workflow.
+**A branch reaches `main` exactly once, in one push (Brian, 2026-11-02; ADR
+0041).** The Mission Lead may push a package only when every local check passed
+at the exact head, review is clear at that head, and — for visual work — Brian's
+visual approval is recorded against that same head. The Lead never deploys.
+Inside a mission every package still gets its clear package review, because that
+review is also where its visual and runtime evidence is filed; the cut-down
+"review only for sensitive paths" rule is the rule for issues and branches
+outside a mission. There are no lanes, no labels, no eligibility classes and no
+receipt.
 
-`.github/workflows/merge.yml` enables GitHub's own auto-merge on a non-draft
-pull request whose diff touches no prohibited path; GitHub merges it once every
-required check is green. There are no lanes, no labels, no eligibility classes
-and no receipt: the receipt existed only because a workflow that could not see
-the mission journal had to be told what it said, and it no longer needs telling.
+Before pushing, the Lead merges `origin/main` into the package branch (never a
+rebase; force-push stays denied), reruns `npm run verify` if `main` moved, and
+takes `git push origin HEAD:main`. CI then runs once, on `main`. A red `main` is
+fixed forward at once and nothing else is pushed until it is green.
 
-**Always Brian's, never autonomous:** schema and migrations; RLS and the
-authentication routes; the public RSVP token surfaces (`src/lib/rsvp/**`);
-mission packets (`missions/**` — the packet PR _is_ the approval); secrets
-and credentials; deployment and production data; and visual work without
-recorded approval. These arrive as ordinary draft PRs for Brian to merge, and
-each stays a draft, and each is decided from the real diff by the
-prohibited-path scan rather than from a risk label.
+**Always Brian's push:** the approved mission packet
+(`missions/**/packet.json` — his push _is_ the approval). **Always Brian's
+action, never an agent's:** deployment, a hosted `db push`, secrets and
+credentials, and production data. Everything else on the `reviewRequired` list —
+schema and migrations, RLS, the authentication routes, the public RSVP token
+surfaces (`src/lib/rsvp/**`), `.github/**`, `.claude/**`, the mission and merge
+machinery — needs the review before an agent pushes it, and is decided from the
+real diff rather than from a risk label.
 
-Highest risk is **not** on that list any more. A grade says how rigorously a
-change is reviewed; it does not decide the route. Highest-risk work leaves draft
-only when an answered owner checkpoint names the package, and so does any work
-touching a checkpoint surface — auth, the remaining database routing, the public
-answer-token surface, delivery, or the provider webhook — whatever its grade. A
-declared grade cannot stand in for the paths a package turns out to touch. Brian
-hears about all of it before it merges — see
+Highest risk is **not** an owner-push category. A grade says how rigorously a
+change is reviewed; it does not decide the route. Highest-risk work is pushed by
+an agent only when an answered owner checkpoint names the package, and so does
+any work touching a checkpoint surface — auth, the remaining database routing,
+the public answer-token surface, delivery, or the provider webhook — whatever its
+grade. A declared grade cannot stand in for the paths a package turns out to
+touch. Brian hears about all of it before it lands — see
 [ADR 0033](adr/0033-harness-after-the-first-live-mission.md) §4.
 
-**A mission merge does not deploy** — decided deliberately. `main` moves
+**A push to main does not deploy** — decided deliberately. `main` moves
 ahead of production until Brian ships it:
 
 ```
@@ -390,9 +393,10 @@ gh workflow run deploy.yml
 ```
 
 That builds one image from the current head of `main` (all accumulated
-merges, each individually CI-green) and deploys it with the full smoke test.
-Any PR Brian merges himself also triggers a deploy and carries the
-accumulated work with it. The checkpoint's drift line says when this
+pushes) and deploys it with the full smoke test. The preflight refuses any
+commit whose required checks are not green, so dispatch only after main's CI
+finishes. A hosted `supabase db push` for a migration likewise waits for a green
+`main` at the commit that carries it. The checkpoint's drift line says when this
 matters; rollback is unchanged (`docs/deployment.md`).
 
 ## Recovery
@@ -414,20 +418,24 @@ every read.
   session resumes exactly as above. There is no automatic wake-up in v1.
 - **A worker died mid-package:** its lease expires and its package returns
   to the frontier; the worktree and branch are never deleted while dirty or
-  unmerged, and re-dispatch reuses them.
+  unlanded, and re-dispatch reuses them.
 - **Something looks wrong:** `npm run mission -- status M-<id>` projects every
   package onto the canonical lifecycle, then prints open questions and the
   executable frontier without changing anything. Detailed journal mechanics
   remain in plain NDJSON and are safe to read.
 
-`mission gate` answers one question: may the Lead lift this package's draft? It
+`mission gate` answers one question: may the Lead push this package to `main`? It
 joins the journal conjuncts — clear review at the exact head, recorded visual
 approval for visual work, an answered owner question for a checkpoint surface,
-no open owner question, no stop, no drift — with the
-prohibited-path scan of the real diff and the required checks green at that same
-head. A pass records `gate-passed` at the exact head, and only then does the
-Lead run `gh pr ready`. Re-running a now-failing gate invalidates that
-milestone, so volatile GitHub evidence cannot leave status falsely green.
+no open owner question, no stop, no drift — with the real diff, which must
+contain no `ownerOnly` path. Run it with `--head <sha> --files <name-status file>`,
+the file being `git diff --name-status origin/main...<sha>`. A pass records
+`gate-passed` at the exact head, and only then does the Lead push. Re-running a
+now-failing gate invalidates that milestone, so volatile evidence cannot leave
+status falsely green. After the push, `mission head` files a new branch head and
+`mission main-record M-<id> WP-<id> <sha> --route agent|owner` files the landing.
+`ci_state: green` in a worker or review receipt means a passing local
+`npm run verify` at that exact head.
 
 Workers can validate a completed receipt before filing it:
 
@@ -446,18 +454,20 @@ active worker replaces that correction scope in place; it preserves the worker
 identity, package lifecycle and append-only lineage, so `abandon-worker` is not
 a re-scoping tool.
 
-## One-time owner actions before the first live mission
+## One-time owner actions
 
-Agents cannot change live GitHub settings, so Brian performs these once:
+Agents cannot change live GitHub settings, so Brian performs these once for the
+no-pull-request process (LAN-523):
 
-1. Run `scripts/production/github-merge-protection.sh`. It sets the ruleset on
-   `main`, turns repository auto-merge on, and forbids Actions from approving
-   pull requests. `merge.yml` cannot enable auto-merge without it.
-2. Confirm Actions workflow permissions allow workflows write access
-   (Settings → Actions → General → Workflow permissions: read and write).
-   `merge.yml` narrows its own token from there and never uses `--admin`.
-3. Nothing else: no secrets, no labels, no new services. Branch protection on
-   `main` is the gate the merge rule depends on.
+1. Place the `.claude/` files the LAN-523 branch ships beside the repository (the
+   agents cannot write under `.claude/`), commit them on that branch, and push
+   the branch to `main` himself.
+2. Run `scripts/production/github-merge-protection.sh --apply`. It replaces the
+   old "main — merge readiness" ruleset with one that only blocks force pushes
+   and deletion of `main`: no required pull request, no required checks, no
+   up-to-date rule.
+3. Nothing else: no secrets, no labels, no new services. Delete classic branch
+   protection on `main` in Settings → Branches if the script reports one.
 
 ## Readiness and its evidence
 
@@ -465,7 +475,7 @@ Mission closeout reports one of three states: **Fully accepted** when both
 implementation and all required acceptance verification have recorded evidence;
 **Implementation complete; acceptance pending** when code work is complete but
 an owner action, external prerequisite or subsequent agent verification remains;
-or **Incomplete** while required implementation remains. A merge, completed work
+or **Incomplete** while required implementation remains. A push to main, completed work
 package, stopped worker, or `Done` owner-action issue cannot independently prove
 acceptance. An acceptance-pending receipt enumerates each affected criterion,
 linked owner-action issue, remaining verification and next actor.
@@ -473,18 +483,18 @@ linked owner-action issue, remaining verification and next actor.
 Mission Harness v1 is validated by deterministic synthetic rehearsals only —
 `tests/mission-rehearsals.test.ts` maps each numbered readiness criterion
 from the approved task to a test that runs in CI with no real Linear write,
-no real worker, and no real merge. Reproduce the evidence any time with:
+no real worker, and no real push. Reproduce the evidence any time with:
 
 ```
 npx vitest run tests/mission-rehearsals.test.ts
 ```
 
-Real Linear writes, real workers, and a real automatic merge are the pilot's
+Real Linear writes, real workers, and a real push to main are the pilot's
 evidence, produced with Brian watching. The pilot recommendation and the
-harness verdict live in the Mission Harness v1 pull request's implementation
+harness verdict live in the Mission Harness v1 implementation
 report. **Declaring not ready** is always a legitimate outcome, at every
 level: an intake draft ships `status: "not_ready"`; a Mission Lead that
-cannot safely complete a required workstream preserves the partial PR and
+cannot safely complete a required workstream preserves the partial branch and
 its evidence, stops with `npm run mission -- stop`, and reports not ready
 with the missing work named; a package blocks rather than pretends.
 
@@ -505,7 +515,7 @@ with the missing work named; a package blocks rather than pretends.
 - No automatic wake-up after usage limits; resuming is one command in a
   fresh session.
 - Mission state is machine-local: a different machine starts from the
-  repository's durable artifacts (PRs, branches, Linear), not the journal.
+  repository's durable artifacts (branches, commits, Linear), not the journal.
 - Reviewer and walker freshness is enforced by agent and session identity, not
   proved: no host signal distinguishes a fresh model context from a reused one.
 - The broker's live provisioning path (worktree, dependencies, database reset and

@@ -64,8 +64,8 @@ issues it never touched.
 ### `mission_events`
 
 Each journal line verbatim plus `mission_id`. Types include
-`worker-dispatched`, `worker-receipt`, `review-receipt`, `pr-opened`,
-`owner-question`, `owner-answer`, `merge-recorded`, `lead-heartbeat`.
+`worker-dispatched`, `worker-receipt`, `review-receipt`, `head-recorded`,
+`owner-question`, `owner-answer`, `main-pushed`, `lead-heartbeat`.
 
 ## The mission-to-agent join
 

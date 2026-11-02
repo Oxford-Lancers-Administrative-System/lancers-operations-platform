@@ -104,7 +104,7 @@ Four things have to be true, in this order.
 
 A JSON file you write yourself, in a directory this repository does not reach,
 and delete afterwards. It carries real names and personal email addresses, so it
-is never committed, never pasted into a ticket, a pull request or a prompt, and
+is never committed, never pasted into a ticket, a commit message or a prompt, and
 never passed on the command line where shell history would keep it.
 
 ```json
@@ -294,7 +294,7 @@ refuses every write, every hidden column and every other schema.
 Run the file again after a migration adds a table or column agents should see.
 It recomputes every grant, leaves the password alone and reports it as
 `unchanged`. A new sensitive column belongs in the file's hidden list, in the
-same pull request as its migration; the name pattern catches the obvious ones
+same branch as its migration; the name pattern catches the obvious ones
 (`email`, `phone`, `postcode`, `address`, `password`, `secret`, `…_hash`) even
 if nobody lists them.
 

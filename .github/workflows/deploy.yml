@@ -40,8 +40,9 @@ jobs:
           # LAN-352. The dispatch form lets an operator pick any branch, and
           # nothing else here asked whether the commit had ever passed CI.
           # Production is built from main, and from a commit whose required
-          # checks — the same names branch protection holds a merge to, read
-          # from .github/merge-rules.json — are green. A rollback names an
+          # checks — the job names in ci.yml, read from
+          # .github/merge-rules.json — are green. With no pull requests
+          # (LAN-523) this is the only gate between a push and production. A rollback names an
           # image tag, which is a commit SHA, and is held to the same bar.
           if [ "$REF" != "refs/heads/main" ]; then
             echo "::error title=Deploy refused::Deploys run from main only; this was dispatched from $REF."

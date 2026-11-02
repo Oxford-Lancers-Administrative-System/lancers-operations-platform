@@ -2,16 +2,17 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  evaluateMergeRule,
   loadRules,
-  prohibitedPaths,
+  ownerOnlyPaths,
+  reviewRequiredPaths,
   touchesVisualSurface,
 } from "../scripts/merge/gate.mjs";
 import {
-  evaluateDraftLift,
+  evaluatePush,
   journalConjuncts,
   touchesCheckpointSurface,
 } from "../scripts/mission/merge-gate.mjs";
+import { classifyReviewSurfaces } from "../scripts/mission/lib/review-contract.mjs";
 import { reduce } from "../scripts/mission/lib/state.mjs";
 
 const rules = loadRules();
@@ -23,63 +24,18 @@ const uxConformance = {
   result: "clear",
 };
 
-const pullRequest = (overrides: object = {}) => ({
-  state: "OPEN",
-  baseRefName: "main",
-  isCrossRepository: false,
-  isDraft: false,
-  headRefOid: HEAD,
-  title: "Delivers WP-events-filter (LAN-901)",
-  ...overrides,
-});
-
-const greenChecks = (sha = HEAD) =>
-  rules.requiredChecks.map((name: string) => ({
-    name,
-    status: "completed",
-    conclusion: "success",
-    head_sha: sha,
-  }));
-
 const appFiles = [{ status: "M", path: "src/app/events/page.tsx" }];
-
-const gate = (overrides: object = {}) =>
-  evaluateMergeRule({ pullRequest: pullRequest(), files: appFiles, rules, ...overrides });
 
 // ---------------------------------------------------------------------------
 // The one universal rule (LAN-209).
 // ---------------------------------------------------------------------------
 
-describe("the merge rule", () => {
-  it("enables auto-merge for an out-of-draft pull request whose diff is clean", () => {
-    const verdict = gate();
-    expect(verdict.reasons).toEqual([]);
-    expect(verdict.autoMerge).toBe(true);
-  });
-
-  // Draft state is the readiness gate, and it is the ONLY thing standing
-  // between a pull request and its merge. LAN-202 merged itself because the
-  // gate read `isDraft` and ignored it while both workflows called
-  // `gh pr ready` immediately before merging.
-  it("enables nothing on a draft, whatever else is true of it", () => {
-    const verdict = gate({ pullRequest: pullRequest({ isDraft: true }) });
-    expect(verdict.autoMerge).toBe(false);
-    expect(verdict.reasons.join("\n")).toMatch(/draft state is the readiness gate/i);
-  });
-
-  it("refuses a closed pull request, a non-main base, a fork, and an unknown head", () => {
-    expect(gate({ pullRequest: pullRequest({ state: "MERGED" }) }).autoMerge).toBe(false);
-    expect(gate({ pullRequest: pullRequest({ baseRefName: "develop" }) }).autoMerge).toBe(false);
-    expect(gate({ pullRequest: pullRequest({ isCrossRepository: true }) }).autoMerge).toBe(false);
-    expect(gate({ pullRequest: pullRequest({ headRefOid: null }) }).autoMerge).toBe(false);
-    expect(evaluateMergeRule({ pullRequest: null, files: appFiles, rules }).autoMerge).toBe(false);
-  });
-
-  it("refuses an empty diff and every prohibited surface, judging renames on both names", () => {
-    expect(gate({ files: [] }).reasons.join("\n")).toMatch(/diff is empty/i);
+describe("what reaches main (LAN-523)", () => {
+  it("requires no review for ordinary work and a review for every sensitive surface, judging renames on both names", () => {
+    expect(reviewRequiredPaths(appFiles, rules)).toEqual([]);
     for (const file of [
       "supabase/migrations/20260818000000_new_table.sql",
-      ".github/workflows/merge.yml",
+      ".github/workflows/ci.yml",
       ".github/merge-rules.json",
       ".claude/skills/run-mission/SKILL.md",
       ".claude/settings.json",
@@ -98,34 +54,34 @@ describe("the merge rule", () => {
       "src/lib/supabase/admin.ts",
       "src/lib/db/url.ts",
       "src/app/login/page.tsx",
-      "missions/packets/M-RECRUITMENT/packet.json",
     ]) {
-      const verdict = gate({ files: [{ status: "M", path: file }] });
-      expect(verdict.autoMerge, file).toBe(false);
-      expect(verdict.reasons.join("\n")).toContain("prohibited surface");
+      expect(reviewRequiredPaths([{ status: "M", path: file }], rules), file).not.toEqual([]);
     }
-    const renamed = gate({
-      files: [{ status: "R", path: "src/app/events/list.tsx", previousPath: "src/proxy.ts" }],
-    });
-    expect(renamed.autoMerge).toBe(false);
+    const renamed = reviewRequiredPaths(
+      [{ status: "R", path: "src/app/events/list.tsx", previousPath: "src/proxy.ts" }],
+      rules,
+    );
+    expect(renamed).not.toEqual([]);
   });
 
-  // The relocation LAN-209 performed is a relocation, not a widening: the
-  // gate's own code and its own proofs stay unmergeable by the gate.
-  it("keeps the merge machinery unable to merge changes to itself", () => {
-    for (const file of [
-      "scripts/merge/paths.mjs",
-      "scripts/merge/checks.mjs",
-      "scripts/merge/gate-cli.mjs",
-      "tests/merge-governance.test.ts",
-    ]) {
-      expect(prohibitedPaths([{ status: "M", path: file }], rules), file).not.toEqual([]);
+  it("makes a mission review contract treat every review-required path as sensitive", () => {
+    for (const file of ["Dockerfile", ".claude/settings.json", "docs/mission-harness.md"]) {
+      expect(classifyReviewSurfaces([{ status: "M", path: file }], rules).sensitive, file).toEqual([
+        file,
+      ]);
+    }
+    expect(classifyReviewSurfaces(appFiles, rules).sensitive).toEqual([]);
+  });
+
+  it("keeps the gate machinery review-required for changes to itself", () => {
+    for (const file of ["scripts/merge/paths.mjs", "tests/merge-governance.test.ts"]) {
+      expect(reviewRequiredPaths([{ status: "M", path: file }], rules), file).not.toEqual([]);
     }
   });
 
-  it("allows ordinary application work through the prohibited-path scan", () => {
+  it("lets ordinary application work through with no review", () => {
     expect(
-      prohibitedPaths(
+      reviewRequiredPaths(
         [
           { status: "M", path: "src/app/events/page.tsx" },
           { status: "A", path: "src/lib/events/filters.ts" },
@@ -136,8 +92,6 @@ describe("the merge rule", () => {
           { status: "M", path: "vitest.config.ts" },
           { status: "M", path: "scripts/seed-local.mjs" },
           { status: "M", path: "src/lib/db/errors.ts" },
-          // Known consequence, accepted at LAN-209: the fast lane's protected
-          // list is gone, and `docs/adr/**` was only ever on that list.
           { status: "M", path: "docs/adr/0028-role-catalogue.md" },
           { status: "M", path: "scripts/pilot/lan-80/setup.sql" },
           { status: "M", path: ".env.example" },
@@ -145,6 +99,19 @@ describe("the merge rule", () => {
           { status: "M", path: "next.config.ts" },
           { status: "M", path: "missions/intake/M-RECRUITMENT/01-overview.md" },
         ],
+        rules,
+      ),
+    ).toEqual([]);
+  });
+
+  it("leaves the approved mission packet to Brian's own push, and nothing else", () => {
+    expect(
+      ownerOnlyPaths([{ status: "M", path: "missions/packets/M-RECRUITMENT/packet.json" }], rules),
+    ).not.toEqual([]);
+    expect(ownerOnlyPaths(appFiles, rules)).toEqual([]);
+    expect(
+      ownerOnlyPaths(
+        [{ status: "M", path: "missions/intake/M-RECRUITMENT/01-overview.md" }],
         rules,
       ),
     ).toEqual([]);
@@ -165,10 +132,10 @@ describe("the merge rule", () => {
 });
 
 // ---------------------------------------------------------------------------
-// What the Mission Lead must be able to say before it lifts a draft.
+// What the Mission Lead must be able to say before it pushes to main.
 // ---------------------------------------------------------------------------
 
-describe("the conditions for lifting a draft", () => {
+describe("the conditions for pushing a package to main", () => {
   const packet = JSON.parse(
     fs.readFileSync(path.join(__dirname, "fixtures", "mission", "approved-packet.json"), "utf8"),
   );
@@ -215,7 +182,7 @@ describe("the conditions for lifting a draft", () => {
           result: "completed",
         },
       },
-      { type: "pr-opened", at: "t", package_id: "WP-events-filter", pr_number: 50, head_sha: HEAD },
+      { type: "head-recorded", at: "t", package_id: "WP-events-filter", head_sha: HEAD },
       {
         type: "review-receipt",
         at: "t",
@@ -287,7 +254,7 @@ describe("the conditions for lifting a draft", () => {
     );
   });
 
-  it("gates highest risk on the checkpoint, keeps a migration owner drafted, and requires visual approval", () => {
+  it("gates highest risk on the checkpoint, and requires visual approval", () => {
     const state = base();
     state.packages["WP-events-filter"].risk_class = "highest";
     expect(journalConjuncts(state, "WP-events-filter", HEAD).join("\n")).toMatch(
@@ -304,12 +271,12 @@ describe("the conditions for lifting a draft", () => {
       },
     };
     expect(journalConjuncts(checkpointed, "WP-events-filter", HEAD)).toEqual([]);
+    // A migration is ordinary work now: it needs the same review as anything
+    // else, and the hosted `db push` stays Brian's separately.
     const migration = base();
     migration.packages["WP-events-filter"].risk_class = "normal";
     migration.packages["WP-events-filter"].migration_owner = true;
-    expect(journalConjuncts(migration, "WP-events-filter", HEAD).join("\n")).toMatch(
-      /stays a draft; Brian merges it/,
-    );
+    expect(journalConjuncts(migration, "WP-events-filter", HEAD)).toEqual([]);
     const unapproved = base();
     unapproved.packages["WP-events-filter"].visual_approved = false;
     expect(journalConjuncts(unapproved, "WP-events-filter", HEAD).join("\n")).toMatch(
@@ -372,63 +339,45 @@ describe("the conditions for lifting a draft", () => {
     }
   });
 
-  it("carries the checkpoint conjunct through evaluateDraftLift", () => {
-    const refused = evaluateDraftLift({
+  it("carries the checkpoint conjunct through evaluatePush", () => {
+    const refused = evaluatePush({
       state: base(),
       packageId: "WP-events-filter",
-      pullRequest: pullRequest({ isDraft: true }),
-      checkRuns: greenChecks(),
+      headSha: HEAD,
       files: [{ status: "M", path: "src/lib/auth/capabilities.ts" }],
       rules,
     });
-    expect(refused.lift).toBe(false);
+    expect(refused.push).toBe(false);
     expect(refused.journal_reasons.join("\n")).toMatch(/checkpoint surface/);
   });
 
-  it("joins the journal, the prohibited scan and the checks into one verdict", () => {
+  it("joins the journal and the real diff into one verdict", () => {
     const state = base();
-    const lift = (overrides: object = {}) =>
-      evaluateDraftLift({
+    const push = (overrides: object = {}) =>
+      evaluatePush({
         state,
         packageId: "WP-events-filter",
-        pullRequest: pullRequest({ isDraft: true }),
-        checkRuns: greenChecks(),
+        headSha: HEAD,
         files: appFiles,
         rules,
         ...overrides,
       });
 
-    expect(lift()).toMatchObject({ lift: true, journal_reasons: [], evidence_reasons: [] });
+    expect(push()).toMatchObject({ push: true, journal_reasons: [], evidence_reasons: [] });
 
-    // A prohibited path is not a thing the Lead may un-draft its way past: the
-    // draft is what keeps it Brian's, and the workflow would refuse it anyway.
-    const prohibited = lift({ files: [{ status: "M", path: "supabase/migrations/x.sql" }] });
-    expect(prohibited.lift).toBe(false);
-    expect(prohibited.evidence_reasons.join("\n")).toContain("prohibited surface");
+    // The approved packet is Brian's push alone.
+    const packetPush = push({
+      files: [{ status: "M", path: "missions/packets/M-RECRUITMENT/packet.json" }],
+    });
+    expect(packetPush.push).toBe(false);
+    expect(packetPush.evidence_reasons.join("\n")).toContain("Brian pushes this himself");
 
-    // Un-drafting is what makes GitHub merge it, so the checks are green at
-    // exactly this head before the Lead takes that act. Duplicates conjoin.
-    expect(lift({ checkRuns: greenChecks().slice(0, 1) }).evidence_reasons.join("\n")).toMatch(
-      /did not run is not a check that passed/,
-    );
-    expect(lift({ checkRuns: greenChecks(OTHER) }).lift).toBe(false);
-    expect(
-      lift({
-        checkRuns: [
-          ...greenChecks(),
-          {
-            name: rules.requiredChecks[0],
-            status: "completed",
-            conclusion: "failure",
-            head_sha: HEAD,
-          },
-        ],
-      }).lift,
-    ).toBe(false);
+    // Nothing to push is not a pass.
+    expect(push({ files: [] }).evidence_reasons.join("\n")).toMatch(/diff is empty/i);
 
     // A stale review is a journal fact, not an evidence one.
-    const moved = lift({ pullRequest: pullRequest({ isDraft: true, headRefOid: OTHER }) });
-    expect(moved.lift).toBe(false);
+    const moved = push({ headSha: OTHER });
+    expect(moved.push).toBe(false);
     expect(moved.journal_reasons.join("\n")).toMatch(/covers/);
   });
 });

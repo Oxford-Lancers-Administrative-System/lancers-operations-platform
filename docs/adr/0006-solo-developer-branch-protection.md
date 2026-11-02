@@ -1,6 +1,11 @@
 # 0006 — `main` is protected, CI is required, zero human approvals
 
-**Status:** Accepted (provisional) · **Date:** 2026-08-08 (decided) / 2026-08-10 (recorded here)
+**Status:** Accepted (provisional); the pull-request and required-check rules are superseded by [0041](0041-push-to-main-without-pull-requests.md) (2026-11-02) · **Date:** 2026-08-08 (decided) / 2026-08-10 (recorded here)
+
+> Still in force: direct force-pushes and deletion of `main` are blocked, and
+> zero human approvals are required. No longer in force: "all changes reach
+> `main` through a pull request" and "CI must pass before merge". CI now runs on
+> `main` after the push, and `deploy.yml` is the gate before production.
 
 ## Context
 

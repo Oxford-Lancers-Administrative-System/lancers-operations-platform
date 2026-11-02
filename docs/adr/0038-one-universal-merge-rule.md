@@ -1,6 +1,6 @@
 # 0038 — One universal merge rule: draft is the readiness gate
 
-**Status:** Accepted · **Date:** 2026-09-01 · **Amended 2026-09-15** ·
+**Status:** Superseded by [0041](0041-push-to-main-without-pull-requests.md) (2026-11-02) · **Date:** 2026-09-01 · **Amended 2026-09-15** ·
 **Supersedes:** [0017](0017-batched-fast-lane.md) · **Amends:**
 [0027](0027-mission-harness.md), [0033](0033-harness-after-the-first-live-mission.md)
 

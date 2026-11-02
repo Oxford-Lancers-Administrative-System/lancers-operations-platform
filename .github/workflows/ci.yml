@@ -1,14 +1,21 @@
 name: CI
 
+# LAN-523. There are no pull requests: every check runs locally on the side
+# branch (`npm run verify`), and this workflow runs once, on main, after the
+# push. Side branches are deliberately not triggered — the same checks already
+# passed on the author's machine, and a second run of them would only restate
+# that. A red main blocks `deploy.yml` (its preflight reads this workflow's
+# required check names) and is fixed forward before anything else lands.
 on:
-  pull_request:
   push:
     branches: [main]
 
-# A newer push to the same branch supersedes an in-flight run.
+# One group per commit and nothing is cancelled: every commit that lands needs
+# its own completed checks, because a deploy is refused unless the exact SHA it
+# names is green.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.sha }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -213,48 +220,24 @@ jobs:
           [ "$STATIC_RESULT" = "success" ] && [ "$UNIT_RESULT" = "success" ] && [ "$TESTS_RESULT" = "success" ]
 
   # The agent-tooling suites (TOOLING_SUITES in vitest.config.ts). NOT a
-  # required check, and it must never become one: on a pull request that
-  # touches none of the paths below it finishes without running the suites,
-  # and no product code path runs through them (LAN-436).
+  # required check, and it must never become one: no product code path runs
+  # through them (LAN-436). It always runs on main (LAN-523).
   tooling:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          fetch-depth: 0
-
-      - name: Decide whether the change touches agent tooling
-        id: scope
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$EVENT_NAME" != "pull_request" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          pattern='^(scripts/|\.claude/|\.github/|missions/|supabase/|tests/(mission-|intake-|finish-mission|telemetry-|visual-|local-review-account|local-supabase-coordinator|helpers/)|package(-lock)?\.json$|vitest\.(config|setup)\.ts$|docs/mission-harness\.md$)'
-          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -qE "$pattern"; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "No agent-tooling path changed; the tooling suites are not run."
-          fi
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        if: steps.scope.outputs.run == 'true'
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.scope.outputs.run == 'true'
         run: npm ci
 
       - name: Test agent tooling
-        if: steps.scope.outputs.run == 'true'
         run: npm run test:tooling
 
   container:
@@ -287,7 +270,7 @@ jobs:
 
       - name: Container serves the app
         # The same probe Cloud Run uses, plus the public routes. If this fails the
-        # deploy would fail too, so it fails here on the pull request instead.
+        # deploy would fail too, so it fails here, on main, before anyone deploys.
         run: |
           set -euo pipefail
           docker run -d --name app -p 8080:8080 -e SUPABASE_SECRET_KEY=ci-placeholder \

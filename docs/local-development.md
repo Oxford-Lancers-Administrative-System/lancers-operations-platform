@@ -291,7 +291,7 @@ event past its escalation threshold with a flag raised.
 
 ### Closing out a finished issue
 
-When an issue's pull request has merged, the slot it held is still held, its
+When an issue's branch has reached `main`, the slot it held is still held, its
 worktree is still on disk, and its stack may still be running. Reclaim them in
 this order — run the first command from **inside** the issue worktree:
 
@@ -306,23 +306,19 @@ worktree first still destroys its private token, but `db:cleanup-stale` can
 retire the resulting orphan once every recorded holding path is gone.
 
 `/finish-issue LAN-###` does exactly this, after proving from the repository
-that the work merged, and closes the Linear issue with one comment. It fails
-closed on an unmerged pull request, a dirty or unpushed worktree, or a lease
-that now belongs to another session.
+that the work landed, and closes the Linear issue with one comment. It fails
+closed on a head that is not on `origin/main`, a dirty or unpushed worktree, or
+a lease that now belongs to another session.
 
-Two details bite if you do it by hand. The merge proof has to test the pull
-request's **merge commit**, because this repository squash-merges and a merged
-branch's own head is never an ancestor of `main`:
+Two details bite if you do it by hand. The landing proof is ancestry of the
+branch's final head, and there are no pull requests to ask:
 
 ```bash
 git fetch origin
-gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid
-git merge-base --is-ancestor "<mergeCommit>" origin/main && echo merged
+git merge-base --is-ancestor "$(git -C <worktree> rev-parse HEAD)" origin/main && echo on-main
 ```
 
-Find the pull request with `--head <branch> --state all`: a bare-text `--search`
-does not match a head-branch name, and `gh pr list` shows only open pull
-requests by default, so neither finds a merged one.
+Fetch first: a stale `origin/main` reports finished work as unlanded.
 
 And to read the lease registry, use `npm run db:coordinator status`, which is
 read-only and prints every slot's issue, worktree, state and application port
@@ -378,20 +374,20 @@ and both measured viewports with the artifacts they name are all present, and
 unless the running stack holds this holder's rendered configuration. Neither
 record contains a password.
 
-Run `npm run verify` before opening a pull request. It is what CI runs.
+Run `npm run verify` before the push to `main`. It is what CI runs afterwards; there is no CI run on a side branch.
 
 ### What CI runs, and what each check means
 
-`.github/workflows/ci.yml` runs its jobs in parallel on every pull request:
+`.github/workflows/ci.yml` runs its jobs in parallel, once, on every push to `main`:
 
-| Job         | Runs                                                                                                                                                                                                                        | Required                                               |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `static`    | format check, lint, typecheck, build — no database                                                                                                                                                                          | through `quality`                                      |
-| `unit`      | the `unit` project (`npm run test:unit`) — no database                                                                                                                                                                      | through `quality`                                      |
-| `tests`     | two runners, each building a local Supabase stack the same way (migrations from empty, RLS posture, type drift, the synthetic seed); one runs the `database` project (`npm run test:ci`), the other `gate` (`test:gate:ci`) | through `quality`                                      |
-| `quality`   | nothing itself; passes only when `static`, `unit` and `tests` all succeeded                                                                                                                                                 | **Yes** — "Format, lint, typecheck, test, build"       |
-| `container` | builds the production image and probes it                                                                                                                                                                                   | **Yes** — "Container builds and serves"                |
-| `tooling`   | `npm run test:tooling`, only when the change touches `scripts/`, `.claude/`, `.github/`, `missions/`, `supabase/`, the tooling tests or the Vitest/npm config                                                               | **No** — it is skipped on most pull requests by design |
+| Job         | Runs                                                                                                                                                                                                                        | Required                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `static`    | format check, lint, typecheck, build — no database                                                                                                                                                                          | through `quality`                                |
+| `unit`      | the `unit` project (`npm run test:unit`) — no database                                                                                                                                                                      | through `quality`                                |
+| `tests`     | two runners, each building a local Supabase stack the same way (migrations from empty, RLS posture, type drift, the synthetic seed); one runs the `database` project (`npm run test:ci`), the other `gate` (`test:gate:ci`) | through `quality`                                |
+| `quality`   | nothing itself; passes only when `static`, `unit` and `tests` all succeeded                                                                                                                                                 | **Yes** — "Format, lint, typecheck, test, build" |
+| `container` | builds the production image and probes it                                                                                                                                                                                   | **Yes** — "Container builds and serves"          |
+| `tooling`   | `npm run test:tooling`, always on `main`                                                                                                                                                                                    | **No** — it never gates a deploy                 |
 
 Locally, `npm run verify` covers the first three, apart from the gate suites;
 run `npm run verify:gate` too when you change a loader, a seed or a production

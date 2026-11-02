@@ -46,7 +46,7 @@ import {
   relinquishImplementationPreflight,
   repositoryExecutors,
 } from "./runtime-broker-executors.mjs";
-import { deriveChangedFiles, evaluateDraftLift, loadRules } from "./merge-gate.mjs";
+import { deriveChangedFiles, evaluatePush, loadRules } from "./merge-gate.mjs";
 import { parseNameStatus } from "../merge/paths.mjs";
 import { coordinatorStatus, implementationRecord } from "../lib/local-supabase-coordinator.mjs";
 
@@ -189,13 +189,13 @@ export function renderCheckpoint(state, events, options = {}) {
   lines.push(`# Mission checkpoint ${state.checkpoints + 1} — ${state.packet.mission_id}`);
 
   lines.push("", "## Completed since last checkpoint");
-  const merged = window.filter((event) => event.type === "merge-recorded");
+  const merged = window.filter((event) => event.type === "main-pushed");
   const implemented = window.filter(
     (event) => event.type === "worker-receipt" && event.receipt.result === "completed",
   );
   if (merged.length === 0 && implemented.length === 0) lines.push("- None");
   for (const event of merged) {
-    lines.push(`- ${event.package_id} merged (${event.route}) at ${event.sha.slice(0, 12)}`);
+    lines.push(`- ${event.package_id} on main (${event.route}) at ${event.sha.slice(0, 12)}`);
   }
   for (const event of implemented) {
     lines.push(`- ${event.package_id} implemented and awaiting review/merge`);
@@ -320,7 +320,7 @@ async function main() {
       }
       if (packet.status !== "approved") {
         fail(
-          `The packet is valid but its status is "${packet.status}". A draft or not_ready packet cannot initialize execution; Brian approves it by merging its packet PR.`,
+          `The packet is valid but its status is "${packet.status}". A draft or not_ready packet cannot initialize execution; Brian approves it by pushing its packet branch to main himself.`,
         );
       }
       console.log(
@@ -515,18 +515,17 @@ async function main() {
       break;
     }
 
-    case "pr": {
-      const [, packageId, prNumber, headSha] = positional;
-      if (!missionId || !packageId || !prNumber || !headSha) {
-        fail("Usage: mission pr <mission-id> <package-id> <pr-number> <head-sha>");
+    case "head": {
+      const [, packageId, headSha] = positional;
+      if (!missionId || !packageId || !headSha) {
+        fail("Usage: mission head <mission-id> <package-id> <head-sha>");
       }
       await append(missionId, {
-        type: "pr-opened",
+        type: "head-recorded",
         package_id: packageId,
-        pr_number: Number(prNumber),
         head_sha: headSha,
       });
-      console.log(`PR #${prNumber} recorded for ${packageId} at ${headSha.slice(0, 12)}.`);
+      console.log(`Branch head ${headSha.slice(0, 12)} recorded for ${packageId}.`);
       break;
     }
 
@@ -998,26 +997,18 @@ async function main() {
       break;
     }
 
-    case "merge-record": {
-      const [, packageId, prNumber, sha] = positional;
-      if (!missionId || !packageId || !prNumber || !sha || !flags.route) {
-        fail(
-          "Usage: mission merge-record <mission-id> <package-id> <pr-number> <sha> --route guarded-auto|owner",
-        );
+    case "main-record": {
+      const [, packageId, sha] = positional;
+      if (!missionId || !packageId || !sha || !flags.route) {
+        fail("Usage: mission main-record <mission-id> <package-id> <sha> --route agent|owner");
       }
       await append(missionId, {
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: packageId,
-        pr_number: Number(prNumber),
         sha,
         route: flags.route,
-        // The validator counts an owner merge the guarded lane could have taken
-        // as a harness defect and demands the reason in writing. Without this
-        // the reason could not be supplied, so every such merge was unrecordable
-        // and the package stayed open in state forever.
-        ...(flags.reason ? { owner_route_reason: flags.reason } : {}),
       });
-      console.log(`Merge recorded for ${packageId} (${flags.route}).`);
+      console.log(`Push to main recorded for ${packageId} (${flags.route}).`);
       const reclamation = spawnSync(
         process.execPath,
         [finishMissionScript, missionId, "--package", packageId, "--reclaim-only"],
@@ -1090,46 +1081,38 @@ async function main() {
     }
 
     /**
-     * May the Lead lift this package's draft? Un-drafting is the last act of
-     * the work and the authorization to merge it (LAN-209), so this is the
-     * command that decides it: the rule's three conditions, plus green checks
-     * at the exact head. The Lead runs `gh pr ready` only on a pass.
+     * May the Lead push this package to main? The push is the last act of the
+     * work and the authorization to land it (LAN-523), so this is the command
+     * that decides it: the journal conditions plus the real diff. The Lead
+     * takes `git push origin HEAD:main` only on a pass.
      */
     case "gate": {
       const [, packageId] = positional;
-      if (!missionId || !packageId || !flags["pr-json"] || !flags["checks-json"] || !flags.files) {
+      if (!missionId || !packageId || !flags.head || !flags.files) {
         fail(
-          "Usage: mission gate <mission-id> <package-id> --pr-json <file> --checks-json <file> --files <git name-status file>",
+          "Usage: mission gate <mission-id> <package-id> --head <sha> --files <git name-status file>",
         );
       }
       const state = replayState(repoPath, missionId);
-      const pullRequest = readJson(flags["pr-json"]);
       const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
-      const verdict = evaluateDraftLift({
+      const verdict = evaluatePush({
         state,
         packageId,
-        pullRequest,
-        checkRuns: readJson(flags["checks-json"]),
+        headSha: flags.head,
         files,
         rules: loadRules(),
       });
-      if (
-        verdict.lift &&
-        state.packages[packageId]?.gate_passed?.head_sha !== pullRequest.headRefOid
-      ) {
+      if (verdict.push && state.packages[packageId]?.gate_passed?.head_sha !== flags.head) {
         await append(missionId, {
           type: "package-gate-passed",
           package_id: packageId,
-          head_sha: pullRequest.headRefOid,
+          head_sha: flags.head,
         });
-      } else if (
-        !verdict.lift &&
-        state.packages[packageId]?.gate_passed?.head_sha === pullRequest.headRefOid
-      ) {
+      } else if (!verdict.push && state.packages[packageId]?.gate_passed?.head_sha === flags.head) {
         await append(missionId, {
           type: "package-gate-invalidated",
           package_id: packageId,
-          head_sha: pullRequest.headRefOid,
+          head_sha: flags.head,
           reasons: [...verdict.journal_reasons, ...verdict.evidence_reasons],
         });
       }
@@ -1237,7 +1220,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, review, walker, runtime, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, head, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, main-record, checkpoint, review, walker, runtime, heartbeat, stop, resume, status.`,
       );
   }
 }

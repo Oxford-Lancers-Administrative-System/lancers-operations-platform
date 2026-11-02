@@ -8,7 +8,7 @@ import {
   appendEvent,
   currentExecutionEpoch,
   executionEpochs,
-  guardedLaneRefusals,
+  pushRefusals,
   leadLeaseAvailable,
   missionPaths,
   nextActions,
@@ -209,7 +209,7 @@ async function reviewedClear(m: ReturnType<typeof fixture>, packageId: string) {
     worker_id: "worker-1",
     receipt: workerReceipt("completed"),
   });
-  await m.append({ type: "pr-opened", package_id: packageId, pr_number: 42, head_sha: SHA });
+  await m.append({ type: "head-recorded", package_id: packageId, head_sha: SHA });
   return m.append({
     type: "review-receipt",
     package_id: packageId,
@@ -741,9 +741,8 @@ describe("worker dispatch", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-a",
-      pr_number: 91,
       head_sha: SHA,
     });
     await m.append({
@@ -787,9 +786,8 @@ describe("worker dispatch", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-attendance-export",
-      pr_number: 41,
       head_sha: SHA,
     });
     await m.append({
@@ -816,11 +814,10 @@ describe("worker dispatch", () => {
     ).rejects.toThrow(/has not merged to main/);
 
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-attendance-export",
-      pr_number: 41,
       sha: SHA,
-      route: "guarded-auto",
+      route: "agent",
     });
 
     const dispatched = await m.append({
@@ -850,9 +847,8 @@ describe("worker dispatch", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-attendance-export",
-      pr_number: 41,
       head_sha: SHA,
     });
     await m.append({
@@ -862,9 +858,8 @@ describe("worker dispatch", () => {
     });
     // A new commit lands after the review; the base is no longer the reviewed one.
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-attendance-export",
-      pr_number: 41,
       head_sha: "c".repeat(40),
     });
 
@@ -985,9 +980,8 @@ describe("worker receipts and correction lineage", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 41,
       head_sha: SHA,
     });
     await m.append({
@@ -1026,9 +1020,8 @@ describe("worker receipts and correction lineage", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 41,
       head_sha: SHA,
     });
     await m.append({
@@ -1097,9 +1090,8 @@ describe("worker receipts and correction lineage", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 41,
       head_sha: SHA,
     });
     const state = await m.append({
@@ -1158,7 +1150,7 @@ describe("worker receipts and correction lineage", () => {
       worker_id: "worker-1",
       receipt: workerReceipt("completed"),
     });
-    await m.append({ type: "pr-opened", package_id: "WP-events-a", pr_number: 45, head_sha: SHA });
+    await m.append({ type: "head-recorded", package_id: "WP-events-a", head_sha: SHA });
     await m.append({
       type: "review-receipt",
       package_id: "WP-events-a",
@@ -1279,11 +1271,10 @@ describe("guarded merge recording", () => {
     await reviewedClear(m, "WP-events-filter");
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-events-filter",
-        pr_number: 42,
         sha: SHA,
-        route: "guarded-auto",
+        route: "agent",
       }),
     ).rejects.toThrow(/recorded visual approval/);
     await m.append({
@@ -1310,7 +1301,7 @@ describe("guarded merge recording", () => {
     });
     expect(packageLifecycle(gated, gated.packages["WP-events-filter"])).toBe("gate-passed");
     expect(nextActions(gated)).toContainEqual(
-      expect.objectContaining({ action: "request-merge", package_id: "WP-events-filter" }),
+      expect.objectContaining({ action: "push-main", package_id: "WP-events-filter" }),
     );
     const invalidated = await m.append({
       type: "package-gate-invalidated",
@@ -1326,19 +1317,17 @@ describe("guarded merge recording", () => {
     });
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-events-filter",
-        pr_number: 42,
         sha: "b".repeat(40),
-        route: "guarded-auto",
+        route: "agent",
       }),
     ).rejects.toThrow(/clear review receipt at exactly/);
     const state = await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-events-filter",
-      pr_number: 42,
       sha: SHA,
-      route: "guarded-auto",
+      route: "agent",
     });
     expect(state.packages["WP-events-filter"].status).toBe("merged");
     expect(packageLifecycle(state, state.packages["WP-events-filter"])).toBe("merged");
@@ -1361,9 +1350,8 @@ describe("guarded merge recording", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 42,
       head_sha: SHA,
     });
     await m.append({
@@ -1397,13 +1385,13 @@ describe("guarded merge recording", () => {
       nextActions(approved)
         .filter((action) => action.package_id === "WP-events-filter")
         .map((action) => action.action),
-    ).toEqual(["merge-gate"]);
+    ).toEqual(["push-gate"]);
   });
 
   it("clears visual approval when a new head appears with no correction in between", async () => {
     // The head can move outside the correction path — a worker pushes again
     // and records the new head. This test is deliberately sensitive to the
-    // pr-opened mismatch branch alone: no blocked review, no correction
+    // head-recorded mismatch branch alone: no blocked review, no correction
     // dispatch, so nothing else clears the approval first.
     const B = "b".repeat(40);
     const m = fixture();
@@ -1422,9 +1410,8 @@ describe("guarded merge recording", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 42,
       head_sha: SHA,
     });
     await m.append({
@@ -1440,9 +1427,8 @@ describe("guarded merge recording", () => {
     });
     expect(approved.packages["WP-events-filter"].visual_approved).toBe(true);
     const moved = await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 42,
       head_sha: B,
     });
     expect(moved.packages["WP-events-filter"].visual_approved).toBe(false);
@@ -1453,11 +1439,10 @@ describe("guarded merge recording", () => {
     });
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-events-filter",
-        pr_number: 42,
         sha: B,
-        route: "guarded-auto",
+        route: "agent",
       }),
     ).rejects.toThrow(/recorded visual approval/);
     // A repeat of the SAME head does not clear a live approval.
@@ -1468,9 +1453,8 @@ describe("guarded merge recording", () => {
       evidence: "live review at checkpoint 2, new head",
     });
     const repeated = await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 42,
       head_sha: B,
     });
     expect(repeated.packages["WP-events-filter"].visual_approved).toBe(true);
@@ -1494,7 +1478,7 @@ describe("guarded merge recording", () => {
       branch: "feat/wp-events",
     });
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-events-filter",
       sha: SHA,
       route: "owner",
@@ -1568,11 +1552,10 @@ describe("guarded merge recording", () => {
       evidence: "live review at checkpoint 1",
     });
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-events-filter",
-      pr_number: 42,
       sha: SHA,
-      route: "guarded-auto",
+      route: "agent",
     });
     await expect(
       m.append({
@@ -1617,7 +1600,7 @@ describe("guarded merge recording", () => {
    * Highest-risk work now travels the lane only once an answered checkpoint
    * names it. Migrations, and every path in the prohibited list, stay his.
    */
-  it("lets a checkpoint-approved highest-risk package merge, and never a migration owner", async () => {
+  it("lets a checkpoint-approved highest-risk package merge, and holds a migration owner to the same review", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const risky = [
@@ -1650,26 +1633,23 @@ describe("guarded merge recording", () => {
     }
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-risky",
-        pr_number: 43,
         sha: SHA,
-        route: "guarded-auto",
+        route: "agent",
       }),
     ).rejects.toThrow(/only when an answered owner checkpoint names it/);
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-migration",
-        pr_number: 44,
         sha: SHA,
-        route: "guarded-auto",
+        route: "agent",
       }),
-    ).rejects.toThrow(/owner-merged, never autonomous/);
+    ).rejects.toThrow(/push to main requires a clear review receipt/);
     const state = await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-migration",
-      pr_number: 44,
       sha: SHA,
       route: "owner",
     });
@@ -1691,7 +1671,7 @@ describe("guarded merge recording", () => {
       worker_id: "worker-1",
       receipt: workerReceipt("completed"),
     });
-    await m.append({ type: "pr-opened", package_id: "WP-risky", pr_number: 43, head_sha: SHA });
+    await m.append({ type: "head-recorded", package_id: "WP-risky", head_sha: SHA });
     await m.append({
       type: "review-receipt",
       package_id: "WP-risky",
@@ -1709,11 +1689,10 @@ describe("guarded merge recording", () => {
     // Unanswered, it is still refused — the ask cannot be skipped.
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-risky",
-        pr_number: 43,
         sha: SHA,
-        route: "guarded-auto",
+        route: "agent",
       }),
     ).rejects.toThrow(/Unresolved owner question Q-authorization-rule/);
 
@@ -1725,39 +1704,33 @@ describe("guarded merge recording", () => {
       reusable: false,
     });
     const merged = await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-risky",
-      pr_number: 43,
       sha: SHA,
-      route: "guarded-auto",
+      route: "agent",
     });
-    expect(merged.packages["WP-risky"].merged.route).toBe("guarded-auto");
+    expect(merged.packages["WP-risky"].merged.route).toBe("agent");
   });
 
-  it("counts routing a lane-qualified package to Brian as a recorded harness defect", async () => {
+  it("records Brian's own push to main without any qualification, and refuses an unknown route", async () => {
     const m = fixture();
     await readyMission(m);
     await reviewedClear(m, "WP-attendance-export");
-    // It qualifies: normal risk, nonvisual, clear review at the exact head.
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: "WP-attendance-export",
         sha: SHA,
-        route: "owner",
+        route: "guarded-auto",
       }),
-    ).rejects.toThrow(/qualified to leave draft; routing it to Brian anyway records why/);
-
+    ).rejects.toThrow(/route "agent" or "owner"/);
     const state = await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: "WP-attendance-export",
       sha: SHA,
       route: "owner",
-      owner_route_reason:
-        "The mission-merge workflow was disabled during the incident, so the lane was unavailable.",
     });
-    expect(state.laneBypasses).toHaveLength(1);
-    expect(state.laneBypasses[0].package_id).toBe("WP-attendance-export");
+    expect(state.packages["WP-attendance-export"].merged.route).toBe("owner");
   });
 });
 
@@ -1917,9 +1890,8 @@ describe("owner-last review and the final mission smoke", () => {
       receipt: workerReceipt("completed"),
     });
     await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 42,
       head_sha: SHA,
     });
     await expect(
@@ -1957,9 +1929,8 @@ describe("owner-last review and the final mission smoke", () => {
       receipt: workerReceipt("completed"),
     });
     const implemented = await m.append({
-      type: "pr-opened",
+      type: "head-recorded",
       package_id: "WP-events-filter",
-      pr_number: 42,
       head_sha: SHA,
     });
     expect(nextActions(implemented)).toContainEqual(
@@ -2013,9 +1984,9 @@ describe("owner-last review and the final mission smoke", () => {
       approved_by: "Brian",
       evidence: "live issue review",
     });
-    expect(guardedLaneRefusals(approved, "WP-events-filter", SHA)).toEqual([]);
+    expect(pushRefusals(approved, "WP-events-filter", SHA)).toEqual([]);
     expect(nextActions(approved)).toContainEqual(
-      expect.objectContaining({ action: "merge-gate", package_id: "WP-events-filter" }),
+      expect.objectContaining({ action: "push-gate", package_id: "WP-events-filter" }),
     );
     expect(nextActions(approved).some((action) => action.action === "workflow-walker")).toBe(false);
   });
@@ -2027,7 +1998,7 @@ describe("owner-last review and the final mission smoke", () => {
 
     for (const pkg of plan.packages) {
       await m.append({
-        type: "merge-recorded",
+        type: "main-pushed",
         package_id: pkg.id,
         sha: SHA,
         route: "owner",
@@ -2046,7 +2017,7 @@ describe("owner-last review and the final mission smoke", () => {
     const m = fixture();
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.append({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     await checkpointMergedEpochs(m);
     const blocked = await m.append({
@@ -2080,7 +2051,7 @@ describe("owner-last review and the final mission smoke", () => {
     const m = fixture();
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.append({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     await checkpointMergedEpochs(m);
     await m.append({
@@ -2113,7 +2084,7 @@ describe("owner-last review and the final mission smoke", () => {
     const m = fixture();
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.append({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     await checkpointMergedEpochs(m);
     await m.append({
@@ -2150,7 +2121,7 @@ describe("owner-last review and the final mission smoke", () => {
       evidence: "approved the single smoke correction",
     });
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: correction.id,
       sha: "b".repeat(40),
       route: "owner",
@@ -2201,7 +2172,7 @@ describe("owner-last review and the final mission smoke", () => {
     const m = fixture();
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.append({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     await checkpointMergedEpochs(m);
 
@@ -2231,7 +2202,7 @@ describe("owner-last review and the final mission smoke", () => {
       evidence: "approved the round-1 smoke correction",
     });
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: correctionOne.id,
       sha: "b".repeat(40),
       route: "owner",
@@ -2260,7 +2231,7 @@ describe("owner-last review and the final mission smoke", () => {
       evidence: "approved the round-2 addition",
     });
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: laterAddition.id,
       sha: "c".repeat(40),
       route: "owner",
@@ -2311,7 +2282,7 @@ describe("owner-last review and the final mission smoke", () => {
       evidence: "approved the round-2 smoke correction",
     });
     await m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: correctionTwo.id,
       sha: "d".repeat(40),
       route: "owner",
@@ -2537,7 +2508,7 @@ describe("binding a fix to the test that would catch it again", () => {
 });
 
 describe("closing the mission where Brian will find it", () => {
-  const shipped = [{ linear_issue_id: "LAN-900", pr_number: 42, sha: SHA }];
+  const shipped = [{ linear_issue_id: "LAN-900", sha: SHA }];
   const finding = {
     id: "F-001",
     impact_severity: "medium",
@@ -2561,7 +2532,7 @@ describe("closing the mission where Brian will find it", () => {
   async function crossed(m: ReturnType<typeof fixture>) {
     await readyMission(m);
     for (const pkg of plan.packages) {
-      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.append({ type: "main-pushed", package_id: pkg.id, sha: SHA, route: "owner" });
     }
     await walked(m);
   }
@@ -2591,9 +2562,9 @@ describe("closing the mission where Brian will find it", () => {
     await expect(
       m.append({
         type: "mission-closeout",
-        ...payload({ shipped: [{ linear_issue_id: "LAN-900", pr_number: 42, sha: "abc" }] }),
+        ...payload({ shipped: [{ linear_issue_id: "LAN-900", sha: "abc" }] }),
       }),
-    ).rejects.toThrow(/exact merged SHA/);
+    ).rejects.toThrow(/exact SHA that reached main/);
   });
 
   /**
@@ -2762,10 +2733,10 @@ describe("giving back what the mission took out", () => {
       evidence: "live review",
     });
     return m.append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: packageId,
       sha: SHA,
-      route: "guarded-auto",
+      route: "agent",
     });
   }
 
@@ -2837,7 +2808,7 @@ describe("giving back what the mission took out", () => {
         type: "mission-closeout",
         outcome: "delivered",
         notion_record: "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
-        shipped: [{ linear_issue_id: "LAN-900", pr_number: 42, sha: SHA }],
+        shipped: [{ linear_issue_id: "LAN-900", sha: SHA }],
         owner_actions: "None.",
         next_action: "None.",
       }),
@@ -3061,7 +3032,7 @@ describe("planned execution epochs", () => {
       ...baseEvents(),
       ...["WP-events-filter", "WP-attendance-export"].flatMap((package_id, index) => [
         {
-          type: "merge-recorded",
+          type: "main-pushed",
           at: `2026-08-29T12:00:1${index}.000Z`,
           package_id,
           sha: SHA,
@@ -3082,7 +3053,7 @@ describe("planned execution epochs", () => {
       ...baseEvents(),
       ...["WP-events-filter", "WP-attendance-export"].flatMap((package_id, index) => [
         {
-          type: "merge-recorded",
+          type: "main-pushed",
           at: `2026-08-29T12:01:1${index}.000Z`,
           package_id,
           sha: SHA,

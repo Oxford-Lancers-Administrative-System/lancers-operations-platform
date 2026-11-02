@@ -67,32 +67,31 @@ To see the application actually do something, follow
 ## Scripts
 
 `npm run verify` runs what CI runs: `format:check` → `lint` → `typecheck` →
-`test` → `build`. Run it before opening a pull request. The full table of
+`test` → `build`. Run it before the push to `main`. The full table of
 scripts is in [docs/local-development.md](docs/local-development.md#everyday-commands).
 
 ## Contributing
 
-`main` is protected. Direct pushes and force-pushes are rejected — including for
-administrators. All changes go through a pull request with CI green.
+There are no pull requests. Work happens on a side branch, every check runs
+locally (`npm run verify`), and the branch reaches `main` in one fast-forward
+push. CI runs once, on `main`; a red `main` is fixed forward, and
+`deploy.yml` refuses any commit whose required checks are not green. Force
+pushes and deletion of `main` are blocked, including for administrators.
 
 > **Provisional approval rule.** The club has never named a production approver
 > and Brian is currently the only durable administrator, so **required approving
-> reviews is zero**: CI is the gate, and Brian may merge his own pull requests.
-> This is provisional and will be revisited when a second club administrator with
-> GitHub organization access exists.
+> reviews is zero**. This is provisional and will be revisited when a second club
+> administrator with GitHub organization access exists.
 > See [ADR 0006](docs/adr/0006-solo-developer-branch-protection.md).
 
-**Draft state is the readiness gate.** A pull request leaves draft exactly once,
-as the last act of the work, and that act is the authorization to merge it.
-[`.github/workflows/merge.yml`](.github/workflows/merge.yml) neither merges nor
-un-drafts: it enables GitHub's own auto-merge on a non-draft pull request whose
-diff touches no prohibited path in
-[`.github/merge-rules.json`](.github/merge-rules.json), and GitHub merges it once
-every required check is green. A prohibited path — schema, workflows, agent
-roles, production procedures, auth and trust boundaries — gets one comment and
-stays Brian's. The scan is recomputed from the real diff, so nothing written in a
-pull request grants it. See
-[ADR 0038](docs/adr/0038-one-universal-merge-rule.md).
+**Review is for sensitive paths only.** A branch whose diff touches a
+`reviewRequired` path in [`.github/merge-rules.json`](.github/merge-rules.json) —
+schema, workflows, agent roles, production procedures, auth and trust
+boundaries — gets one independent review at its final head before the push;
+every other branch is pushed without one. The approved mission packet is pushed
+by Brian alone. See
+[ADR 0041](docs/adr/0041-push-to-main-without-pull-requests.md), which
+supersedes [ADR 0038](docs/adr/0038-one-universal-merge-rule.md).
 
 ## Security
 

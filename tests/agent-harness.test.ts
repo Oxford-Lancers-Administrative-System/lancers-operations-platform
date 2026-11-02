@@ -111,15 +111,18 @@ describe("approved workflows and roles", () => {
 
 describe("protected authority", () => {
   const settings = JSON.parse(read(".claude/settings.json"));
+  const allow: string[] = settings.permissions.allow;
   const deny: string[] = settings.permissions.deny;
 
-  it("disables bypass and denies direct merge, deploy, hosted database, settings, and force routes", () => {
+  it("disables bypass and denies deploy, hosted database, settings, force and delete routes", () => {
     expect(settings.permissions.disableBypassPermissionsMode).toBe("disable");
     expect(deny).toContain("Bash(gh pr merge *)");
     expect(deny).toEqual(
       expect.arrayContaining([
-        "Bash(git push * main)",
         "Bash(git push --force*)",
+        "Bash(git push -f *)",
+        "Bash(git push --delete *)",
+        "Bash(git push * +*)",
         "Bash(gh workflow run *)",
         "Bash(gcloud run *)",
         "Bash(supabase link *)",
@@ -132,57 +135,91 @@ describe("protected authority", () => {
     );
   });
 
-  it("allows only the narrow GitHub reads and the readiness signal", () => {
-    expect(settings.permissions.allow).toEqual(
+  // LAN-523, deliberately. A branch reaches main in one push and the agent that
+  // did the work takes it, so the exact `HEAD:main` form is allowed. Nothing
+  // that would shadow it may stay in the deny list, because deny wins.
+  it("allows exactly the push of HEAD to main and of side branches, and nothing broader", () => {
+    expect(allow).toContain("Bash(git push origin HEAD:main)");
+    for (const prefix of ["feat", "fix", "docs", "chore"]) {
+      expect(allow, prefix).toContain(`Bash(git push origin ${prefix}/*)`);
+    }
+    expect(allow.filter((entry) => entry.startsWith("Bash(git push"))).not.toContain(
+      "Bash(git push origin *)",
+    );
+    expect(deny).not.toContain("Bash(git push *:main)");
+    // Landing still cannot name the local main branch or the long ref form.
+    expect(deny).toEqual(
       expect.arrayContaining([
-        "Bash(gh pr edit * --add-label *)",
+        "Bash(git push * main)",
+        "Bash(git push *refs/heads/main*)",
+        "Bash(git push *:refs/heads/main*)",
+      ]),
+    );
+    // No allow entry is shadowed by a deny entry of the same prefix.
+    const wildcard = (pattern: string) =>
+      new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+    for (const entry of allow.filter((value) => value.startsWith("Bash(git push"))) {
+      const command = entry.slice("Bash(".length, -1);
+      for (const denied of deny.filter((value) => value.startsWith("Bash(git push"))) {
+        expect(
+          wildcard(denied.slice("Bash(".length, -1)).test(command),
+          `${entry} vs ${denied}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("allows only the narrow GitHub reads, with no pull-request writes", () => {
+    expect(allow).toEqual(
+      expect.arrayContaining([
         "Bash(gh pr checks *)",
         "Bash(gh pr diff *)",
         "Bash(gh pr view *)",
         "Bash(gh run view *)",
+        "Bash(gh run list *)",
       ]),
     );
-    // LAN-209, deliberately. Lifting the draft is the last act of the work and
-    // the authorization to merge it, so the agent that did the work performs
-    // it. Merge authority stays with GitHub: `gh pr merge` is still denied.
-    expect(settings.permissions.allow).toContain("Bash(gh pr ready *)");
-    expect(deny).not.toContain("Bash(gh pr ready *)");
+    for (const gone of ["Bash(gh pr ready *)", "Bash(gh pr comment *)"]) {
+      expect(allow).not.toContain(gone);
+    }
+    expect(allow.some((entry) => entry.startsWith("Bash(gh pr edit"))).toBe(false);
   });
 });
 
-// LAN-209. `settings.json` permissions are session-wide, so the restriction of
-// un-drafting to two roles cannot be enforced mechanically. It is enforced by
-// the written rule, and this is what makes the written rule binding.
+// LAN-523. `settings.json` permissions are session-wide, so the restriction of
+// pushing to main to two roles cannot be enforced mechanically. It is enforced
+// by the written rule, and this is what makes the written rule binding.
 describe("the merge rule is written into every role", () => {
-  const MAY_LIFT = ["start-issue", "run-mission"] as const;
+  const MAY_PUSH = ["start-issue", "run-mission"] as const;
 
   it("states the rule exactly once, in AGENTS.md", () => {
     const agents = read("AGENTS.md");
-    expect((agents.match(/A pull request leaves draft exactly once/g) ?? []).length).toBe(1);
-    expect(agents).toMatch(/No agent merges, ever\./);
-    expect(agents).toMatch(/Only `\/start-issue` and `\/run-mission` may lift a draft/);
+    expect((agents.match(/A branch reaches `main` exactly once/g) ?? []).length).toBe(1);
+    expect(agents).toMatch(/No agent deploys, ever\./);
+    expect(agents).toMatch(/Only `\/start-issue` and `\/run-mission` may push to `main`/);
+    expect(agents).not.toMatch(/pull request leaves draft|lift the draft/i);
     for (const file of Object.values({ ...skillFiles, ...agentFiles })) {
-      expect(
-        (read(file).match(/A pull request leaves draft exactly once/g) ?? []).length,
-        file,
-      ).toBe(0);
+      expect((read(file).match(/A branch reaches `main` exactly once/g) ?? []).length, file).toBe(
+        0,
+      );
     }
   });
 
-  it("gives the two lifting roles the three conditions", () => {
-    for (const name of MAY_LIFT) {
+  it("gives the two pushing roles the three conditions", () => {
+    for (const name of MAY_PUSH) {
       const source = read(skillFiles[name]);
-      expect(source, name).toMatch(/Lifting the draft is the last act of the work/);
-      expect(source, name).toMatch(/no prohibited\s+path/);
-      expect(source, name).toMatch(/review is clear at the exact current head/);
-      expect(source, name).toMatch(/visual approval is recorded against that same head/);
-      expect(source, name).toMatch(/Never merge\./);
+      expect(source, name).toMatch(/Pushing to `main` is the last act of the work/);
+      expect(source, name).toMatch(/every local check passed at the exact current head/);
+      expect(source, name).toMatch(/review is clear at that head/);
+      expect(source, name).toMatch(/Brian's visual approval is\s+recorded against that same head/);
+      expect(source, name).toMatch(/Never force-push/);
+      expect(source, name).toMatch(/never rebase/);
     }
   });
 
-  it("forbids every other role from lifting one", () => {
+  it("forbids every other role from pushing to main", () => {
     const others = { ...skillFiles, ...agentFiles };
-    for (const name of MAY_LIFT) delete (others as Record<string, string>)[name];
+    for (const name of MAY_PUSH) delete (others as Record<string, string>)[name];
     expect(Object.keys(others).sort()).toEqual(
       [
         "code-reviewer",
@@ -195,19 +232,19 @@ describe("the merge rule is written into every role", () => {
     );
     for (const [name, file] of Object.entries(others)) {
       const source = read(file);
-      expect(source, name).toMatch(/never lift a draft/);
-      expect(source, name).not.toMatch(/Lifting the draft is the last act/);
+      expect(source, name).toMatch(/push[^.]*`main`/i);
+      expect(source, name).not.toMatch(/Pushing to `main` is the last act/);
     }
   });
 
-  it("leaves no label, no receipt and no fast lane anywhere in the instruction surface", () => {
+  it("leaves no pull request, draft, label, receipt or fast lane in the instruction surface", () => {
     for (const file of [
       "AGENTS.md",
       "CLAUDE.md",
       ...Object.values({ ...skillFiles, ...agentFiles }),
     ]) {
       const source = read(file);
-      for (const gone of ["fast-lane", "fast lane", "mission-merge"]) {
+      for (const gone of ["fast-lane", "fast lane", "mission-merge", "gh pr ready", "draft pr"]) {
         expect(source.toLowerCase(), `${file}: ${gone}`).not.toContain(gone);
       }
     }

@@ -94,18 +94,19 @@ A schema change also updates `docs/architecture/data-model.md`.
 
 ## Change workflow
 
-Every change traces to an issue. Never commit to `main`; branch from current `main` with `feat/`,
-`fix/`, `docs/`, or `chore/`. Preserve unrelated work in a dirty tree.
+Every change traces to an issue. There are no pull requests. Never commit on `main`; work on a side
+branch from current `main` named `feat/`, `fix/`, `docs/`, or `chore/` plus `lan-###-…`. One branch may
+carry several issues, one commit each. Preserve unrelated work in a dirty tree.
 
 For user-facing work, read the complete Linear issue and comments, `docs/ux/slice-ux.md`, its
 `docs/ux/tickets/` contract, and all desktop and 375px wireframes. Stop for conflicting authority or
-an unrecorded product or security decision. PRs include UX conformance and applicable screenshots.
+an unrecorded product or security decision. The Linear handoff includes UX conformance and screenshots.
 
-Commits use an imperative subject under about 72 characters and a body explaining why. Open draft
-PRs only. State the change, verification, external configuration, and limitations. Fill every line
-in the Production handoff block, including explicit `No` and `None`.
+Commits use an imperative subject under about 72 characters and a body explaining why. The Production
+handoff block (external configuration, whether a hosted `db push` is needed, owner steps, with explicit
+`No` and `None`) is one Linear comment on the issue, posted when the branch lands on `main`.
 
-Run `npm run verify` before opening a PR. When migrations change, also run:
+Run `npm run verify` before the push. When migrations change, also run the database suites and:
 
 ```bash
 npm run db:reset
@@ -116,29 +117,27 @@ npm run check:rls
 
 ## Merging
 
-One rule, and it applies to every pull request in this repository, whatever
-opened it (Brian, 2026-09-01; ADR 0038).
+One rule, for every branch in this repository (Brian, 2026-11-02; ADR 0041, superseding ADR 0038).
 
-> A pull request leaves draft exactly once, as the last act of the work, and
-> that act is the authorization to merge it. An agent may lift the draft only
-> when all three are true: the diff touches no prohibited path; review is clear
-> at the pull request's exact current head; and, for visual work, Brian's visual
-> approval is recorded against that same head. Otherwise the draft stays and
-> Brian merges. No agent merges, ever.
+> A branch reaches `main` exactly once, in one fast-forward push, as the last act of the work, and that
+> push is the landing. Every check runs locally first; CI runs only afterwards, on `main`. An agent may
+> push only when all are true: `npm run verify` (plus the migration sequence and database suites, when
+> migrations change) passed at the branch's exact current head; one `code-reviewer` pass is clear at that
+> head if the diff touches a `reviewRequired` path in `.github/merge-rules.json`, and none is run
+> otherwise; and, for visual work, Brian's visual approval is recorded against that same head. A branch
+> touching an `ownerOnly` path is pushed by Brian alone. No agent deploys, ever.
 
-Only `/start-issue` and `/run-mission` may lift a draft; `implementation-worker`, `/finish-issue`,
-`/finish-mission`, `/mission-intake`, `code-reviewer` and `scout` never do. Nothing is expected to
-happen to a pull request afterwards, so there is deliberately no re-draft-on-push machinery.
-
-`.github/workflows/merge.yml` is the only merge workflow, and it neither merges nor un-drafts. It
-enables GitHub's own auto-merge on a non-draft pull request whose diff touches no `prohibited` path
-in `.github/merge-rules.json`; GitHub merges it when the required checks are green. A prohibited
-path gets one comment and stays Brian's. The scan is recomputed from the real diff against `main`,
-and nothing written in a pull request changes it. Merging never deploys.
+Only `/start-issue` and `/run-mission` may push to `main`; `implementation-worker`, `/finish-issue`,
+`/finish-mission`, `/mission-intake`, `code-reviewer` and `scout` never do. Merge `origin/main` into
+the branch (never rebase; force-push stays denied), rerun verify if main moved, then
+`git push origin HEAD:main`. CI (`ci.yml`) runs once, on `main`. If it goes red, fix forward at once
+and land nothing else until it is green. `deploy.yml` refuses any commit whose required checks are not
+green. A hosted `db push` follows only a green `main` at the commit that carries the migration.
+Landing deploys nothing; in the lifecycle below, `merged` means on `main`.
 
 Pilot artifacts are required only when `docs/pilot-data-runbook.md` says local proof is insufficient
 and hosted synthetic rows are absent. Tell Brian as soon as any owner action is discovered and
-repeat it in the PR and final handoff. Agents never run pilot SQL against hosted, create hosted Auth
+repeat it in the Linear handoff comment and final handoff. Agents never run pilot SQL against hosted, create hosted Auth
 users, grant hosted access, decide retention, or write production data.
 
 ## Security and production
@@ -159,7 +158,7 @@ server need. Views use `security_invoker = true`. The service layer is the
 primary authorization boundary; RLS is the backstop.
 
 Shared migrations are forward-only. No agent applies a hosted migration. Deployment is a deliberate
-owner action through `gh workflow run deploy.yml`; merging `main` deploys nothing. Follow
+owner action through `gh workflow run deploy.yml`; landing on `main` deploys nothing. Follow
 `docs/deployment.md` for smoke tests and rollback.
 
 Stop and ask Brian before changing the approved domain model, security/privacy
@@ -220,14 +219,14 @@ All workflows are user-invoked. `/start-issue` implements one issue directly;
 implement nothing. Workers, reviewers, and scouts spawn nothing.
 
 Mission memory is the append-only journal owned by `npm run mission`.
-CLI refusals, leases, collision rules, exact-head evidence, merge classifiers,
+CLI refusals, leases, collision rules, exact-head evidence, path classifiers,
 and cleanup proofs are authoritative. The Lead follows its executable frontier
 and uses scouts instead of loading repository investigation into top-tier
 context.
 
-No agent merges, deploys, migrates hosted Supabase, or writes to production. No
+No agent deploys, migrates hosted Supabase, or writes to production. No
 agent weakens local-only guards, changes GitHub settings, or bypasses a fence.
-A merge does not deploy: `deploy.yml` is manual-only. LAN-90 and LAN-92 remain
+A landing does not deploy: `deploy.yml` is manual-only. LAN-90 and LAN-92 remain
 binding; manual distribution is never a fallback.
 
 ## Done
@@ -235,9 +234,9 @@ binding; manual distribution is never a fallback.
 A repository change is done only when applicable verification passed; migrations
 apply from empty; generated types and the data-model map agree; new tables have
 RLS and narrow grants; behavior docs are current; no secret, real member data,
-or unauthorized domain concept was added; CI is green; and the PR's Production
-handoff is complete. Done does not mean merged: the draft lifts only when the
-merge rule above says it may.
+or unauthorized domain concept was added; CI is green on `main`; and the Linear
+Production handoff comment is posted. Done does not mean deployed: an agent pushes
+only when the merge rule above says it may.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

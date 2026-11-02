@@ -7,7 +7,7 @@ import { renderDecisionCoverage } from "./lib/decisions.mjs";
 import { replaceExact, writeGenerated } from "./lib/edit.mjs";
 import { formatAs } from "./lib/format.mjs";
 import { HUB_FILE, renderMockupHub } from "./lib/hub.mjs";
-import { validateFinalPrPaths } from "./lib/pr.mjs";
+import { validateFinalBranchPaths } from "./lib/branch.mjs";
 import { shootScreen } from "./lib/shoot.mjs";
 import { renderSubjectCoverage } from "./lib/subject.mjs";
 import {
@@ -27,7 +27,7 @@ const USAGE = `Usage:
   npm run intake -- hub [M-<mission-id>] --write|--check
   npm run intake -- coverage [M-<mission-id>] --write|--check
   npm run intake -- subject [M-<mission-id>] --write|--check
-  npm run intake -- pr-paths [M-<mission-id>] --diff <ref>
+  npm run intake -- branch-paths [M-<mission-id>] --diff <ref>
   npm run intake -- shoot [M-<mission-id>] --screen <Wn-nn> --route <path> \\
                           [--proposal <file.js>]
   npm run intake -- edit --file <path> (--find <text>|--find-file <path>) \\
@@ -184,7 +184,7 @@ async function main() {
       await generate(command, missionArgument(options._), options);
       return;
     }
-    case "pr-paths": {
+    case "branch-paths": {
       const options = parse(argv.slice(1), { values: ["--diff"] });
       const missionId = missionArgument(options._);
       const { state } = load(missionId);
@@ -194,7 +194,7 @@ async function main() {
       });
       if (diff.status !== 0) fail(`git diff against ${base} failed: ${diff.stderr.trim()}`);
       const paths = diff.stdout.split("\n").filter(Boolean);
-      const errors = validateFinalPrPaths(state.mission_id, paths);
+      const errors = validateFinalBranchPaths(state.mission_id, paths);
       if (errors.length)
         fail(`This is not an intake-artifacts-only diff:\n- ${errors.join("\n- ")}`);
       console.log(

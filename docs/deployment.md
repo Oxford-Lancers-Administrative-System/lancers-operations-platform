@@ -11,25 +11,31 @@ Hosting or in the container.
 ## Shape of the pipeline
 
 ```
-pull request  ──▶  CI only (.github/workflows/ci.yml)
+side branch   ──▶  every check runs locally first (npm run verify, plus the
+                   migration sequence and database suites for migrations).
+                   No pull request, and no CI run on a side branch.
+
+push to main  ──▶  CI, once (.github/workflows/ci.yml). Nothing deploys.
                    format · lint · typecheck · test · build
                    migrations from empty · RLS gate · type-drift gate
                    container build + health probe
-
-merge to main ──▶  CI only. Nothing deploys.
 
 gh workflow run  ──▶  deploy (.github/workflows/deploy.yml)
    deploy.yml         OIDC → GCP · build image · push to Artifact Registry
                       deploy Cloud Run revision · smoke-test /api/health
 ```
 
-Nothing deploys on its own. A pull request does not, and neither does a merge —
+Nothing deploys on its own. A push to `main` does not —
 deploying is always an explicit `workflow_dispatch`.
-Brian dispatches it from `main` only after the required CI checks pass.
+Brian dispatches it from `main` only after the required CI checks pass; the
+preflight refuses the dispatch if they have not (ADR 0041). If `main` is red, it
+is fixed forward first; production keeps running the last deployed image.
 
 That separation is deliberate. A migration that drops a column has to be applied
 to hosted **before** the revision expecting the new schema goes live, and a
-deploy that fired on merge inverted that ordering.
+deploy that fired on a push inverted that ordering. For the same reason a
+hosted `db push` waits for a green `main` at the commit that carries the
+migration: the first CI proof of that migration is the run on `main`.
 
 ## One-time GCP setup
 
@@ -207,7 +213,7 @@ host, port, connection mode, role, credential, or failure reason.
 ## Activating the runtime database connection
 
 Run **once**, by Brian, in this order. Steps 1–3 must be complete **before the
-pull request that adds the deploy gate is merged**, or the next deploy of `main`
+branch that adds the deploy gate reaches `main`**, or the next deploy of `main`
 fails on a revision with no `DATABASE_URL`.
 
 Nothing in this sequence is performed by an agent, and no secret value appears in
@@ -269,7 +275,7 @@ printf '%s' 'PASTE-THE-CONNECTION-STRING-HERE' | gcloud --project=oxford-lancers
 gcloud --project=oxford-lancers-operations secrets add-iam-policy-binding database-url --member="serviceAccount:$(gcloud --project=oxford-lancers-operations run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
 ```
 
-**4 — Merge the pull request, wait for CI, then manually dispatch `deploy.yml`.**
+**4 — Push the branch to `main`, wait for CI, then manually dispatch `deploy.yml`.**
 The deploy workflow injects the secret and fails the revision unless
 `/api/health` reports `secretsLoaded`, `databaseConfigured`, and
 `schemaCompatible` as true.
@@ -644,7 +650,7 @@ is not guaranteed. Dependable recovery for the pilot needs a custom SMTP provide
 (Resend, Postmark, SendGrid or similar) configured here, with a sender address on
 a domain the club controls. Until that is done, hosted recovery email should be
 treated as **untested in production** — see the known limitation on LAN-125's
-pull request.
+handoff comment.
 
 The SMTP credential is Brian's to enter directly into the Supabase dashboard. It
 must not be added to this repository, to Secret Manager, to a workflow, or to any
@@ -909,7 +915,7 @@ gcloud --project=oxford-lancers-operations run services update-traffic lancers-o
 ```
 
 Use this when the site is down and minutes matter. Follow it with a revert
-pull request, otherwise a later manual deploy could re-deploy the bad code.
+commit on `main`, otherwise a later manual deploy could re-deploy the bad code.
 
 **Verify either way:**
 

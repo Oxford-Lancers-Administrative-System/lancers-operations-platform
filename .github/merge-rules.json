@@ -1,10 +1,10 @@
 {
-  "version": 1,
-  "_purpose": "The checked-in rules for the one universal merge rule (LAN-209). A pull request leaves draft exactly once, as the last act of the work, and that act is the authorization to merge it. `.github/workflows/merge.yml` reads THIS file and `scripts/merge/gate.mjs` from the BASE branch — never from the pull request under evaluation — and re-derives the one rule with teeth from evidence: the prohibited-path scan of the real diff. A prohibited path means Brian merges it by hand; anything else gets GitHub's own auto-merge enabled, and GitHub merges it when the required checks are green. There are no lanes, no labels, no eligibility classes and no receipt. Draft state is the readiness gate, and no workflow lifts a draft.",
+  "version": 2,
+  "_purpose": "The checked-in rules for what reaches main (LAN-523, ADR 0041). There are no pull requests: a branch passes every check locally and reaches main in one push. This file says how much attention that push needs, judged from the branch's real diff against origin/main. `reviewRequired` paths need one code-reviewer pass at the branch's final head before the push; any other branch is pushed with no review. `ownerOnly` paths are pushed by Brian alone. Read by scripts/merge/gate.mjs, the mission gate and review-contract generation; `requiredChecks` is read by .github/workflows/deploy.yml.",
   "baseBranch": "main",
   "requiredChecks": ["Format, lint, typecheck, test, build", "Container builds and serves"],
-  "_requiredChecksNote": "The job `name:` values in .github/workflows/ci.yml. GitHub's branch protection is what actually holds auto-merge until these are green; this list is a second, independently checked-in copy, used by the Mission Lead before it lifts a draft and by tests, so that renaming a job in ci.yml without updating branch protection fails a test instead of silently emptying the gate.",
-  "prohibited": [
+  "_requiredChecksNote": "The job `name:` values in .github/workflows/ci.yml. `deploy.yml` refuses any commit on which these are not green, so with no pull requests this list is the only gate between a push and production. Renaming a job in ci.yml without updating this list fails a test instead of silently emptying the gate.",
+  "reviewRequired": [
     {
       "path": "supabase/**",
       "reason": "Schema and migrations are owner-gated; applying one anywhere is a deliberate human action."
@@ -116,13 +116,16 @@
     {
       "path": "src/lib/services/rsvp-tokens.ts",
       "reason": "RSVP token issuance and verification — the same public trust boundary as src/lib/rsvp/**."
-    },
-    {
-      "path": "missions/**/packet.json",
-      "reason": "The approved packet itself. Brian's merge of a packet PR IS the approval of that exact packet version; no automatic lane may perform it. Mission prose and walkthrough records beside it are ordinary documentation and merge normally."
     }
   ],
-  "_prohibitedNote": "The only rule with teeth, and it does not expand (LAN-209). Every path here is judged from the real diff — a rename on both its names — and a match means the pull request never gets auto-merge enabled at all. An empty diff is refused: there is nothing to merge, so nothing merges.",
+  "_reviewRequiredNote": "A match means one code-reviewer pass at the branch's final head before it is pushed to main. Judged from the real diff — a rename on both its names. Everything not listed here is pushed without review.",
+  "ownerOnly": [
+    {
+      "path": "missions/**/packet.json",
+      "reason": "The approved packet itself. Its landing on main IS Brian's approval of that exact packet version; no agent pushes it. Mission prose and walkthrough records beside it are ordinary documentation."
+    }
+  ],
+  "_ownerOnlyNote": "A match means Brian pushes the branch himself.",
   "visualSurfaces": [
     "src/app/**/*.tsx",
     "src/app/**/*.ts",
@@ -130,7 +133,7 @@
     "src/components/**",
     "src/theme.ts"
   ],
-  "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling. Plain .ts files under src/app are included deliberately — presentation shaping and user-visible copy live there too.",
+  "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling. Visual work still needs Brian's visual approval at the exact head before the push.",
   "reviewContract": {
     "_purpose": "The path classifiers that generate a package review contract in scripts/mission/lib/review-contract.mjs. They decide which capabilities and jobs an invocation must carry; the Mission Lead may add a diagnostic question but may never remove what these produce.",
     "sensitiveSurfaces": [

@@ -56,22 +56,11 @@ async function fixture(dirty: boolean, recordMerge = true) {
   git(worktree, ["push", "-u", "origin", branch]);
   const headSha = git(worktree, ["rev-parse", "HEAD"]);
   git(repo, ["merge", "--no-ff", branch, "-m", "merge package"]);
-  const mergeSha = git(repo, ["rev-parse", "HEAD"]);
   git(repo, ["push", "origin", "main"]);
   if (dirty) fs.writeFileSync(path.join(worktree, "dirty.txt"), "leave me alone\n");
 
-  const bin = path.join(root, "bin");
-  fs.mkdirSync(bin);
-  const gh = path.join(bin, "gh");
-  fs.writeFileSync(
-    gh,
-    `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify({ state: "MERGED", mergeCommit: { oid: mergeSha } })}'\n`,
-    { mode: 0o755 },
-  );
-
   const env = {
     ...process.env,
-    PATH: `${bin}${path.delimiter}${process.env.PATH}`,
     LANCERS_MISSION_ROOT: path.join(root, "mission-state"),
     LANCERS_COORDINATOR_ROOT: path.join(root, "coordinator-state"),
     LANCERS_MISSION_LEAD_ID: "lead-finish-rehearsal",
@@ -125,16 +114,14 @@ async function fixture(dirty: boolean, recordMerge = true) {
     },
   });
   await append({
-    type: "pr-opened",
+    type: "head-recorded",
     package_id: pkg.id,
-    pr_number: 999,
     head_sha: headSha,
   });
   if (recordMerge) {
     await append({
-      type: "merge-recorded",
+      type: "main-pushed",
       package_id: pkg.id,
-      pr_number: 999,
       sha: headSha,
       route: "owner",
     });
@@ -208,7 +195,7 @@ describe("finish-mission and the review runtimes a mission also took out", () =>
 });
 
 describe("finish-mission executable reclamation", () => {
-  it("auto-reclaims through the real merge-record command", async () => {
+  it("auto-reclaims through the real main-record command", async () => {
     const input = await fixture(false, false);
     // This journal predates planned execution epochs. Resume projects its plan
     // deterministically without rewriting its history.
@@ -227,10 +214,9 @@ describe("finish-mission executable reclamation", () => {
       process.execPath,
       [
         path.join(__dirname, "..", "scripts", "mission", "cli.mjs"),
-        "merge-record",
+        "main-record",
         MISSION,
         input.packageId,
-        "999",
         input.headSha,
         "--route",
         "owner",
@@ -238,7 +224,7 @@ describe("finish-mission executable reclamation", () => {
       { cwd: input.repo, env: input.env, encoding: "utf8" },
     );
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/Merge recorded for WP-rehearsal/);
+    expect(result.stdout).toMatch(/Push to main recorded for WP-rehearsal/);
     expect(result.stdout).toMatch(/Reclaimed WP-rehearsal/);
     expect(fs.existsSync(input.worktree)).toBe(false);
     expect(replayState(input.repo, MISSION, input.env).reclaimed).toEqual([input.packageId]);
