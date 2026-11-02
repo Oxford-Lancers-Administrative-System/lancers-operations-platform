@@ -21,15 +21,7 @@
       "Bash(git push -u origin HEAD:refs/heads/feat/*)",
       "Bash(git push -u origin HEAD:refs/heads/fix/*)",
       "Bash(git push -u origin HEAD:refs/heads/docs/*)",
-      "Bash(git push -u origin HEAD:refs/heads/chore/*)",
-      "Bash(git push origin feat/*)",
-      "Bash(git push origin fix/*)",
-      "Bash(git push origin docs/*)",
-      "Bash(git push origin chore/*)",
-      "Bash(git push -u origin feat/*)",
-      "Bash(git push -u origin fix/*)",
-      "Bash(git push -u origin docs/*)",
-      "Bash(git push -u origin chore/*)"
+      "Bash(git push -u origin HEAD:refs/heads/chore/*)"
     ],
     "deny": [
       "Bash(gh pr merge *)",
@@ -81,6 +73,8 @@
       "Bash(git push * --force*)",
       "Bash(git push * -f*)",
       "Bash(git push * +*)",
+      "Bash(git push * :*)",
+      "Bash(git push * -*f*)",
       "Bash(git push * --delete*)",
       "Bash(gh pr close *)",
       "Bash(gh pr reopen *)",
