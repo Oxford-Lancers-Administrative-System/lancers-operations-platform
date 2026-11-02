@@ -1,7 +1,7 @@
 # Dependency and action update alerts (LAN-352, LAN-402).
 #
 # Scheduled version-update pull requests are switched off (Brian, 2026-09-21):
-# every one is a hand merge, since package.json and .github/** are prohibited
+# every one was a hand merge, since package.json and .github/** are review-required
 # paths, and a weekly batch of four was more than the club can review. The
 # entries stay so that Dependabot's security updates keep opening on their
 # own; a version-update job with an open-pull-requests limit of zero opens

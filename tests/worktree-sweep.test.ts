@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { classify, parseWorktreeList, workInStatus } from "../scripts/worktrees/sweep.mjs";
+import {
+  classify,
+  isInjectedAgentsBlock,
+  parseWorktreeList,
+  workInStatus,
+} from "../scripts/worktrees/sweep.mjs";
+
+const INJECTED = [
+  "diff --git a/AGENTS.md b/AGENTS.md",
+  "@@ -250,0 +251,2 @@",
+  "+# This is NOT the Next.js you know",
+  "+This block is written and re-added by `next dev` — verify it.",
+].join("\n");
 
 const clean = {
   primary: false,
@@ -43,6 +55,7 @@ describe("the worktree sweep (LAN-523)", () => {
           " M src/a.ts",
           "?? supabase/migrations/x.sql",
         ].join("\n"),
+        INJECTED,
       ),
     ).toEqual([" M src/a.ts", "?? supabase/migrations/x.sql"]);
   });
@@ -55,5 +68,14 @@ describe("the worktree sweep (LAN-523)", () => {
     expect(classify({ ...clean, onMain: true, locked: true }).remove).toBe(false);
     expect(classify({ ...clean, onMain: true, recent: true }).remove).toBe(false);
     expect(classify({ ...clean, onMain: true, work: [" M src/a.ts"] }).remove).toBe(false);
+  });
+});
+
+describe("the AGENTS.md exemption", () => {
+  it("covers only a diff that adds the next dev block", () => {
+    expect(isInjectedAgentsBlock(INJECTED)).toBe(true);
+    expect(isInjectedAgentsBlock(`${INJECTED}\n-a removed rule`)).toBe(false);
+    expect(isInjectedAgentsBlock("@@ -1,0 +1 @@\n+a new rule")).toBe(false);
+    expect(workInStatus(" M AGENTS.md", "@@ -1,0 +1 @@\n+a new rule")).toEqual([" M AGENTS.md"]);
   });
 });

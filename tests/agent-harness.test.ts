@@ -141,7 +141,10 @@ describe("protected authority", () => {
   it("allows exactly the push of HEAD to main and of side branches, and nothing broader", () => {
     expect(allow).toContain("Bash(git push origin HEAD:main)");
     for (const prefix of ["feat", "fix", "docs", "chore"]) {
-      expect(allow, prefix).toContain(`Bash(git push origin ${prefix}/*)`);
+      expect(allow, prefix).toContain(`Bash(git push origin HEAD:refs/heads/${prefix}/*)`);
+      // A bare branch name would also match trailing refspecs and short flags
+      // (`feat/a :feat/b` deletes, `-uf` forces), so only the HEAD form is allowed.
+      expect(allow, prefix).not.toContain(`Bash(git push origin ${prefix}/*)`);
     }
     expect(allow.filter((entry) => entry.startsWith("Bash(git push"))).not.toContain(
       "Bash(git push origin *)",
@@ -153,6 +156,8 @@ describe("protected authority", () => {
         "Bash(git push * main)",
         "Bash(git push *refs/heads/main*)",
         "Bash(git push *:refs/heads/main*)",
+        "Bash(git push * :*)",
+        "Bash(git push * -*f*)",
       ]),
     );
     // No allow entry is shadowed by a deny entry of the same prefix.

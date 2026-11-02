@@ -61,17 +61,28 @@ export function parseWorktreeList(text) {
 
 /**
  * The status lines that count as work. `next dev` rewrites AGENTS.md on start,
- * so a change to AGENTS.md alone is not work either.
+ * so a change to AGENTS.md that only adds that block is not work either.
  */
-export function workInStatus(porcelain) {
+export function workInStatus(porcelain, agentsDiff = "") {
+  const injectedOnly = isInjectedAgentsBlock(agentsDiff);
   return porcelain
     .split("\n")
     .filter(Boolean)
     .filter((line) => {
       const path = line.slice(3);
       if (line.startsWith("??")) return !DISPOSABLE.some((pattern) => pattern.test(path));
-      return path !== "AGENTS.md";
+      return path !== "AGENTS.md" || !injectedOnly;
     });
+}
+
+/**
+ * True when a `git diff AGENTS.md` only adds the block `next dev` writes. Any
+ * removed line, or added text without that block, is a real edit.
+ */
+export function isInjectedAgentsBlock(diff) {
+  const body = diff.split("\n").filter((line) => !/^(diff |index |--- |\+\+\+ |@@)/.test(line));
+  if (body.some((line) => line.startsWith("-"))) return false;
+  return body.some((line) => line.startsWith("+") && line.includes("re-added by `next dev`"));
 }
 
 /** The decision for one worktree, from facts already gathered. */
@@ -183,7 +194,10 @@ function main() {
     };
     if (!isPrimary && !tree.locked) {
       facts.recent = !only && changedRecently(tree.path, now);
-      facts.work = workInStatus(git(tree.path, "status", "--porcelain"));
+      facts.work = workInStatus(
+        git(tree.path, "status", "--porcelain"),
+        git(tree.path, "diff", "HEAD", "--", "AGENTS.md"),
+      );
       facts.onMain = succeeds(primary, "merge-base", "--is-ancestor", tree.head, "origin/main");
       if (!facts.recent && facts.work.length === 0 && !facts.onMain)
         facts.mergedPr = mergedPullRequest(tree.head);
