@@ -1,6 +1,6 @@
 ---
 name: finish-issue
-description: Finalize one merged, canceled, or explicitly abandoned Linear issue by proving its terminal state, stopping its local services, releasing its lease, removing its worktree/branch, and closing the ticket. Never implements or merges.
+description: Finalize one landed, canceled, or explicitly abandoned Linear issue by proving its terminal state, stopping its local services, releasing its lease, removing its worktree/branch, and closing the ticket. Never implements or pushes to main.
 disable-model-invocation: true
 argument-hint: LAN-###
 ---
@@ -12,7 +12,7 @@ Invocation: `/finish-issue LAN-### [--abandoned]`
 ## Intent
 
 Exist to reclaim one completed run without losing work or touching another run.
-Never implement, review, delegate, merge, never lift a draft, deploy, or use hosted
+Never implement, review, delegate, never push to `main`, deploy, or use hosted
 Supabase. Done means local resources are safely reclaimed and Linear is closed,
 or a precise refusal leaves everything untouched.
 
@@ -23,16 +23,17 @@ Before mutation, fetch `origin/main` and collect:
 
 ```bash
 git worktree list --porcelain
-gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid,headRefName
 git -C <worktree> status --short --branch
 git -C <worktree> stash list
 git -C <worktree> rev-parse HEAD
+git merge-base --is-ancestor <head> origin/main
+gh run list --branch main --commit <head-or-main-sha> --json conclusion,name
 npm run db:coordinator status
 ```
 
-Read Linear state/comments. Find the PR from the branch, never from a comment,
-handoff, search result, or open-only listing. Use coordinator status—not
-`db:status`—for stripped, non-mutating lease facts.
+Read Linear state/comments. Find the branch from the worktree list, never from a
+comment, handoff, or search result. Use coordinator status—not `db:status`—for
+stripped, non-mutating lease facts.
 
 If no worktree, local branch, or lease remains, report `already finalized`,
 complete the Linear close if still pending, and stop.
@@ -41,18 +42,19 @@ complete the Linear close if still pending, and stop.
 
 Proceed only when one case is proved:
 
-- **Merged:** branch-derived PR is `MERGED`, `headRefName` equals the branch,
-  its merge commit is an ancestor of freshly fetched `origin/main`, and while
-  the local branch exists its tip equals `headRefOid`. Use the merge commit for
-  squash merges; never substitute branch-head ancestry.
+- **On main:** the branch's final head, or a merge commit that contains it, is an
+  ancestor of freshly fetched `origin/main`, and while the local branch exists
+  its tip is that proved head. A branch is never proved by a comment or by
+  Linear state.
 - **Canceled:** Linear is canceled.
 - **Abandoned:** Brian supplied `--abandoned` and the complete branch is pushed.
 
-Refuse and change nothing for an open/closed-unmerged/missing/mismatched PR,
-post-merge branch movement, dirty/untracked/unpushed/stashed work, unresolved
+Refuse and change nothing for a head not on `origin/main`, post-landing branch
+movement, dirty/untracked/unpushed/stashed work, unresolved
 `correct-before-handoff`, pending visual acceptance, mismatched/stale lease
 ownership or token, unreadable evidence, or material ambiguity. Absence of proof
-is never permission.
+is never permission. Report main's CI conclusion for the landed commit; a red
+main does not block reclamation, but state it.
 
 ## Close out in order
 
@@ -62,9 +64,9 @@ is never permission.
    the stack before releasing it; never retire a mission-owned/shared stack.
 3. Remove/prune the clean worktree, then delete only its proved local branch.
    Never force deletion or delete a remote branch.
-4. Set Linear Done only for merged work; preserve canceled state otherwise.
-   Add one closing comment with PR/merge proof, verification, cleanup, remaining
-   owner/production actions, and limitations.
+4. Set Linear Done only for landed work; preserve canceled state otherwise.
+   Add one closing comment with the landing proof, verification, cleanup,
+   remaining owner/production actions, and limitations.
 
 A missing lease or already-removed resource is an idempotent no-op. A failure
 stops the sequence before later destructive steps. Re-running completes only

@@ -1,6 +1,6 @@
 ---
 name: mission-intake
-description: Prepare one Release One mission packet through its durable ledger, workflow specification/mockup review, mechanical validation, and one intake-artifacts-only draft PR. Never executes a mission.
+description: Prepare one Release One mission packet through its durable ledger, workflow specification/mockup review, mechanical validation, and one intake-artifacts-only branch for Brian to land. Never executes a mission.
 disable-model-invocation: true
 argument-hint: <portfolio mission number>
 ---
@@ -14,8 +14,8 @@ Invocation: `/mission-intake $ARGUMENTS`
 Turn one commissioned subject—not merely the portfolio examples—into its first
 complete, owner-approved product definition and source-traceable packet. Never
 execute, decompose implementation packages, or write application code. Done
-means the ledger and packet land in one owner-merged intake-only PR and the
-Project Manager receipt identifies the next action.
+means the ledger and packet sit on one intake-only branch that Brian pushes to
+`main`, and the Project Manager receipt identifies the next action.
 
 Require one positive integer. Map it to one approved mission id with the minimum
 read and inspect worktrees.
@@ -34,12 +34,13 @@ mission id and base SHA, preserves `ledger_version`, and records Stage 0 in one
 bootstrap commit. Then run status and obtain Brian's confirmation.
 
 The ledger is memory. Each transition and its evidence are one atomic commit
-containing Brian's exact approval words. Keep `PR.md` current; push only when
-Brian requests it or Stage 5 opens the PR.
+containing Brian's exact approval words. Keep `PR.md` (the branch handoff note)
+current; push the branch under its own name only when Brian requests it or
+Stage 5 reaches it.
 
 Read `references/ported-intake-rules.md` completely at startup. It is the
-detailed commissioning, split, readiness, drift, PR, owner-action, closeout, and
-receipt contract. Read project/Mission Control, current status, authority
+detailed commissioning, split, readiness, drift, branch, owner-action, closeout,
+and receipt contract. Read project/Mission Control, current status, authority
 manifest, portfolio row, controlling briefs, relevant Linear/GitHub reality,
 `AGENTS.md`, `docs/mission-harness.md`, packet schema, and the approved
 operator-admin exemplar. Pin source versions in `sources.md`.
@@ -169,7 +170,7 @@ npm run mission -- validate --packet <file> --inventory missions/intake/<mission
 
 Never omit the separately approved inventory comparison. Approved packets on
 `main` are immutable; material revision increments `packet_version` through a
-new intake-only PR.
+new intake-only branch.
 
 ## Owner actions, corrections, and Stage 5
 
@@ -180,22 +181,24 @@ requirements, portfolio entries, and other missions in
 `state.json.amendment_plan`. Show Brian the full batch before editing anything;
 apply only the approved batch, then refetch each target and record proof.
 
-The final PR contains exactly this mission's `missions/intake/**` and
+The final branch contains exactly this mission's `missions/intake/**` and
 `missions/packets/**` artifacts. Prove paths and state with:
 
 ```bash
-npm run intake -- pr-paths <mission-id> --diff main
+npm run intake -- branch-paths <mission-id> --diff main
 npm run intake -- check <mission-id>
 ```
 
-On Brian's word, push once, open the draft PR from `PR.md`, and wait for every
-required check at the final SHA. Never merge and never lift a draft; Brian's merge is
-packet
-approval.
+On Brian's word, run the checks above and `npm run verify` at the final SHA,
+push the branch once under its own name
+(`git push origin HEAD:refs/heads/intake/<mission-id>`), and hand Brian the
+`PR.md` note. Never push to `main`: `packet.json` is an `ownerOnly` path, and
+Brian's own push of this branch is packet approval.
 
-After merge, return the Project Manager receipt: coverage, dependencies,
-superseded boundary, unassigned Release One coverage, packet path/version/PR/SHA,
-validation, owner actions, and existing portfolio/Mission Control updates. Run a
-short retro; accepted process changes use a separate skill PR. End every run with
-verdict, mission, packet, boundary/split, questions, validation, next action,
-receipt, and ledger state. Evidence drop-ins are provenance only.
+After Brian lands it, return the Project Manager receipt: coverage,
+dependencies, superseded boundary, unassigned Release One coverage, packet
+path/version/SHA, validation, owner actions, and existing portfolio/Mission
+Control updates. Run a short retro; accepted process changes use a separate
+skill branch. End every run with verdict, mission, packet, boundary/split,
+questions, validation, next action, receipt, and ledger state. Evidence drop-ins
+are provenance only.

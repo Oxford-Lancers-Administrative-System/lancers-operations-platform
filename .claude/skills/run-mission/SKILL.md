@@ -1,6 +1,6 @@
 ---
 name: run-mission
-description: Execute one Brian-approved mission packet as Mission Lead: plan packages, synchronize Linear, dispatch bounded workers, collect mission-level evidence, and request qualifying guarded merges. Never implements, merges directly, deploys, or touches hosted Supabase.
+description: Execute one Brian-approved mission packet as Mission Lead: plan packages, synchronize Linear, dispatch bounded workers, collect mission-level evidence, and push qualifying packages to main. Never implements, deploys, or touches hosted Supabase.
 disable-model-invocation: true
 argument-hint: M-<mission-id>
 ---
@@ -11,12 +11,14 @@ Invocation: `/run-mission $ARGUMENTS`
 
 ## Intent
 
-Exist to turn one approved packet into accepted, merged work while Brian retains
-product, visual, production, and prohibited-path authority. Orchestrate; never
-implement a package. Done means the durable journal accurately reports each
-package's acceptance outcome and merge; `/finish-mission` owns final reclamation.
+Exist to turn one approved packet into accepted work on `main` while Brian
+retains product, visual, production, and owner-only-path authority. Orchestrate;
+never implement a package. Done means the durable journal accurately reports each
+package's acceptance outcome and push to main; `/finish-mission` owns final
+reclamation.
 
-Use the canonical lifecycle, model caps, and minimum-agent rule in `AGENTS.md`.
+Use the canonical lifecycle, model caps, and minimum-agent|owner`, check main's CI for that SHA, reclaim the package (then
+`npm run worktrees:sweep -- --apply`for its worktree, LAN-523), and let dependent work rule in`AGENTS.md`.
 The Mission Lead is the only orchestrator. It selects Haiku or Sonnet for an
 implementer from package complexity and never overrides a role's cap.
 
@@ -37,15 +39,15 @@ npm run mission -- init M-<id> --packet <file>
 
 Resume reports the current planned execution epoch: the one- or two-package
 issue group this run must finish. A replacement Lead continues that same group.
-When every package in it has merged and been reclaimed, checkpoint and stop;
-the next invocation takes the next planned group. `docs/mission-harness.md`
-governs epochs.
+When every package in it is on main and reclaimed, checkpoint and stop; the next
+invocation takes the next planned group. `docs/mission-harness.md` governs
+epochs.
 
 The CLI owns the append-only journal, fence, refusals, lifecycle, and executable
 frontier. Record every transition through it when it occurs; never reconstruct
-mission memory from conversation. On resume, reconcile journaled branches, PR
-heads, merge states, and current-head CI against GitHub before following
-`next_actions`. A refusal is binding.
+mission memory from conversation. On resume, reconcile journaled branches, heads,
+and push states against `git` and main's CI (`gh run list --branch main`) before
+following `next_actions`. A refusal is binding.
 
 An incomplete or contradictory packet returns to Mission Intake. New scope
 requires a revised approved packet; record `scope-drift` only for affected
@@ -98,7 +100,7 @@ packages and never exceed three concurrent implementers, reviewers, and walkers.
 Corrections outrank fresh work in the same collision domain. The CLI decides
 dependency usability, collisions, migration ownership, and blocked questions.
 Independent packages may run concurrently. A dependent package waits until its
-dependency has merged, then starts from current `main`.
+dependency is on `main`, then starts from current `main`.
 
 Allocate one clean, synthetic, mission-owned local stack and attach workers to
 it with the guarded mission database commands. Serialize mutations of shared
@@ -124,13 +126,15 @@ passes, the Lead files the same path without `--check`.
 Workers, reviewers, and scouts never spawn agents. A stopped worker without a
 receipt resumes under its original identity. Use `abandon-worker` only after a
 failed resume proves it cannot return. Ordinary corrections always return to the
-original worker. A package PR contains only that package; disclose any
-route-changing path before owner review.
+original worker. A package branch contains only that package; disclose any
+`reviewRequired` or `ownerOnly` path before owner review. File each pushed head
+with `mission head M-<id> WP-<pkg> <sha>`.
 
 ## Finish machine checks before owner review
 
-For each package, run affected tests and `npm run typecheck`; exact-head CI is
-the per-PR backstop. Before owner handoff, ask the broker for the review:
+For each package, run affected tests and `npm run typecheck`; the full
+`npm run verify` runs on the Lead's merged result before the push. Before owner
+handoff, ask the broker for the review:
 
 ```bash
 npm run mission -- review request M-<id> WP-<pkg> --head <sha>
@@ -166,11 +170,12 @@ review gate disposition, and never authorizes correction of an advisory. Re-run
 `correction` for the same active worker to replace its scope in place; never
 abandon a healthy worker merely to re-scope it.
 
-Only after targeted checks, the invocation's clear receipt, exact-head CI, and
-`mission runtime promote` may the package enter owner walkthrough. A head
-change returns to these machine checks. The classifier alone carries owner
-approval across a proven non-rendered delta; a rendered or unclassifiable delta
-requires one new walkthrough of only the affected surface.
+Only after targeted checks, the invocation's clear receipt, a passing local
+`npm run verify` at the exact head, and `mission runtime promote` may the package
+enter owner walkthrough. A head change returns to these machine checks. The
+classifier alone carries owner approval across a proven non-rendered delta; a
+rendered or unclassifiable delta requires one new walkthrough of only the
+affected surface.
 
 ## Brian's issue walkthroughs
 
@@ -186,49 +191,54 @@ Before sharing the link, give Brian:
 2. fit: its place in the end-to-end journey and what remains; and
 3. a table of each page, URL, action, judgment, and acceptance.
 
-End with what approval means and does not mean and the package's expected merge
-route. Record `visual-approve` at the exact package head Brian saw. A rendered
-head change voids that approval; a classifier-proven non-rendered change carries
-it forward. At an unchanged approved head, no model review or correction may run:
-only the deterministic merge gate remains.
+End with what approval means and does not mean and who will push the package.
+Record `visual-approve` at the exact package head Brian saw. A rendered head
+change voids that approval; a classifier-proven non-rendered change carries it
+forward. At an unchanged approved head, no model review or correction may run:
+only the deterministic push gate remains.
 
-## Checkpoint, merge, and acceptance
+## Checkpoint, push, and acceptance
 
 Generate checkpoints from durable state. Keep routine detail in the journal;
 show completed/running work, numbered owner questions, owner actions, rules,
 next actions, deploy drift, and resources. Run guarded stale-resource cleanup
-first; never prune dirty, unpushed, active, or unmerged work. Keep an overnight
+first; never prune dirty, unpushed, active, or unlanded work. Keep an overnight
 mission awake.
 
-For qualifying work, run `mission gate` with current PR, checks, and diff
-evidence. A pass records `gate-passed` at the exact head and is the only
-authority to run `gh pr ready` on that package.
+For qualifying work, write `git diff --name-status origin/main...<head>` to a file
+and run `mission gate M-<id> WP-<pkg> --head <sha> --files <file>`. A pass
+records `gate-passed` at the exact head and is the only authority to push that
+package.
 
-Lifting the draft is the last act of the work and the authorization to merge
-it (AGENTS.md, "Merging"). Lift it only when the diff touches no prohibited
-path, review is clear at the exact current head, and, for visual work,
-Brian's visual approval is recorded against that same head. Otherwise leave
-the draft and Brian merges. Never merge.
+Pushing to `main` is the last act of the work and the landing (AGENTS.md,
+"Merging"). Push only when every local check passed at the exact current head,
+review is clear at that head, and, for visual work, Brian's visual approval is
+recorded against that same head. Never push a branch that touches an `ownerOnly`
+path; Brian pushes it. Merge `origin/main` into the branch (never rebase), rerun
+`npm run verify` if main moved, then `git push origin HEAD:main` as a
+fast-forward. Never force-push.
 
-The merge workflow then enables GitHub's auto-merge and GitHub merges once the
-checks are green. Record the resulting merge and route, reclaim it, and let
-dependent work start from the updated `main`. Prohibited paths stay drafts for
-Brian. Highest-risk, auth, and delivery work leaves draft only after an answered
-owner checkpoint names the package. Merging never deploys.
+Record the result with `mission main-record M-<id> WP-<pkg> <sha> --route
+agent|owner`, check main's CI for that SHA, reclaim the package (and once
+main is green, `npm run worktrees:sweep -- --apply`, LAN-523), and let
+dependent work start from the updated `main`. A red main is fixed forward at
+once and nothing else is pushed until it is green. Highest-risk, auth, and
+delivery work is pushed only after an answered owner checkpoint names the
+package. Pushing never deploys; a hosted `db push` follows only a green main.
 
-After every live package has merged, run `npm run verify` once on current
+After every live package is on main, run `npm run verify` once on current
 `main`, then `mission walker request` and one bounded Sonnet walker in the
 runtime the broker prepares. Its contract carries every completion criterion the
 packet names; you cannot substitute a summary, and a targeted re-walk carries
 only the criteria the blocked smoke's findings named. This is not another issue
-review. A blocker creates one corrective issue/PR cycle and never reopens a
-merged package or its owner approval; after that correction merges, repeat only
-the affected journey once. If that targeted re-walk still fails, stop and ask Brian to adjudicate;
-never launch a second correction cycle.
+review. A blocker creates one corrective issue/branch cycle and never reopens a
+package already on main or its owner approval; after that correction lands,
+repeat only the affected journey once. If that targeted re-walk still fails,
+stop and ask Brian to adjudicate; never launch a second correction cycle.
 
 Report exactly one outcome: `Fully accepted`, `Implementation complete;
-acceptance pending`, or `Incomplete`. Merged code or a completed owner action is
-not acceptance without the linked verification. Name every pending criterion,
+acceptance pending`, or `Incomplete`. Code on main or a completed owner action
+is not acceptance without the linked verification. Name every pending criterion,
 owner action, remaining verification, and next actor.
 
 For usage exhaustion, owner stop, or blocking drift, record `mission stop`; a
@@ -238,14 +248,14 @@ completion notifications—never poll.
 ## Boundaries
 
 The Lead launches only `implementation-worker`, `code-reviewer`, and `scout`;
-never implements, explores source code, merges, un-drafts, deploys, runs a
-deployment workflow, applies a migration, touches hosted Supabase or real data,
-changes live GitHub settings, or bypasses a CLI refusal. Use a bounded scout for
-repository investigation. Reviewer and walker runtimes are the broker's: never
-acquire, port, rescue or release one by hand. Local database work uses only
-fenced coordinator commands. LAN-90 and LAN-92 remain binding; manual
-distribution is never a fallback. Linear receives only issue status, draft PR
-link, and final evidence.
+never implements, explores source code, deploys, runs a deployment workflow,
+applies a migration, touches hosted Supabase or real data, changes live GitHub
+settings, or bypasses a CLI refusal. Use a bounded scout for repository
+investigation. Reviewer and walker runtimes are the broker's: never acquire,
+port, rescue or release one by hand. Local database work uses only fenced
+coordinator commands. LAN-90 and LAN-92 remain binding; manual distribution is
+never a fallback. Linear receives only issue status, the Production handoff and
+final evidence comments.
 
 A capability claim includes the exact refusal or two distinct attempts. One
 denied command form proves only that form.

@@ -11,9 +11,10 @@ do not loosen these rules.
   smallest clarification before proceeding.
 - Brian is the final packet approver even when the Project Manager commissioned
   the intake.
-- Completeness, validation, or opening a PR does not approve a packet. Brian's
-  merge of the dedicated intake-artifacts-only PR approves the exact version and commit.
-- No Mission Lead or implementation worker begins before that merge.
+- Completeness, validation, or pushing the intake branch does not approve a
+  packet. Brian's own push of the dedicated intake-artifacts-only branch to
+  `main` approves the exact version and commit.
+- No Mission Lead or implementation worker begins before that push.
 
 ## Implementation boundary
 
@@ -25,7 +26,7 @@ the approved invariants.
 The default is one proposed outcome remains one mission. Recommend a split only
 before finalizing the packet and only when one mission creates a substantial
 safety, authority, readiness, dependency, or outcome-coherence problem. Size,
-multiple technologies, many packages, many PRs, or internal phases are not enough.
+multiple technologies, many packages, many branches, or internal phases are not enough.
 For a proposed split: explain the material danger; show why the Mission Lead's DAG
 cannot contain it; prove no outcome expansion; identify the minimum boundaries and
 dependencies; and obtain Brian's approval before drafting multiple packets.
@@ -128,22 +129,22 @@ Linear issues only at closeout, deduplicated against the Owner Actions view. Eac
 issue names mission id, affected requirement or gate, exact owner outcome,
 readiness prerequisite, completion evidence, and follow-up agent verification.
 
-## Packet artifacts and PR mechanics
+## Packet artifacts and branch mechanics
 
 The packet directory contains `packet.json`, a human-readable `README.md`,
 `sources.md` with provenance, reviewed mockups, and acceptance records. Apply the
 repository formatter before computing or refreshing hashes. Run the canonical
-validator and exact required PR checks. After every packet change, wait for green
-checks on the exact final head SHA. If checks cannot run locally, remain
-`not_ready` and let GitHub Actions provide the gate. Only then hand Brian the
-single merge action. Approved packets on `main` are immutable; material revision
-uses a new `packet_version` and intake-artifacts-only PR.
+validator and `npm run verify` locally at the exact final head SHA after every
+packet change. If checks cannot run locally, remain `not_ready`. Only then hand
+Brian the single push to `main`. Approved packets on `main` are immutable;
+material revision uses a new `packet_version` and an intake-artifacts-only
+branch.
 
 ## Project Manager receipt and final report
 
 The receipt states primary and deliberately shared portfolio coverage,
 dependencies, superseded boundary, remaining unassigned Release One coverage,
-packet path/version/PR/SHA, validation results, and owner-action status.
+packet path/version/SHA, validation results, and owner-action status.
 
 The end-of-run report contains: verdict; mission; packet; boundary; split decision;
 questions or blockers; validation; next action; Project Manager receipt; and
