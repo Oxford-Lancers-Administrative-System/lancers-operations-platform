@@ -214,6 +214,7 @@ export const TOOLING_SUITES: readonly string[] = [
   "tests/telemetry-harvest.test.ts",
   "tests/visual-environment.test.ts",
   "tests/visual-review-readiness.test.ts",
+  "tests/worktree-sweep.test.ts",
 ];
 
 const HOT_DATABASE_SUITES = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.includes(suite));

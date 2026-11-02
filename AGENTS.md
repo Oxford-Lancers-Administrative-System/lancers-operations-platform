@@ -133,7 +133,8 @@ the branch (never rebase; force-push stays denied), rerun verify if main moved, 
 `git push origin HEAD:main`. CI (`ci.yml`) runs once, on `main`. If it goes red, fix forward at once
 and land nothing else until it is green. `deploy.yml` refuses any commit whose required checks are not
 green. A hosted `db push` follows only a green `main` at the commit that carries the migration.
-Landing deploys nothing; in the lifecycle below, `merged` means on `main`.
+Landing deploys nothing; in the lifecycle below, `merged` means on `main`. Once `main` is green,
+`npm run worktrees:sweep -- --apply` removes every clean worktree whose work is on `main`.
 
 Pilot artifacts are required only when `docs/pilot-data-runbook.md` says local proof is insufficient
 and hosted synthetic rows are absent. Tell Brian as soon as any owner action is discovered and
