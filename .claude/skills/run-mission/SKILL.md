@@ -17,8 +17,7 @@ never implement a package. Done means the durable journal accurately reports eac
 package's acceptance outcome and push to main; `/finish-mission` owns final
 reclamation.
 
-Use the canonical lifecycle, model caps, and minimum-agent|owner`, check main's CI for that SHA, reclaim the package (then
-`npm run worktrees:sweep -- --apply`for its worktree, LAN-523), and let dependent work rule in`AGENTS.md`.
+Use the canonical lifecycle, model caps, and minimum-agent rule in `AGENTS.md`.
 The Mission Lead is the only orchestrator. It selects Haiku or Sonnet for an
 implementer from package complexity and never overrides a role's cap.
 
