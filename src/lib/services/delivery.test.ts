@@ -1394,6 +1394,31 @@ describe("provider callbacks", () => {
     expect(current.state).toBe("retryable");
     expect(current.failureReason).toContain("could not deliver");
   });
+
+  it("moves a rejected callback to Failed, not Retryable (LAN-524)", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REJECT`),
+    });
+    const messageId = await attemptFor(eventId);
+
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId}:failed`,
+        providerMessageId: messageId,
+        providerStatus: "failed",
+        outcome: "rejected",
+        detail: "WhatsApp could not deliver to this number — it may not be a WhatsApp account.",
+      },
+      { signatureVerified: true },
+    );
+
+    const current = await row(eventId);
+    expect(current.state).toBe("failed");
+    expect(current.failureReason).toContain("may not be a WhatsApp account");
+  });
 });
 
 /**

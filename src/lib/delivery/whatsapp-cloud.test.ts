@@ -523,12 +523,36 @@ describe("parsing a callback", () => {
     const events = parseCallbackPayload(
       payload([
         { id: "wamid.A", status: "delivered" },
-        { id: "wamid.B", status: "failed", errors: [{ code: 131026 }] },
+        { id: "wamid.B", status: "failed", errors: [{ code: 131000 }] },
       ]),
     );
 
     expect(events.map((event) => event.outcome)).toEqual(["delivered", "failed"]);
-    expect(events[1].detail).toMatch(/not be a WhatsApp account/i);
+  });
+
+  /**
+   * LAN-524. Production stored 259 receipts for numbers not on WhatsApp as
+   * `failed`, and every one read Retryable although no retry can deliver it.
+   * The send path already calls the same code terminal; the receipt path now
+   * agrees. An unknown code and a code a retry can clear stay `failed`.
+   */
+  it.each([
+    [131026, "rejected"],
+    [130403, "rejected"],
+    [132001, "rejected"],
+    [131000, "failed"],
+    [130429, "failed"],
+    [999999, "failed"],
+  ])("reads a failed receipt with code %i as %s", (code, outcome) => {
+    const events = parseCallbackPayload(
+      payload([{ id: "wamid.F", status: "failed", errors: [{ code }] }]),
+    );
+    expect(events[0].outcome).toBe(outcome);
+  });
+
+  it("reads a failed receipt with no error code as failed", () => {
+    const events = parseCallbackPayload(payload([{ id: "wamid.N", status: "failed" }]));
+    expect(events[0].outcome).toBe("failed");
   });
 
   /**
@@ -605,7 +629,7 @@ describe("parsing a callback", () => {
     );
 
     expect(events).toHaveLength(1);
-    expect(events[0].outcome).toBe("failed");
+    expect(events[0].outcome).toBe("rejected");
     expect(events[0].providerStatus).toBe("failed");
     // The operator's sentence is the club's own, not the provider's, and the
     // recipient's number appeared in this payload: none of it may survive.

@@ -160,6 +160,21 @@ const PROVIDER_REASONS: Readonly<Record<number, string>> = {
   130429: "The provider is rate-limiting the club's account. This will be retried automatically.",
 };
 
+/** Whether a known code is one no retry can clear — the send path's and the receipt path's rule. */
+function isTerminalCode(code: number): boolean {
+  return code in PROVIDER_REASONS && !RETRYABLE_PROVIDER_CODES.has(code);
+}
+
+/**
+ * LAN-524. The sentences a terminal code is stored with, so the one-off
+ * correction of receipts stored before the rule can be checked against them.
+ */
+export function terminalProviderReasons(): string[] {
+  return Object.entries(PROVIDER_REASONS)
+    .filter(([code]) => isTerminalCode(Number(code)))
+    .map(([, reason]) => reason);
+}
+
 function reasonFor(code: number, fallback: string): string {
   return PROVIDER_REASONS[code] ?? `The provider refused this message (code ${code}). ${fallback}`;
 }
@@ -607,13 +622,22 @@ export function verifyWebhookSignature(
   return crypto.timingSafeEqual(given, mine);
 }
 
-/** Meta's status vocabulary, mapped onto the frozen model's four outcomes. */
-function outcomeFor(status: string): ProviderCallbackEvent["outcome"] {
+/**
+ * Meta's status vocabulary, mapped onto the frozen model's four outcomes.
+ *
+ * LAN-524. A `failed` receipt carrying a code the send path already treats as
+ * terminal — a number not on WhatsApp, a blocked contact, a missing template —
+ * is `rejected`, exactly as the same code refused at send time is. Recorded as
+ * `failed`, it read **Retryable** for the rest of the attempt ceiling, about a
+ * message no retry can deliver. An unknown code, or one a retry can clear,
+ * stays `failed`.
+ */
+function outcomeFor(status: string, code: number): ProviderCallbackEvent["outcome"] {
   switch (status) {
     case "delivered":
       return "delivered";
     case "failed":
-      return "failed";
+      return isTerminalCode(code) ? "rejected" : "failed";
     // `sent` and `read` are real transitions with no `delivery_outcome` value.
     // Widening that enum is a frozen-model change, so they are stored as
     // evidence and applied to nothing. See `delivery_callbacks.ignored_reason`.
@@ -664,7 +688,7 @@ export function parseCallbackPayload(payload: unknown): ProviderCallbackEvent[] 
           providerEventId: `${row.id}:${state}`,
           providerMessageId: row.id,
           providerStatus: state === "" ? null : state,
-          outcome: outcomeFor(state),
+          outcome: outcomeFor(state, code),
           detail: failure
             ? redactDigits(reasonFor(code, "The provider gave no further detail."))
             : null,

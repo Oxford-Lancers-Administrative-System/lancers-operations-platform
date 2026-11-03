@@ -1145,7 +1145,10 @@ no usable number or email (**Not dispatched — no channel**), an event with no
 start time, and an event message whose brief could not be drawn as the
 WhatsApp image (LAN-508). A provider's own refusal or a bounced email stays
 **Failed**; **Retryable** is kept for a provider failure that another attempt
-might fix.
+might fix. That holds for a WhatsApp failure reported after the send too
+(LAN-524): a receipt saying the number is not on WhatsApp, the person is
+blocked or the template is missing reads **Failed**, exactly as the same refusal
+at send time does; only an unknown or temporary code reads **Retryable**.
 
 **Unknown** (LAN-501) is a message that was sent and whose outcome will never
 arrive: its latest attempt was concluded and no delivered or failed result was
