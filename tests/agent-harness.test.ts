@@ -113,6 +113,10 @@ describe("protected authority", () => {
   const settings = JSON.parse(read(".claude/settings.json"));
   const allow: string[] = settings.permissions.allow;
   const deny: string[] = settings.permissions.deny;
+  const wildcard = (pattern: string) =>
+    new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+  const isPush = (entry: string) =>
+    entry.startsWith("Bash(git push") || entry.startsWith("Bash(git -C * push");
 
   it("disables bypass and denies deploy, hosted database, settings, force and delete routes", () => {
     expect(settings.permissions.disableBypassPermissionsMode).toBe("disable");
@@ -161,16 +165,43 @@ describe("protected authority", () => {
       ]),
     );
     // No allow entry is shadowed by a deny entry of the same prefix.
-    const wildcard = (pattern: string) =>
-      new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
-    for (const entry of allow.filter((value) => value.startsWith("Bash(git push"))) {
+    for (const entry of allow.filter(isPush)) {
       const command = entry.slice("Bash(".length, -1);
-      for (const denied of deny.filter((value) => value.startsWith("Bash(git push"))) {
+      for (const denied of deny.filter(isPush)) {
         expect(
           wildcard(denied.slice("Bash(".length, -1)).test(command),
           `${entry} vs ${denied}`,
         ).toBe(false);
       }
+    }
+  });
+
+  // LAN-524. The session's shell starts in the primary checkout, so an agent
+  // landing from its worktree has to name it: the bare form alone pushed the
+  // primary checkout's HEAD or nothing. The `-C` forms are allowed exactly, and
+  // every force, delete, mirror and long-ref variant of them stays denied.
+  it("lets a worktree push itself, and blocks every destructive variant", () => {
+    const worktree = "/Users/someone/Lancers/w-524";
+    const permitted = (command: string) =>
+      allow.some((entry) => wildcard(entry.slice("Bash(".length, -1)).test(command)) &&
+      !deny.some((entry) => wildcard(entry.slice("Bash(".length, -1)).test(command));
+
+    expect(permitted(`git -C ${worktree} push origin HEAD:main`)).toBe(true);
+    expect(permitted(`git -C ${worktree} push origin HEAD:refs/heads/fix/lan-524-a-b`)).toBe(true);
+    expect(permitted("git push origin HEAD:main")).toBe(true);
+    for (const command of [
+      `git -C ${worktree} push --force origin HEAD:main`,
+      `git -C ${worktree} push -f origin HEAD:main`,
+      `git -C ${worktree} push origin +HEAD:main`,
+      `git -C ${worktree} push origin :main`,
+      `git -C ${worktree} push --delete origin main`,
+      `git -C ${worktree} push --mirror origin`,
+      `git -C ${worktree} push origin HEAD:refs/heads/main`,
+      `git -C ${worktree} push origin main`,
+      `git -C ${worktree} push origin HEAD:main --force`,
+      `git -C ${worktree} push --force origin push origin HEAD:main`,
+    ]) {
+      expect(permitted(command), command).toBe(false);
     }
   });
 
